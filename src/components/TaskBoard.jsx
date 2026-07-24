@@ -9,16 +9,23 @@ const ORDER = [CATEGORIES.DANGER, CATEGORIES.FIRST, CATEGORIES.SECOND, CATEGORIE
 
 export default function TaskBoard({ dateKey }) {
   const tasks = useTaskStore((s) => s.tasks);
+  const assignedToMe = useTaskStore((s) => s.assignedToMe);
   const activeDate = dateKey || todayKey();
-  const todayTasks = tasks.filter((task) => task.dateKey === activeDate && task.status !== "aborted");
+
+  const incoming = assignedToMe
+    .filter((t) => t.dateKey === activeDate && t.status !== "aborted")
+    .map((t) => ({ ...t, origin: "assigned", iteration: 0, isBinTask: false }));
+  const mine = tasks.filter((task) => task.dateKey === activeDate && task.status !== "aborted");
+  const dayTasks = [...incoming, ...mine];
+
   const grouped = ORDER.map((category) => ({
     category,
-    items: todayTasks
+    items: dayTasks
       .filter((task) => task.category === category)
       .sort((a, b) => Number(a.status === "completed") - Number(b.status === "completed")),
   }));
 
-  if (todayTasks.length === 0) {
+  if (dayTasks.length === 0) {
     return (
       <motion.section className="empty-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <span className="empty-mark">✣</span>

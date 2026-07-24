@@ -3,6 +3,7 @@ import { Check, Heart, RotateCcw, Sparkles, Trash2, Undo2, UserRound } from "luc
 import { CATEGORY_META } from "../lib/aiAnalyzer";
 import { getIterationStyle } from "../lib/iterationTheme";
 import { daysBetween } from "../lib/date";
+import { setAssignedStatus } from "../lib/collabService";
 import { useTaskStore } from "../store/useTaskStore";
 
 export default function TaskCard({ task, variant = "board" }) {
@@ -11,13 +12,23 @@ export default function TaskCard({ task, variant = "board" }) {
   const abortTask = useTaskStore((s) => s.abortTask);
   const restoreFromBin = useTaskStore((s) => s.restoreFromBin);
   const deleteForever = useTaskStore((s) => s.deleteForever);
-  const assignee = useTaskStore((s) => s.members.find((member) => member.id === task.assignedTo));
 
   const meta = CATEGORY_META[task.category];
   const delayDays = daysBetween(task.firstDateKey || task.dateKey, task.dateKey);
   const iteration = getIterationStyle(delayDays);
   const isBin = variant === "bin";
+  const isAssigned = task.origin === "assigned";
   const isCompleted = task.status === "completed";
+
+  function toggleComplete() {
+    if (isAssigned) {
+      setAssignedStatus(task.id, isCompleted ? "active" : "completed");
+    } else if (isCompleted) {
+      reopenTask(task.id);
+    } else {
+      completeTask(task.id);
+    }
+  }
 
   return (
     <motion.article
@@ -37,7 +48,7 @@ export default function TaskCard({ task, variant = "board" }) {
       {!isBin && (
         <button
           className="task-check"
-          onClick={() => (isCompleted ? reopenTask(task.id) : completeTask(task.id))}
+          onClick={toggleComplete}
           aria-label={isCompleted ? "Reopen task" : "Complete task"}
         >
           {isCompleted && <Check size={14} />}
@@ -50,7 +61,7 @@ export default function TaskCard({ task, variant = "board" }) {
           {task.isBinTask && <span className="badge badge-neutral">Bin task</span>}
           {iteration.label && <span className="badge badge-aged">{iteration.label}</span>}
           {task.analysisSource && <span className="badge badge-ai">{task.analysisSource === "openrouter" ? "AI considered" : "Local fallback"}</span>}
-          {assignee && <span className="task-assignee"><UserRound size={12} /> {assignee.name}</span>}
+          {isAssigned && <span className="task-assignee"><UserRound size={12} /> from @{task.fromUsername}</span>}
         </div>
         <h4>{task.title}</h4>
         {task.description && <p className="task-description">{task.description}</p>}
@@ -64,6 +75,8 @@ export default function TaskCard({ task, variant = "board" }) {
             <button className="icon-button" onClick={() => restoreFromBin(task.id)} title="Restore to today"><Undo2 size={16} /></button>
             <button className="icon-button icon-button-danger" onClick={() => deleteForever(task.id)} title="Delete forever"><Trash2 size={16} /></button>
           </>
+        ) : isAssigned ? (
+          isCompleted && <button className="icon-button" onClick={toggleComplete} title="Reopen"><RotateCcw size={15} /></button>
         ) : (
           <>
             {isCompleted && <button className="icon-button" onClick={() => reopenTask(task.id)} title="Reopen"><RotateCcw size={15} /></button>}

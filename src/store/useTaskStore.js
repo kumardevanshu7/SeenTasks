@@ -7,13 +7,13 @@ import { todayKey, isBeforeToday } from "../lib/date";
 
 const MAX_ITERATION = 10;
 
-function makeTask({ title, description = "", dateKey = todayKey(), assignedTo = null, assignedBy = null, analysis }) {
+function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
     id: uuid(),
     title,
     description,
     dateKey,
-    firstDateKey: dateKey,
+    firstDateKey: firstDateKey || dateKey,
     category: analysis.category,
     reasoning: analysis.reasoning,
     suggestedWindow: analysis.suggestedWindow,
@@ -43,21 +43,33 @@ export const useTaskStore = create(
 
       setPersona: (persona) => set({ persona: Array.isArray(persona) ? persona : [] }),
 
+      // Collaboration (Firestore-backed, kept in sync by useCollabSync)
+      connections: [],
+      incomingRequests: [],
+      assignedByMe: [],
+      assignedToMe: [],
+      setConnections: (connections) => set({ connections }),
+      setIncomingRequests: (incomingRequests) => set({ incomingRequests }),
+      setAssignedByMe: (assignedByMe) => set({ assignedByMe }),
+      setAssignedToMe: (assignedToMe) => set({ assignedToMe }),
+
       // ---------- Task CRUD ----------
-      addTask: async ({ title, description, assignedTo }) => {
+      // dateKey lets the user add tasks to today or a previous day.
+      addTask: async ({ title, description, dateKey }) => {
         if (!title?.trim()) return null;
         const cleanTitle = title.trim();
         const cleanDescription = description?.trim() || "";
+        const targetDate = dateKey || todayKey();
         const analysis = await analyzeTask(cleanTitle, cleanDescription, personaGuidance(get().persona));
         const task = makeTask({
           title: cleanTitle,
           description: cleanDescription,
-          assignedTo: assignedTo || null,
-          assignedBy: assignedTo ? "self" : null,
+          dateKey: targetDate,
+          firstDateKey: targetDate,
           analysis,
         });
         set((state) => ({ tasks: [task, ...state.tasks] }));
-        return task;
+        return { task, analysis };
       },
 
       completeTask: (id) =>

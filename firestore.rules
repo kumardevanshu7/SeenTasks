@@ -273,6 +273,44 @@ service cloud.firestore {
       }
     }
 
+    // Connection requests between two users.
+    match /connectionRequests/{reqId} {
+      allow read: if signedIn()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if signedIn()
+        && resource.data.toUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
+        && request.resource.data.status in ['accepted', 'rejected'];
+      allow delete: if signedIn()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+    }
+
+    // Tasks assigned from one user to another.
+    match /assignedTasks/{taskId} {
+      allow read: if signedIn()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 500
+        && request.resource.data.category in ['danger', 'first', 'second', 'endofday', 'tomorrow']
+        && request.resource.data.status == 'active';
+      allow update: if signedIn() && (
+          resource.data.fromUid == request.auth.uid
+          || (resource.data.toUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'updatedAt'])
+            && request.resource.data.status in ['active', 'completed'])
+        );
+      allow delete: if signedIn() && resource.data.fromUid == request.auth.uid;
+    }
+
     // Everything not explicitly allowed above remains private.
     match /{document=**} {
       allow read, write: if false;

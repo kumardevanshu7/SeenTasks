@@ -628,3 +628,37 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   .calendar-grid { gap: 4px; }
   .calendar-cell { border-radius: 7px; font-size: 12px; }
 }
+
+/* Collaboration: composer row, search, requests, assigned */
+.composer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+.composer-row label { display: block; margin: 0 0 7px; color: var(--body); font-size: 11px; font-weight: 500; }
+.em-alert { color: white !important; background: var(--error) !important; }
+
+.search-results { margin-top: 12px; overflow: hidden; background: var(--surface-dark-elevated); border: 1px solid #403d38; border-radius: 10px; }
+.search-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 11px 13px; border-bottom: 1px solid #35322d; }
+.search-row:last-child { border-bottom: 0; }
+.search-avatar { display: grid; width: 34px; height: 34px; place-items: center; object-fit: cover; color: white; background: var(--primary); border-radius: 50%; font-size: 12px; font-weight: 600; }
+.search-info strong, .search-info small { display: block; }
+.search-info strong { color: var(--canvas); font-size: 13px; font-weight: 500; }
+.search-info small { margin-top: 2px; color: #8f8b82; font-size: 11px; }
+.search-send { min-height: 34px; padding: 0 13px; font-size: 12px; }
+.search-tag { color: #8f8b82; font-size: 11px; }
+
+.request-section { margin-top: 32px; }
+.request-actions { display: flex; align-items: center; gap: 8px; }
+.request-accept { min-height: 34px; padding: 0 13px; font-size: 12px; }
+
+.assigned-groups { display: flex; flex-direction: column; }
+.assigned-group { padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
+.assigned-group:last-child { border-bottom: 0; }
+.assigned-group-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; margin-bottom: 12px; }
+.assigned-count { color: var(--muted); font-size: 11px; font-weight: 500; }
+.assigned-items { display: flex; flex-direction: column; gap: 6px; padding-left: 50px; }
+.assigned-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; color: var(--body-strong); background: var(--canvas); border: 1px solid var(--hairline); border-radius: 8px; font-size: 13px; }
+.assigned-item-done span { color: var(--muted-soft); text-decoration: line-through; }
+.assigned-item .icon-button { width: 28px; height: 28px; flex-basis: 28px; }
+
+@media (max-width: 620px) {
+  .composer-row { grid-template-columns: 1fr; gap: 14px; }
+  .assigned-items { padding-left: 0; }
+}
