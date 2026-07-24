@@ -1,0 +1,281 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function orgPath(orgId) {
+      return /databases/$(database)/documents/organizations/$(orgId);
+    }
+
+    function orgExists(orgId) {
+      return exists(orgPath(orgId));
+    }
+
+    function isOrgOwner(orgId) {
+      return signedIn()
+        && orgExists(orgId)
+        && get(orgPath(orgId)).data.ownerId == request.auth.uid;
+    }
+
+    function isOrgMember(orgId) {
+      return signedIn()
+        && orgExists(orgId)
+        && get(orgPath(orgId)).data.memberIds is list
+        && get(orgPath(orgId)).data.memberIds.hasAny([request.auth.uid]);
+    }
+
+    function validAnalysisFields(data) {
+      return (!('suggestedWindow' in data)
+          || data.suggestedWindow in ['avoid', 'now', 'next', 'end_of_day', 'tomorrow'])
+        && (!('wellbeingNote' in data)
+          || (data.wellbeingNote is string && data.wellbeingNote.size() <= 500))
+        && (!('confidence' in data)
+          || (data.confidence is number && data.confidence >= 0 && data.confidence <= 1))
+        && (!('signals' in data)
+          || (data.signals is list && data.signals.size() <= 5))
+        && (!('analysisSource' in data)
+          || data.analysisSource in ['openrouter', 'heuristic'])
+        && (!('analysisModel' in data)
+          || data.analysisModel == null
+          || data.analysisModel is string);
+    }
+
+    function validUserTask(userId) {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'ownerId', 'title', 'description', 'dateKey', 'category',
+          'reasoning', 'status', 'iteration', 'isBinTask', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'title', 'description', 'dateKey', 'category',
+          'reasoning', 'status', 'iteration', 'isBinTask', 'createdAt',
+          'updatedAt', 'completedAt', 'abortedAt', 'assignedTo', 'assignedBy',
+          'suggestedWindow', 'wellbeingNote', 'confidence', 'signals',
+          'analyzedAt', 'analysisSource', 'analysisModel'
+        ])
+        && data.ownerId == userId
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 500
+        && data.description is string
+        && data.description.size() <= 5000
+        && data.dateKey is string
+        && data.category in ['danger', 'first', 'second', 'endofday', 'tomorrow']
+        && data.reasoning is string
+        && data.status in ['active', 'completed', 'aborted']
+        && data.iteration is int
+        && data.iteration >= 0
+        && data.iteration <= 10
+        && data.isBinTask is bool
+        && validAnalysisFields(data);
+    }
+
+    function validOrganization() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['ownerId', 'name', 'memberIds', 'createdAt'])
+        && data.keys().hasOnly([
+          'ownerId', 'name', 'memberIds', 'createdAt', 'updatedAt', 'photoURL'
+        ])
+        && data.ownerId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.memberIds is list
+        && data.memberIds.size() <= 100
+        && data.memberIds.hasAny([data.ownerId]);
+    }
+
+    function validOrgTask(orgId) {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'organizationId', 'createdBy', 'title', 'description', 'dateKey',
+          'category', 'reasoning', 'status', 'iteration', 'isBinTask', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'organizationId', 'createdBy', 'assignedTo', 'title', 'description',
+          'dateKey', 'category', 'reasoning', 'status', 'iteration', 'isBinTask',
+          'createdAt', 'updatedAt', 'completedAt', 'abortedAt',
+          'suggestedWindow', 'wellbeingNote', 'confidence', 'signals',
+          'analyzedAt', 'analysisSource', 'analysisModel'
+        ])
+        && data.organizationId == orgId
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 500
+        && data.description is string
+        && data.description.size() <= 5000
+        && data.dateKey is string
+        && data.category in ['danger', 'first', 'second', 'endofday', 'tomorrow']
+        && data.reasoning is string
+        && data.status in ['active', 'completed', 'aborted']
+        && data.iteration is int
+        && data.iteration >= 0
+        && data.iteration <= 10
+        && data.isBinTask is bool
+        && validAnalysisFields(data)
+        && (!('assignedTo' in data)
+          || data.assignedTo == null
+          || get(orgPath(orgId)).data.memberIds.hasAny([data.assignedTo]));
+    }
+
+    function canManageOrgTask(orgId) {
+      return isOrgOwner(orgId)
+        || (signedIn() && resource.data.createdBy == request.auth.uid);
+    }
+
+    function isTaskAssignee() {
+      return signedIn()
+        && ('assignedTo' in resource.data)
+        && resource.data.assignedTo == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+      allow delete: if false;
+      allow create, update: if isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'username', 'usernameLower', 'displayName', 'email',
+          'photoURL', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == userId;
+
+      match /tasks/{taskId} {
+        allow read, delete: if isSelf(userId);
+        allow create: if isSelf(userId) && validUserTask(userId);
+        allow update: if isSelf(userId)
+          && validUserTask(userId)
+          && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.createdAt == resource.data.createdAt;
+      }
+
+      match /settings/{settingId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /friends/{friendId} {
+        allow read, write: if isSelf(userId);
+      }
+    }
+
+    match /publicProfiles/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'username', 'usernameLower', 'displayName', 'photoURL', 'updatedAt'
+        ])
+        && request.resource.data.uid == userId;
+      allow delete: if isSelf(userId);
+    }
+
+    // Usernames are claimed create-only, which makes them unique:
+    // a second person's create fails because the document already exists.
+    match /usernames/{username} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /organizations/{orgId} {
+      allow create: if signedIn()
+        && validOrganization()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds.size() == 1
+        && request.resource.data.memberIds[0] == request.auth.uid;
+      allow read: if isOrgMember(orgId);
+      allow update: if isOrgOwner(orgId)
+        && validOrganization()
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isOrgOwner(orgId);
+
+      match /members/{memberId} {
+        allow read: if isOrgMember(orgId);
+        allow create, update: if isOrgOwner(orgId)
+          && request.resource.data.keys().hasOnly([
+            'uid', 'displayName', 'email', 'photoURL', 'role',
+            'joinedAt', 'updatedAt', 'invitedBy'
+          ])
+          && request.resource.data.uid == memberId
+          && request.resource.data.role in ['owner', 'member']
+          && get(orgPath(orgId)).data.memberIds.hasAny([memberId]);
+        allow delete: if isOrgOwner(orgId)
+          && memberId != get(orgPath(orgId)).data.ownerId;
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId)
+          && validOrgTask(orgId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isOrgMember(orgId)
+          && validOrgTask(orgId)
+          && request.resource.data.organizationId == resource.data.organizationId
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt
+          && (
+            canManageOrgTask(orgId)
+            || (isTaskAssignee()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'completedAt', 'updatedAt'
+              ]))
+          );
+        allow delete: if canManageOrgTask(orgId);
+      }
+
+      match /invitations/{inviteId} {
+        allow create: if isOrgOwner(orgId)
+          && request.resource.data.keys().hasAll([
+            'organizationId', 'email', 'status', 'createdBy', 'createdAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'organizationId', 'email', 'status', 'createdBy', 'createdAt',
+            'updatedAt', 'acceptedBy', 'acceptedAt'
+          ])
+          && request.resource.data.organizationId == orgId
+          && request.resource.data.email is string
+          && request.resource.data.email.size() > 3
+          && request.resource.data.email.size() <= 320
+          && request.resource.data.status == 'pending'
+          && request.resource.data.createdBy == request.auth.uid;
+
+        allow read: if isOrgOwner(orgId)
+          || (signedIn()
+            && ('email' in request.auth.token)
+            && request.auth.token.email == resource.data.email);
+
+        allow update: if (isOrgOwner(orgId)
+            && request.resource.data.keys().hasOnly([
+              'organizationId', 'email', 'status', 'createdBy', 'createdAt',
+              'updatedAt', 'acceptedBy', 'acceptedAt'
+            ])
+            && request.resource.data.organizationId == resource.data.organizationId
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.status in ['pending', 'accepted', 'revoked'])
+          || (signedIn()
+            && ('email' in request.auth.token)
+            && request.auth.token.email == resource.data.email
+            && request.resource.data.organizationId == resource.data.organizationId
+            && request.resource.data.email == resource.data.email
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedBy == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'acceptedBy', 'acceptedAt', 'updatedAt'
+            ]));
+
+        allow delete: if isOrgOwner(orgId);
+      }
+    }
+
+    // Everything not explicitly allowed above remains private.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
