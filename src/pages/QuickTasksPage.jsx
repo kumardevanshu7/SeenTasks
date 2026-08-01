@@ -19,17 +19,23 @@ export default function QuickTasksPage() {
 
   return (
     <div className="page narrow-page page-quick">
-      <section className="simple-hero">
+      <section className="simple-hero simple-hero-compact">
         <p className="eyebrow">Manual checklist</p>
         <h1>Quick tasks</h1>
         <p>
           {isToday
-            ? "Small things for today—add them, tick them off. Unfinished items move to Not completed at midnight."
-            : "Quick tasks for this day. Anything left open after midnight sits in Not completed."}
+            ? "Add, tick, done. Unfinished moves to Not completed at midnight."
+            : "Checklist for this day."}
         </p>
       </section>
 
-      <DateStrip selected={selectedDate} onSelect={setSelectedDate} counts={counts} />
+      <DateStrip
+        selected={selectedDate}
+        onSelect={setSelectedDate}
+        counts={counts}
+        range={14}
+        instantScroll
+      />
       <QuickTasks dateKey={selectedDate} />
     </div>
   );

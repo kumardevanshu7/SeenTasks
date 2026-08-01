@@ -8,6 +8,18 @@ export default defineConfig({
       "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/firebase")) return "firebase";
+          if (id.includes("node_modules/framer-motion")) return "motion";
+          if (id.includes("node_modules/react-markdown")) return "markdown";
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

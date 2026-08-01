@@ -43,7 +43,7 @@ export default function TodayPage() {
         </div>
       </section>
 
-      <DateStrip selected={selectedDate} onSelect={setSelectedDate} />
+      <DateStrip selected={selectedDate} onSelect={setSelectedDate} range={14} instantScroll />
 
       <section className="day-summary" aria-label="Day progress">
         <div className="summary-item"><Circle size={18} /><span><strong>{active}</strong> still open</span></div>

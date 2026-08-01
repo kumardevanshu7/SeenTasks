@@ -8,8 +8,7 @@ import {
   listenIncomingRequests,
 } from "../lib/collabService";
 
-// Keeps collaboration state (connections, requests, assigned tasks) in the
-// store and live via Firestore snapshots while the user is signed in.
+// Collaboration listeners start after first paint so Quick Tasks opens fast.
 export function useCollabSync() {
   const { user, profile } = useAuth();
   const setConnections = useTaskStore((s) => s.setConnections);
@@ -19,12 +18,33 @@ export function useCollabSync() {
 
   useEffect(() => {
     if (!user || !profile?.username) return undefined;
-    const unsubs = [
-      listenConnections(user.uid, setConnections),
-      listenIncomingRequests(user.uid, setIncomingRequests),
-      listenAssignedByMe(user.uid, setAssignedByMe),
-      listenAssignedToMe(user.uid, setAssignedToMe),
-    ];
-    return () => unsubs.forEach((fn) => fn && fn());
+
+    let unsubs = [];
+    let cancelled = false;
+    let idleId = 0;
+    let timeoutId = 0;
+
+    const start = () => {
+      if (cancelled) return;
+      unsubs = [
+        listenConnections(user.uid, setConnections),
+        listenIncomingRequests(user.uid, setIncomingRequests),
+        listenAssignedByMe(user.uid, setAssignedByMe),
+        listenAssignedToMe(user.uid, setAssignedToMe),
+      ];
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(start, { timeout: 2500 });
+    } else {
+      timeoutId = window.setTimeout(start, 800);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      unsubs.forEach((fn) => fn && fn());
+    };
   }, [user, profile?.username, setConnections, setIncomingRequests, setAssignedByMe, setAssignedToMe]);
 }

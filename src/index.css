@@ -228,6 +228,9 @@ p, h1, h2, h3, h4 { margin: 0; }
 .empty-state .button { color: white; background: var(--primary); }
 
 .simple-hero { padding-bottom: 26px; border-bottom: 1px solid var(--hairline); }
+.simple-hero-compact { padding-bottom: 16px; }
+.simple-hero-compact h1 { font-size: 24px; }
+.simple-hero-compact > p:last-child { margin-top: 6px; }
 .simple-hero h1 { margin-top: 6px; color: var(--ink); font-size: 26px; line-height: 1.05; }
 .simple-hero > p:last-child { max-width: 560px; margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .content-card { margin-top: 20px; overflow: hidden; background: var(--surface-card); border-radius: 12px; }
@@ -339,6 +342,8 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 .firebase-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
 .firebase-footer > div { min-width: 0; }
 .sidebar-signout { display: inline-flex; align-items: center; gap: 5px; padding: 6px; color: var(--muted); background: transparent; font-size: 10px; white-space: nowrap; }
+.route-fallback { min-height: 40vh; background: var(--canvas); }
+
 .auth-loading { display: grid; min-height: 100vh; place-content: center; justify-items: center; gap: 12px; color: var(--muted); background: var(--canvas); font-size: 13px; }
 .auth-loading-mark { color: var(--primary); font-size: 36px; animation: calm-pulse 1.4s ease-in-out infinite; }
 @keyframes calm-pulse { 50% { opacity: .45; transform: rotate(22.5deg); } }

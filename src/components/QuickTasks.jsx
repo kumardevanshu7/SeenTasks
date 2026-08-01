@@ -141,11 +141,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
   }
 
   return (
-    <motion.li
-      layout
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, height: 0 }}
+    <li
       className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${rowExtras ? ` ${rowExtras}` : ""}${over ? " quick-task-drop-target" : ""}${dragActive ? " quick-task-drop-ready" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={() => setOver(false)}
@@ -223,7 +219,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
       >
         <Trash2 size={14} />
       </button>
-    </motion.li>
+    </li>
   );
 }
 
@@ -511,8 +507,7 @@ export default function QuickTasks({ dateKey }) {
             </p>
           ) : (
             <ul className="quick-tasks-list">
-              <AnimatePresence initial={false}>
-                {activeList.map((item) => (
+              {activeList.map((item) => (
                   <QuickTaskRow
                     key={item.id}
                     item={item}
@@ -522,7 +517,6 @@ export default function QuickTasks({ dateKey }) {
                     dragActive={dragActive}
                   />
                 ))}
-              </AnimatePresence>
             </ul>
           )}
 
@@ -564,8 +558,7 @@ export default function QuickTasks({ dateKey }) {
               <p className="quick-tasks-empty">All clear—nothing carried past midnight.</p>
             ) : (
               <ul className="quick-tasks-list">
-                <AnimatePresence initial={false}>
-                  {notCompleted.map((item) => (
+                {notCompleted.map((item) => (
                     <QuickTaskRow
                       key={item.id}
                       item={item}
@@ -576,7 +569,6 @@ export default function QuickTasks({ dateKey }) {
                       dragActive={dragActive}
                     />
                   ))}
-                </AnimatePresence>
               </ul>
             )}
           </div>

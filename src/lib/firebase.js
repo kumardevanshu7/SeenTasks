@@ -1,5 +1,4 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics, isSupported } from "firebase/analytics";
 import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -26,7 +25,22 @@ export const authPersistenceReady = setPersistence(auth, browserLocalPersistence
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
+// Analytics loads after first paint / idle — not on the critical path.
 export const analyticsReady =
   typeof window === "undefined"
     ? Promise.resolve(null)
-    : isSupported().then((supported) => (supported ? getAnalytics(firebaseApp) : null));
+    : new Promise((resolve) => {
+        const start = () => {
+          import("firebase/analytics")
+            .then(({ getAnalytics, isSupported }) =>
+              isSupported().then((supported) => (supported ? getAnalytics(firebaseApp) : null))
+            )
+            .then(resolve)
+            .catch(() => resolve(null));
+        };
+        if ("requestIdleCallback" in window) {
+          window.requestIdleCallback(start, { timeout: 5000 });
+        } else {
+          window.setTimeout(start, 2000);
+        }
+      });

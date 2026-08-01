@@ -1,13 +1,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { v4 as uuid } from "uuid";
-import { analyzeTask } from "../lib/aiAnalyzer";
 import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { removeQuickTaskDoc, upsertQuickTask } from "../lib/quickTaskService";
 
 const MAX_ITERATION = 10;
+
+async function runAnalyze(title, description, persona) {
+  const { analyzeTask } = await import("../lib/aiAnalyzer");
+  return analyzeTask(title, description, persona);
+}
 
 function syncQuickUpsert(task) {
   const uid = auth.currentUser?.uid;
@@ -143,7 +147,7 @@ export const useTaskStore = create(
         const cleanTitle = title.trim();
         const cleanDescription = description?.trim() || "";
         const targetDate = dateKey || todayKey();
-        const analysis = await analyzeTask(cleanTitle, cleanDescription, personaGuidance(get().persona));
+        const analysis = await runAnalyze(cleanTitle, cleanDescription, personaGuidance(get().persona));
         const task = makeTask({
           title: cleanTitle,
           description: cleanDescription,
@@ -220,7 +224,7 @@ export const useTaskStore = create(
       reanalyzeTask: async (id) => {
         const task = get().tasks.find((item) => item.id === id);
         if (!task) return null;
-        const analysis = await analyzeTask(task.title, task.description, personaGuidance(get().persona));
+        const analysis = await runAnalyze(task.title, task.description, personaGuidance(get().persona));
         set((state) => ({
           tasks: state.tasks.map((item) => item.id === id ? {
             ...item,
@@ -264,7 +268,16 @@ export const useTaskStore = create(
         ).length;
       },
     }),
-    { name: "seentasks-store" }
+    {
+      name: "seentasks-store",
+      partialize: (state) => ({
+        tasks: state.tasks,
+        quickTasks: state.quickTasks,
+        members: state.members,
+        persona: state.persona,
+        quickDeletePassword: state.quickDeletePassword,
+      }),
+    }
   )
 );
 

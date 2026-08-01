@@ -10,6 +10,32 @@ const REDIRECT_ERROR_CODES = new Set([
   "auth/operation-not-supported-in-this-environment",
 ]);
 
+const PROFILE_CACHE_KEY = "seentasks-profile-cache";
+
+function readProfileCache(uid) {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.uid !== uid || !parsed?.profile) return null;
+    return parsed.profile;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(uid, profile) {
+  try {
+    if (!uid || !profile) {
+      localStorage.removeItem(PROFILE_CACHE_KEY);
+      return;
+    }
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ uid, profile }));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -27,18 +53,31 @@ export default function AuthProvider({ children }) {
           if (!active) return;
           setUser(nextUser);
           setLoading(false);
-          setProfile(null);
+
           if (!nextUser) {
+            setProfile(null);
             setProfileLoading(false);
+            writeProfileCache(null, null);
             return;
           }
 
-          setProfileLoading(true);
+          const cached = readProfileCache(nextUser.uid);
+          if (cached) {
+            // Show app immediately — refresh profile in the background.
+            setProfile(cached);
+            setProfileLoading(false);
+          } else {
+            setProfile(null);
+            setProfileLoading(true);
+          }
+
           try {
             const nextProfile = await loadUserProfile(nextUser.uid);
-            if (active && auth.currentUser?.uid === nextUser.uid) setProfile(nextProfile);
+            if (!active || auth.currentUser?.uid !== nextUser.uid) return;
+            setProfile(nextProfile);
+            writeProfileCache(nextUser.uid, nextProfile);
           } catch {
-            if (active) setProfile(null);
+            if (active && !cached) setProfile(null);
           } finally {
             if (active) setProfileLoading(false);
           }
@@ -71,10 +110,12 @@ export default function AuthProvider({ children }) {
   const claimUsername = useCallback(async (username) => {
     const nextProfile = await claimUsernameApi(username);
     setProfile(nextProfile);
+    if (auth.currentUser?.uid) writeProfileCache(auth.currentUser.uid, nextProfile);
     return nextProfile;
   }, []);
 
   const signOut = useCallback(async () => {
+    writeProfileCache(null, null);
     await firebaseSignOut(auth);
     setProfile(null);
   }, []);

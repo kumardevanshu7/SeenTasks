@@ -3,9 +3,9 @@ import { useTaskStore } from "../store/useTaskStore";
 import { toKey, todayKey } from "../lib/date";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const RANGE = 30; // days before and after today
+const DEFAULT_RANGE = 30;
 
-export default function DateStrip({ selected, onSelect, counts }) {
+export default function DateStrip({ selected, onSelect, counts, range = DEFAULT_RANGE, instantScroll = false }) {
   const tasks = useTaskStore((s) => s.tasks);
   const scrollRef = useRef(null);
   const selectedRef = useRef(null);
@@ -25,17 +25,22 @@ export default function DateStrip({ selected, onSelect, counts }) {
     const base = new Date();
     base.setHours(0, 0, 0, 0);
     const list = [];
-    for (let offset = -RANGE; offset <= RANGE; offset += 1) {
+    const span = Math.max(1, Number(range) || DEFAULT_RANGE);
+    for (let offset = -span; offset <= span; offset += 1) {
       const d = new Date(base);
       d.setDate(base.getDate() + offset);
       list.push(d);
     }
     return list;
-  }, []);
+  }, [range]);
 
   useEffect(() => {
-    selectedRef.current?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  }, [selected]);
+    selectedRef.current?.scrollIntoView({
+      behavior: instantScroll ? "auto" : "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [selected, instantScroll]);
 
   return (
     <div className="date-strip" ref={scrollRef} role="tablist" aria-label="Pick a day">
