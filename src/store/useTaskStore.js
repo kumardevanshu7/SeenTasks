@@ -126,9 +126,22 @@ export const useTaskStore = create(
         if (next) syncQuickUpsert(next);
       },
 
-      quickDeletePassword: "",
-      setQuickDeletePassword: (password) =>
-        set({ quickDeletePassword: String(password || "").trim() }),
+      // One Password — Firebase only; memory holds { question, answerHash, updatedAt }
+      onePassword: null,
+      setOnePassword: (onePassword) => {
+        if (!onePassword?.question?.trim() || !onePassword?.answerHash?.trim()) {
+          set({ onePassword: null });
+          return;
+        }
+        set({
+          onePassword: {
+            question: String(onePassword.question).trim(),
+            answerHash: String(onePassword.answerHash).trim(),
+            updatedAt: onePassword.updatedAt || Date.now(),
+          },
+        });
+      },
+      clearOnePassword: () => set({ onePassword: null }),
 
       // Collaboration (Firestore-backed, kept in sync by useCollabSync)
       connections: [],
@@ -270,13 +283,38 @@ export const useTaskStore = create(
     }),
     {
       name: "seentasks-store",
+      version: 2,
       partialize: (state) => ({
         tasks: state.tasks,
         quickTasks: state.quickTasks,
         members: state.members,
         persona: state.persona,
-        quickDeletePassword: state.quickDeletePassword,
       }),
+      // Strip secrets / obsolete keys from older localStorage snapshots.
+      merge: (persisted, current) => {
+        const incoming = persisted && typeof persisted === "object" ? persisted : {};
+        const {
+          onePassword: _op,
+          quickDeletePassword: _qp,
+          connections: _c,
+          incomingRequests: _ir,
+          assignedByMe: _ab,
+          assignedToMe: _at,
+          ...safe
+        } = incoming;
+        return {
+          ...current,
+          ...safe,
+          onePassword: null,
+        };
+      },
+      migrate: (persisted) => {
+        if (!persisted || typeof persisted !== "object") return persisted;
+        const next = { ...persisted };
+        delete next.onePassword;
+        delete next.quickDeletePassword;
+        return next;
+      },
     }
   )
 );

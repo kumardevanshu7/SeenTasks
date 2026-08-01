@@ -12,6 +12,7 @@ const PersonaPage = lazy(() => import("./pages/PersonaPage"));
 const AssistantPage = lazy(() => import("./pages/AssistantPage"));
 const BinPage = lazy(() => import("./pages/BinPage"));
 const TeamPage = lazy(() => import("./pages/TeamPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 
 function RouteFallback() {
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="assistant" element={<AssistantPage />} />
             <Route path="bin" element={<BinPage />} />
             <Route path="team" element={<TeamPage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="explore" element={<ExplorePage />} />
           </Route>
         </Route>

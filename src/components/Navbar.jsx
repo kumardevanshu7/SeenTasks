@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, CalendarRange, CheckSquare, LogOut, MessageCircle, Menu, Plus, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
+import { CalendarDays, CalendarRange, CheckSquare, LogOut, MessageCircle, Menu, Plus, Settings, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -63,6 +63,7 @@ export default function Navbar() {
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)}><MessageCircle size={17} /><span>Assistant</span></NavLink>
           <NavLink to="/app/bin" className={linkClass} onClick={() => setOpen(false)}><Trash2 size={17} /><span>Abort bin</span>{binCount > 0 && <em>{binCount}</em>}</NavLink>
           <NavLink to="/app/team" className={linkClass} onClick={() => setOpen(false)}><Users size={17} /><span>Organization</span>{requestCount > 0 ? <em className="em-alert">{requestCount}</em> : connectionCount > 0 && <em>{connectionCount}</em>}</NavLink>
+          <NavLink to="/app/settings" className={linkClass} onClick={() => setOpen(false)}><Settings size={17} /><span>Settings</span></NavLink>
           <NavLink to="/app/explore" className={linkClass} onClick={() => setOpen(false)}>
             <img className="nav-brand-icon" src="/arigato-single-logo.png" alt="" width={17} height={17} /><span>Explore Arigato Labs</span>
           </NavLink>

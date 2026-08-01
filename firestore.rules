@@ -158,8 +158,20 @@ service cloud.firestore {
         allow read, write: if isSelf(userId);
       }
 
+      // One Password + other owner settings. onePassword must store hashed answer only.
       match /settings/{settingId} {
-        allow read, write: if isSelf(userId);
+        allow read: if isSelf(userId);
+        allow delete: if isSelf(userId);
+        allow create, update: if isSelf(userId) && (
+          settingId != "onePassword"
+          || (
+            request.resource.data.keys().hasOnly(["question", "answerHash", "updatedAt"])
+            && request.resource.data.question is string
+            && request.resource.data.answerHash is string
+            && request.resource.data.question.size() > 0
+            && request.resource.data.answerHash.size() > 0
+          )
+        );
       }
 
       match /friends/{friendId} {

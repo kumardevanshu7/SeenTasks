@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CircleAlert, Lock, Trash2, X } from "lucide-react";
+import { CircleAlert, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
+import OnePasswordGate from "./OnePasswordGate";
 import { formatClock, formatFriendly, formatMonthDay, isBeforeToday, todayKey } from "../lib/date";
 
 const QUICK_LABELS = [
@@ -223,114 +224,6 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
   );
 }
 
-function DeletePasswordModal({ request, savedPassword, onClose, onConfirm, onSetPassword }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-  const needsSetup = !savedPassword;
-  const label = request.type === "clear"
-    ? "Clear all completed tasks"
-    : `Delete “${request.title}”`;
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    const value = password.trim();
-    if (!value) {
-      setError("Enter a password.");
-      return;
-    }
-
-    if (needsSetup) {
-      if (value.length < 4) {
-        setError("Use at least 4 characters.");
-        return;
-      }
-      if (value !== confirm.trim()) {
-        setError("Passwords do not match.");
-        return;
-      }
-      onSetPassword(value);
-      onConfirm(request);
-      return;
-    }
-
-    if (value !== savedPassword) {
-      setError("Wrong password.");
-      return;
-    }
-    onConfirm(request);
-  }
-
-  return (
-    <motion.div
-      className="modal-backdrop"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <motion.form
-        className="quick-delete-modal"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        <div className="quick-delete-head">
-          <span className="heading-icon"><Lock size={18} /></span>
-          <div>
-            <p className="eyebrow">{needsSetup ? "Set delete password" : "Password required"}</p>
-            <h2>{label}</h2>
-          </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="quick-delete-body">
-          <p>
-            {needsSetup
-              ? "Create a password you’ll use before deleting quick tasks. Stored only on this device."
-              : "Enter your delete password to continue."}
-          </p>
-          <label>
-            Password
-            <input
-              className="text-input"
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(""); }}
-              autoFocus
-              autoComplete="current-password"
-            />
-          </label>
-          {needsSetup && (
-            <label>
-              Confirm password
-              <input
-                className="text-input"
-                type="password"
-                value={confirm}
-                onChange={(e) => { setConfirm(e.target.value); setError(""); }}
-                autoComplete="new-password"
-              />
-            </label>
-          )}
-          {error && <p className="quick-delete-error">{error}</p>}
-        </div>
-
-        <div className="quick-delete-footer">
-          <button type="button" className="button button-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="button button-primary">
-            {needsSetup ? "Set & delete" : "Delete"}
-          </button>
-        </div>
-      </motion.form>
-    </motion.div>
-  );
-}
-
 export default function QuickTasks({ dateKey }) {
   const [draft, setDraft] = useState("");
   const [dayNow, setDayNow] = useState(todayKey);
@@ -342,8 +235,6 @@ export default function QuickTasks({ dateKey }) {
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
   const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
   const applyQuickLabel = useTaskStore((s) => s.applyQuickLabel);
-  const savedPassword = useTaskStore((s) => s.quickDeletePassword);
-  const setQuickDeletePassword = useTaskStore((s) => s.setQuickDeletePassword);
 
   useEffect(() => {
     const tick = () => setDayNow(todayKey());
@@ -410,9 +301,10 @@ export default function QuickTasks({ dateKey }) {
   }
 
   function runDelete(request) {
+    if (!request) return;
     if (request.type === "clear") {
       dayDone.forEach((t) => deleteQuickTask(t.id));
-    } else {
+    } else if (request.id) {
       deleteQuickTask(request.id);
     }
     setDeleteRequest(null);
@@ -575,17 +467,21 @@ export default function QuickTasks({ dateKey }) {
         </section>
       )}
 
-      <AnimatePresence>
-        {deleteRequest && (
-          <DeletePasswordModal
-            request={deleteRequest}
-            savedPassword={savedPassword}
-            onClose={() => setDeleteRequest(null)}
-            onConfirm={runDelete}
-            onSetPassword={setQuickDeletePassword}
-          />
-        )}
-      </AnimatePresence>
+      <OnePasswordGate
+        open={Boolean(deleteRequest)}
+        title={
+          deleteRequest?.type === "clear"
+            ? "Clear all completed tasks"
+            : `Delete “${deleteRequest?.title || "task"}”`
+        }
+        description="Answer your One Password question to delete this."
+        onClose={() => setDeleteRequest(null)}
+        onConfirm={() => {
+          const pending = deleteRequest;
+          setDeleteRequest(null);
+          runDelete(pending);
+        }}
+      />
     </div>
   );
 }

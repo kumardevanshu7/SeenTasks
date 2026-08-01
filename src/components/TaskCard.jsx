@@ -1,19 +1,19 @@
 import { motion } from "framer-motion";
 import { Check, Heart, RotateCcw, Sparkles, Trash2, Undo2, UserRound } from "lucide-react";
-import { CATEGORY_META } from "../lib/aiAnalyzer";
+import { CATEGORY_META, CATEGORIES } from "../lib/aiAnalyzer";
 import { getIterationStyle } from "../lib/iterationTheme";
 import { daysBetween } from "../lib/date";
 import { setAssignedStatus } from "../lib/collabService";
 import { useTaskStore } from "../store/useTaskStore";
 
-export default function TaskCard({ task, variant = "board" }) {
+export default function TaskCard({ task, variant = "board", onRequestDeleteForever }) {
   const completeTask = useTaskStore((s) => s.completeTask);
   const reopenTask = useTaskStore((s) => s.reopenTask);
   const abortTask = useTaskStore((s) => s.abortTask);
   const restoreFromBin = useTaskStore((s) => s.restoreFromBin);
   const deleteForever = useTaskStore((s) => s.deleteForever);
 
-  const meta = CATEGORY_META[task.category];
+  const meta = CATEGORY_META[task.category] || CATEGORY_META[CATEGORIES.SECOND];
   const delayDays = daysBetween(task.firstDateKey || task.dateKey, task.dateKey);
   const iteration = getIterationStyle(delayDays);
   const isBin = variant === "bin";
@@ -28,6 +28,11 @@ export default function TaskCard({ task, variant = "board" }) {
     } else {
       completeTask(task.id);
     }
+  }
+
+  function handleDeleteForever() {
+    if (onRequestDeleteForever) onRequestDeleteForever(task);
+    else deleteForever(task.id);
   }
 
   return (
@@ -73,7 +78,7 @@ export default function TaskCard({ task, variant = "board" }) {
         {isBin ? (
           <>
             <button className="icon-button" onClick={() => restoreFromBin(task.id)} title="Restore to today"><Undo2 size={16} /></button>
-            <button className="icon-button icon-button-danger" onClick={() => deleteForever(task.id)} title="Delete forever"><Trash2 size={16} /></button>
+            <button className="icon-button icon-button-danger" onClick={handleDeleteForever} title="Delete forever"><Trash2 size={16} /></button>
           </>
         ) : isAssigned ? (
           isCompleted && <button className="icon-button" onClick={toggleComplete} title="Reopen"><RotateCcw size={15} /></button>

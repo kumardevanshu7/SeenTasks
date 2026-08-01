@@ -187,6 +187,15 @@ p, h1, h2, h3, h4 { margin: 0; }
 .quick-delete-error { margin: 0; color: var(--error); font-size: 12px; }
 .quick-delete-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 20px 20px; }
 
+.one-password-status { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 5px 10px; color: #3a7a52; background: #e5f3ea; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.one-password-form { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 22px; }
+.one-password-copy { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.one-password-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }
+.one-password-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.one-password-ok { margin: 0; color: #3a7a52; font-size: 12px; }
+.one-password-prompt { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--surface-soft); border-radius: 8px; }
+.one-password-prompt strong { color: var(--ink); font-size: 15px; font-weight: 500; line-height: 1.35; }
+
 .task-board { padding-bottom: 32px; }
 .board-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
 .board-heading h2, .content-card h2 { margin-top: 2px; color: var(--ink); font-family: "Cormorant Garamond", Garamond, serif; font-size: 19px; font-weight: 500; letter-spacing: -.3px; line-height: 1.1; }
