@@ -4,8 +4,22 @@ import { v4 as uuid } from "uuid";
 import { analyzeTask } from "../lib/aiAnalyzer";
 import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
+import { auth } from "../lib/firebase";
+import { removeQuickTaskDoc, upsertQuickTask } from "../lib/quickTaskService";
 
 const MAX_ITERATION = 10;
+
+function syncQuickUpsert(task) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !task) return;
+  upsertQuickTask(uid, task).catch(() => {});
+}
+
+function syncQuickRemove(id) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !id) return;
+  removeQuickTaskDoc(uid, id).catch(() => {});
+}
 
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
@@ -44,7 +58,10 @@ export const useTaskStore = create(
 
       setPersona: (persona) => set({ persona: Array.isArray(persona) ? persona : [] }),
 
-      // ---------- Quick tasks (manual checklist, no AI) ----------
+      // ---------- Quick tasks (manual checklist, synced to Firestore) ----------
+      setQuickTasks: (quickTasks) =>
+        set({ quickTasks: Array.isArray(quickTasks) ? quickTasks : [] }),
+
       addQuickTask: ({ title, dateKey }) => {
         const clean = title?.trim();
         if (!clean) return null;
@@ -57,24 +74,30 @@ export const useTaskStore = create(
           completedAt: null,
         };
         set((s) => ({ quickTasks: [item, ...s.quickTasks] }));
+        syncQuickUpsert(item);
         return item;
       },
 
-      toggleQuickTask: (id) =>
+      toggleQuickTask: (id) => {
+        let next = null;
         set((s) => ({
-          quickTasks: s.quickTasks.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  done: !t.done,
-                  completedAt: !t.done ? new Date().toISOString() : null,
-                }
-              : t
-          ),
-        })),
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== id) return t;
+            next = {
+              ...t,
+              done: !t.done,
+              completedAt: !t.done ? new Date().toISOString() : null,
+            };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
 
-      deleteQuickTask: (id) =>
-        set((s) => ({ quickTasks: s.quickTasks.filter((t) => t.id !== id) })),
+      deleteQuickTask: (id) => {
+        set((s) => ({ quickTasks: s.quickTasks.filter((t) => t.id !== id) }));
+        syncQuickRemove(id);
+      },
 
       applyQuickLabel: (id, tag, patternSource) => {
         const tagText = String(tag || "").trim();
@@ -82,6 +105,7 @@ export const useTaskStore = create(
         const re = patternSource instanceof RegExp
           ? new RegExp(patternSource.source, patternSource.flags.includes("g") ? patternSource.flags : `${patternSource.flags}g`)
           : null;
+        let next = null;
         set((s) => ({
           quickTasks: s.quickTasks.map((t) => {
             if (t.id !== id) return t;
@@ -91,10 +115,11 @@ export const useTaskStore = create(
             } else if ((t.title || "").toLowerCase().includes(tagText.toLowerCase())) {
               return t;
             }
-            const next = `${(t.title || "").trim()} ${tagText}`.trim();
-            return { ...t, title: next };
+            next = { ...t, title: `${(t.title || "").trim()} ${tagText}`.trim() };
+            return next;
           }),
         }));
+        if (next) syncQuickUpsert(next);
       },
 
       quickDeletePassword: "",

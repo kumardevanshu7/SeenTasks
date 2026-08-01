@@ -154,6 +154,10 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt;
       }
 
+      match /quickTasks/{taskId} {
+        allow read, write: if isSelf(userId);
+      }
+
       match /settings/{settingId} {
         allow read, write: if isSelf(userId);
       }
