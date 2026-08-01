@@ -38,10 +38,68 @@ export const useTaskStore = create(
   persist(
     (set, get) => ({
       tasks: [],
+      quickTasks: [], // { id, title, done, dateKey, createdAt, completedAt } — manual checklist, no AI
       members: [], // { id, name, username, photoURL }
       persona: [], // selected trait ids from lib/persona.js
 
       setPersona: (persona) => set({ persona: Array.isArray(persona) ? persona : [] }),
+
+      // ---------- Quick tasks (manual checklist, no AI) ----------
+      addQuickTask: ({ title, dateKey }) => {
+        const clean = title?.trim();
+        if (!clean) return null;
+        const item = {
+          id: uuid(),
+          title: clean,
+          done: false,
+          dateKey: dateKey || todayKey(),
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+        };
+        set((s) => ({ quickTasks: [item, ...s.quickTasks] }));
+        return item;
+      },
+
+      toggleQuickTask: (id) =>
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  done: !t.done,
+                  completedAt: !t.done ? new Date().toISOString() : null,
+                }
+              : t
+          ),
+        })),
+
+      deleteQuickTask: (id) =>
+        set((s) => ({ quickTasks: s.quickTasks.filter((t) => t.id !== id) })),
+
+      applyQuickLabel: (id, tag, patternSource) => {
+        const tagText = String(tag || "").trim();
+        if (!id || !tagText) return;
+        const re = patternSource instanceof RegExp
+          ? new RegExp(patternSource.source, patternSource.flags.includes("g") ? patternSource.flags : `${patternSource.flags}g`)
+          : null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== id) return t;
+            if (re) {
+              re.lastIndex = 0;
+              if (re.test(t.title || "")) return t;
+            } else if ((t.title || "").toLowerCase().includes(tagText.toLowerCase())) {
+              return t;
+            }
+            const next = `${(t.title || "").trim()} ${tagText}`.trim();
+            return { ...t, title: next };
+          }),
+        }));
+      },
+
+      quickDeletePassword: "",
+      setQuickDeletePassword: (password) =>
+        set({ quickDeletePassword: String(password || "").trim() }),
 
       // Collaboration (Firestore-backed, kept in sync by useCollabSync)
       connections: [],

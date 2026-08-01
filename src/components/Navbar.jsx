@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, CalendarRange, LogOut, MessageCircle, Menu, Plus, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
+import { CalendarDays, CalendarRange, CheckSquare, LogOut, MessageCircle, Menu, Plus, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
+import { todayKey } from "../lib/date";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const binCount = useTaskStore((state) => state.getBinTasks().length);
+  const quickOpenCount = useTaskStore(
+    (state) => state.quickTasks.filter((t) => t.dateKey === todayKey() && !t.done).length
+  );
   const connectionCount = useTaskStore((state) => state.connections.length);
   const requestCount = useTaskStore((state) => state.incomingRequests.length);
   const displayName = profile?.displayName || user?.displayName || "Your workspace";
@@ -53,6 +57,7 @@ export default function Navbar() {
 
         <nav className="side-nav" aria-label="Main navigation">
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)}><CalendarDays size={17} /><span>Today</span></NavLink>
+          <NavLink to="/app/quick" className={linkClass} onClick={() => setOpen(false)}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
           <NavLink to="/app/calendar" className={linkClass} onClick={() => setOpen(false)}><CalendarRange size={17} /><span>Calendar</span></NavLink>
           <NavLink to="/app/persona" className={linkClass} onClick={() => setOpen(false)}><UserCircle size={17} /><span>Your persona</span></NavLink>
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)}><MessageCircle size={17} /><span>Assistant</span></NavLink>

@@ -9,6 +9,7 @@ import AssistantPage from "./pages/AssistantPage";
 import ExplorePage from "./pages/ExplorePage";
 import PersonaPage from "./pages/PersonaPage";
 import CalendarPage from "./pages/CalendarPage";
+import QuickTasksPage from "./pages/QuickTasksPage";
 import { useLenis } from "./lib/useLenis";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<TodayPage />} />
+          <Route path="quick" element={<QuickTasksPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="persona" element={<PersonaPage />} />
           <Route path="assistant" element={<AssistantPage />} />

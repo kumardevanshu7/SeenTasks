@@ -5,20 +5,21 @@ import { toKey, todayKey } from "../lib/date";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const RANGE = 30; // days before and after today
 
-export default function DateStrip({ selected, onSelect }) {
+export default function DateStrip({ selected, onSelect, counts }) {
   const tasks = useTaskStore((s) => s.tasks);
   const scrollRef = useRef(null);
   const selectedRef = useRef(null);
   const today = todayKey();
 
   const byDate = useMemo(() => {
+    if (counts) return counts;
     const map = {};
     tasks.forEach((task) => {
       if (task.status === "aborted") return;
       map[task.dateKey] = (map[task.dateKey] || 0) + 1;
     });
     return map;
-  }, [tasks]);
+  }, [tasks, counts]);
 
   const days = useMemo(() => {
     const base = new Date();

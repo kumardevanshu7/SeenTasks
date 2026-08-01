@@ -31,3 +31,19 @@ export function formatFriendly(dateKey) {
     day: "numeric",
   });
 }
+
+export function formatClock(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function formatMonthDay(dateKey) {
+  const d = new Date(`${dateKey}T12:00:00`);
+  return {
+    month: d.toLocaleDateString(undefined, { month: "short" }),
+    day: String(d.getDate()),
+  };
+}
