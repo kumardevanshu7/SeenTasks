@@ -23,7 +23,7 @@ export default function Navbar() {
   const linkClass = ({ isActive }) => `side-link${isActive ? " side-link-active" : ""}`;
 
   function openComposer() {
-    navigate("/app");
+    navigate("/app/today");
     setOpen(false);
     window.setTimeout(() => window.dispatchEvent(new CustomEvent("open-task-composer")), 0);
   }
@@ -56,8 +56,8 @@ export default function Navbar() {
         <button className="add-task-button" onClick={openComposer}><Plus size={17} /> Add task</button>
 
         <nav className="side-nav" aria-label="Main navigation">
-          <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)}><CalendarDays size={17} /><span>Today</span></NavLink>
-          <NavLink to="/app/quick" className={linkClass} onClick={() => setOpen(false)}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
+          <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
+          <NavLink to="/app/today" className={linkClass} onClick={() => setOpen(false)}><CalendarDays size={17} /><span>Today</span></NavLink>
           <NavLink to="/app/calendar" className={linkClass} onClick={() => setOpen(false)}><CalendarRange size={17} /><span>Calendar</span></NavLink>
           <NavLink to="/app/persona" className={linkClass} onClick={() => setOpen(false)}><UserCircle size={17} /><span>Your persona</span></NavLink>
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)}><MessageCircle size={17} /><span>Assistant</span></NavLink>

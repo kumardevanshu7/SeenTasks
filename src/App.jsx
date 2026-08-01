@@ -20,8 +20,9 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppLayout />}>
-          <Route index element={<TodayPage />} />
-          <Route path="quick" element={<QuickTasksPage />} />
+          <Route index element={<QuickTasksPage />} />
+          <Route path="quick" element={<Navigate to="/app" replace />} />
+          <Route path="today" element={<TodayPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="persona" element={<PersonaPage />} />
           <Route path="assistant" element={<AssistantPage />} />
