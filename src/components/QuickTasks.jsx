@@ -38,9 +38,17 @@ const QUICK_LABELS = [
     className: "quick-label-job",
     rowClass: "quick-task-job",
   },
+  {
+    id: "youtube",
+    name: "YouTube",
+    tag: "#yt",
+    pattern: /#(?:youtube|yt)\b/gi,
+    className: "quick-label-youtube",
+    rowClass: "quick-task-youtube",
+  },
 ];
 
-const ALL_TAG_PATTERN = /#(?:arigato|ari|insta|snap|job)\b/gi;
+const ALL_TAG_PATTERN = /#(?:arigato|ari|insta|snap|job|youtube|yt)\b/gi;
 const LABEL_DRAG_TYPE = "application/x-quick-label";
 
 function parseQuickLabels(title) {
