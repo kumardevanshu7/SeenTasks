@@ -55,6 +55,21 @@ export async function removeQuickTaskDoc(uid, taskId) {
   await deleteDoc(doc(db, "users", uid, "quickTasks", taskId));
 }
 
+/** Delete every quick task for this user (app reset). */
+export async function clearAllQuickTaskDocs(uid) {
+  if (!uid) return 0;
+  const snap = await getDocs(quickTasksRef(uid));
+  if (snap.empty) return 0;
+  const docs = snap.docs;
+  const CHUNK = 400;
+  for (let i = 0; i < docs.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return docs.length;
+}
+
 export async function fetchQuickTasks(uid) {
   const snap = await getDocs(quickTasksRef(uid));
   return snap.docs.map((d) => normalizeQuickTask(d.id, d.data()));

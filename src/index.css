@@ -172,6 +172,12 @@ p, h1, h2, h3, h4 { margin: 0; }
 .quick-task-done .quick-label { opacity: .72; }
 .quick-task-times { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.35; }
 .quick-task-times > span + span::before { margin-right: 10px; color: #cfc6b8; content: "·"; }
+.quick-task-recovered { background: #eef6f1; }
+.quick-task-recovered.quick-task-done .quick-task-title { color: #4a6b58; text-decoration: none; font-weight: 500; }
+.quick-task-recovered .quick-task-times { color: #5f7d6c; }
+.quick-task-recovered .quick-task-check { border-color: #8bb89a; }
+.quick-task-recovered.quick-task-done .quick-task-check { background: #6a9a7c; border-color: #6a9a7c; }
+.quick-task-recovered:not(:last-child)::after { background: rgba(106, 154, 124, .35); }
 .quick-task-delete { display: inline-flex; flex: 0 0 28px; align-items: center; justify-content: center; align-self: center; width: 28px; height: 28px; padding: 0; color: var(--muted-soft); background: transparent; border: 0; border-radius: 6px; opacity: 0; cursor: pointer; }
 .quick-task-row:hover .quick-task-delete, .quick-task-delete:focus-visible { opacity: 1; }
 .quick-task-delete:hover { color: var(--error); background: #f5dfd9; }

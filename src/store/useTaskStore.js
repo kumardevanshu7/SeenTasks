@@ -4,7 +4,7 @@ import { v4 as uuid } from "uuid";
 import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
-import { removeQuickTaskDoc, upsertQuickTask } from "../lib/quickTaskService";
+import { clearAllQuickTaskDocs, removeQuickTaskDoc, upsertQuickTask } from "../lib/quickTaskService";
 
 const MAX_ITERATION = 10;
 
@@ -101,6 +101,13 @@ export const useTaskStore = create(
       deleteQuickTask: (id) => {
         set((s) => ({ quickTasks: s.quickTasks.filter((t) => t.id !== id) }));
         syncQuickRemove(id);
+      },
+
+      /** Wipe local task data + cloud quick tasks. Keeps One Password, auth, collab. */
+      resetAppData: async () => {
+        const uid = auth.currentUser?.uid;
+        set({ tasks: [], quickTasks: [], persona: [] });
+        if (uid) await clearAllQuickTaskDocs(uid);
       },
 
       applyQuickLabel: (id, tag, patternSource) => {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import QuickTasks from "../components/QuickTasks";
 import DateStrip from "../components/DateStrip";
-import { todayKey } from "../lib/date";
+import { todayKey, toKey } from "../lib/date";
 import { useTaskStore } from "../store/useTaskStore";
 
 export default function QuickTasksPage() {
@@ -12,7 +12,13 @@ export default function QuickTasksPage() {
   const counts = useMemo(() => {
     const map = {};
     quickTasks.forEach((task) => {
-      map[task.dateKey] = (map[task.dateKey] || 0) + 1;
+      if (task.dateKey) map[task.dateKey] = (map[task.dateKey] || 0) + 1;
+      if (task.done && task.completedAt) {
+        const doneKey = toKey(task.completedAt);
+        if (doneKey && doneKey !== task.dateKey) {
+          map[doneKey] = (map[doneKey] || 0) + 1;
+        }
+      }
     });
     return map;
   }, [quickTasks]);

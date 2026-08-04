@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { KeyRound, RotateCcw, ShieldCheck } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
+import OnePasswordGate from "../components/OnePasswordGate";
 import {
   clearOnePasswordDoc,
   isOnePasswordConfigured,
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   const onePassword = useTaskStore((s) => s.onePassword);
   const setOnePassword = useTaskStore((s) => s.setOnePassword);
   const clearOnePassword = useTaskStore((s) => s.clearOnePassword);
+  const resetAppData = useTaskStore((s) => s.resetAppData);
   const configured = isOnePasswordConfigured(onePassword);
 
   const [question, setQuestion] = useState("");
@@ -26,6 +28,10 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -141,6 +147,21 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleResetConfirm() {
+    setResetError("");
+    setResetMessage("");
+    setResetBusy(true);
+    try {
+      await resetAppData();
+      setResetOpen(false);
+      setResetMessage("App reset. Quick tasks, Today board, and persona are cleared.");
+    } catch {
+      setResetError("Reset failed. Check your connection and try again.");
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   return (
     <div className="page narrow-page">
       <section className="simple-hero">
@@ -252,6 +273,47 @@ export default function SettingsPage() {
           </div>
         </form>
       </section>
+
+      <section className="content-card">
+        <div className="card-heading">
+          <span className="heading-icon"><RotateCcw size={18} /></span>
+          <div>
+            <h2>Reset your app</h2>
+            <p>Wipe tasks and start fresh — account and One Password stay</p>
+          </div>
+        </div>
+
+        <div className="one-password-form">
+          <p className="one-password-copy">
+            Clears Quick tasks (Firebase + this device), Today / AI tasks, abort bin, and persona.
+            Connections and One Password are not removed.
+          </p>
+          {resetError && <p className="quick-delete-error">{resetError}</p>}
+          {resetMessage && <p className="one-password-ok">{resetMessage}</p>}
+          <div className="one-password-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={!user || resetBusy || loading}
+              onClick={() => {
+                setResetError("");
+                setResetMessage("");
+                setResetOpen(true);
+              }}
+            >
+              Reset app
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <OnePasswordGate
+        open={resetOpen}
+        title="Reset your app"
+        description="Answer your One Password question to wipe all tasks and start fresh."
+        onClose={() => !resetBusy && setResetOpen(false)}
+        onConfirm={handleResetConfirm}
+      />
     </div>
   );
 }

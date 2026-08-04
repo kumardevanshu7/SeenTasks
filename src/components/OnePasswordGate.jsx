@@ -68,7 +68,7 @@ export default function OnePasswordGate({ open, title, description, onClose, onC
       setLockedUntil(0);
       setAnswer("");
       setError("");
-      onConfirm();
+      await onConfirm?.();
     } finally {
       setBusy(false);
     }

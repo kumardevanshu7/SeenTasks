@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CircleAlert, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
-import { formatClock, formatFriendly, formatMonthDay, isBeforeToday, todayKey } from "../lib/date";
+import { formatClock, formatDateTime, formatDuration, formatFriendly, formatMonthDay, isBeforeToday, todayKey, toKey } from "../lib/date";
 
 const QUICK_LABELS = [
   {
@@ -77,6 +77,19 @@ function sortDayItems(items) {
   ];
 }
 
+/** Completed on a later calendar day than the day it was started. */
+function isRecoveredQuickTask(item) {
+  if (!item?.done || !item.completedAt || !item.dateKey) return false;
+  return toKey(item.completedAt) > item.dateKey;
+}
+
+function belongsToDayDone(item, activeDate) {
+  if (!item.done) return false;
+  if (item.dateKey === activeDate) return true;
+  // Late finish also appears on the day you finally ticked it.
+  return Boolean(item.completedAt && toKey(item.completedAt) === activeDate);
+}
+
 function findLabel(id) {
   return QUICK_LABELS.find((l) => l.id === id) || null;
 }
@@ -128,8 +141,16 @@ function QuickLabelTray({ onPick, onDragStart, onDragEnd }) {
 
 function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropLabel, dragActive }) {
   const [over, setOver] = useState(false);
-  const started = formatClock(item.createdAt);
-  const ended = item.done ? formatClock(item.completedAt) : null;
+  const recovered = isRecoveredQuickTask(item);
+  const started = recovered
+    ? formatDateTime(item.createdAt)
+    : formatClock(item.createdAt);
+  const ended = item.done
+    ? recovered
+      ? formatDateTime(item.completedAt)
+      : formatClock(item.completedAt)
+    : null;
+  const duration = recovered ? formatDuration(item.createdAt, item.completedAt) : "";
   const stamp = formatMonthDay(item.dateKey);
   const labels = parseQuickLabels(item.title);
   const title = displayQuickTitle(item.title);
@@ -151,7 +172,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
 
   return (
     <li
-      className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${rowExtras ? ` ${rowExtras}` : ""}${over ? " quick-task-drop-target" : ""}${dragActive ? " quick-task-drop-ready" : ""}`}
+      className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}${rowExtras ? ` ${rowExtras}` : ""}${over ? " quick-task-drop-target" : ""}${dragActive ? " quick-task-drop-ready" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={() => setOver(false)}
       onDrop={handleDrop}
@@ -194,7 +215,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
         </button>
       </div>
 
-      {missed && (
+      {(missed || recovered) && (
         <div className="quick-task-stamp">
           <span>{stamp.month}</span>
           <strong>{stamp.day}</strong>
@@ -217,6 +238,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
           ) : (
             <span>In progress</span>
           )}
+          {duration && <span>{duration} total</span>}
         </div>
       </div>
 
@@ -267,7 +289,7 @@ export default function QuickTasks({ dateKey }) {
   }, [quickTasks, activeDate, dayHasEnded]);
 
   const dayDone = useMemo(
-    () => sortDayItems(quickTasks.filter((t) => t.dateKey === activeDate && t.done)),
+    () => sortDayItems(quickTasks.filter((t) => belongsToDayDone(t, activeDate))),
     [quickTasks, activeDate]
   );
 
