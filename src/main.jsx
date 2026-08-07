@@ -10,17 +10,10 @@ import "./index.css";
 import App from "./App.jsx";
 import AuthProvider from "./context/AuthProvider.jsx";
 
-function registerServiceWorkerWhenIdle() {
-  const run = () => registerSW({ immediate: false });
-  if (typeof window === "undefined") return;
-  if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(run, { timeout: 4000 });
-  } else {
-    window.addEventListener("load", () => window.setTimeout(run, 1200), { once: true });
-  }
+// Register SW promptly so installability + icon caching work after deploy.
+if (import.meta.env.PROD) {
+  registerSW({ immediate: true });
 }
-
-registerServiceWorkerWhenIdle();
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#faf9f5"/>
-  <circle cx="256" cy="256" r="166" fill="#cc785c"/>
-  <path d="M256 139v234M139 256h234M173 173l166 166M339 173L173 339" stroke="#faf9f5" stroke-width="34" stroke-linecap="round"/>
-  <circle cx="256" cy="256" r="44" fill="#181715"/>
+  <!-- SeenTasks app icon — any purpose -->
+  <rect width="512" height="512" fill="#faf9f5"/>
+  <circle cx="256" cy="256" r="168" fill="#cc785c"/>
+  <path d="M256 128v256M128 256h256M165 165l182 182M347 165L165 347" stroke="#faf9f5" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="46" fill="#181715"/>
 </svg>

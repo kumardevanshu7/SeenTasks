@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable: keep mark inside ~80% safe zone -->
+  <rect width="512" height="512" fill="#faf9f5"/>
+  <circle cx="256" cy="256" r="140" fill="#cc785c"/>
+  <path d="M256 150v212M150 256h212M181 181l150 150M331 181L181 331" stroke="#faf9f5" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="38" fill="#181715"/>
+</svg>
