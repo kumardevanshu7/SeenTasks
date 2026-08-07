@@ -163,14 +163,21 @@ service cloud.firestore {
         allow read: if isSelf(userId);
         allow delete: if isSelf(userId);
         allow create, update: if isSelf(userId) && (
-          settingId != "onePassword"
-          || (
-            request.resource.data.keys().hasOnly(["question", "answerHash", "updatedAt"])
+          (
+            settingId == "onePassword"
+            && request.resource.data.keys().hasOnly(["question", "answerHash", "updatedAt"])
             && request.resource.data.question is string
             && request.resource.data.answerHash is string
             && request.resource.data.question.size() > 0
             && request.resource.data.answerHash.size() > 0
           )
+          || (
+            settingId == "appState"
+            && request.resource.data.keys().hasOnly(["dataClearedAt", "updatedAt"])
+            && request.resource.data.dataClearedAt is number
+            && request.resource.data.dataClearedAt > 0
+          )
+          || (settingId != "onePassword" && settingId != "appState")
         );
       }
 

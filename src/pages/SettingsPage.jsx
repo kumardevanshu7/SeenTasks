@@ -154,9 +154,10 @@ export default function SettingsPage() {
     try {
       await resetAppData();
       setResetOpen(false);
-      setResetMessage("App reset. Quick tasks, Today board, and persona are cleared.");
-    } catch {
-      setResetError("Reset failed. Check your connection and try again.");
+      setResetMessage("App reset on this account. Other devices will clear when they open the app.");
+    } catch (err) {
+      console.error(err);
+      setResetError("Reset failed — cloud wipe didn’t finish. Stay online and try again.");
     } finally {
       setResetBusy(false);
     }

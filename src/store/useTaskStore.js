@@ -5,6 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, removeQuickTaskDoc, upsertQuickTask } from "../lib/quickTaskService";
+import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
 
@@ -13,16 +14,30 @@ async function runAnalyze(title, description, persona) {
   return analyzeTask(title, description, persona);
 }
 
+function isTaskAfterClear(task, clearedAt) {
+  const cut = Number(clearedAt) || 0;
+  if (!cut) return true;
+  const created = new Date(task?.createdAt || 0).getTime();
+  if (Number.isNaN(created)) return false;
+  return created > cut;
+}
+
 function syncQuickUpsert(task) {
   const uid = auth.currentUser?.uid;
   if (!uid || !task) return;
-  upsertQuickTask(uid, task).catch(() => {});
+  // Block writes that belong to a wiped generation (reset / remote clear).
+  if (!isTaskAfterClear(task, useTaskStore.getState().dataClearedAt)) return;
+  upsertQuickTask(uid, task).catch((err) => {
+    console.warn("Quick task upsert failed:", err);
+  });
 }
 
 function syncQuickRemove(id) {
   const uid = auth.currentUser?.uid;
   if (!uid || !id) return;
-  removeQuickTaskDoc(uid, id).catch(() => {});
+  removeQuickTaskDoc(uid, id).catch((err) => {
+    console.warn("Quick task delete failed:", err);
+  });
 }
 
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
@@ -57,6 +72,7 @@ export const useTaskStore = create(
     (set, get) => ({
       tasks: [],
       quickTasks: [], // { id, title, done, dateKey, createdAt, completedAt } — manual checklist, no AI
+      dataClearedAt: 0, // millis — shared wipe marker so devices don't re-upload old locals
       members: [], // { id, name, username, photoURL }
       persona: [], // selected trait ids from lib/persona.js
 
@@ -65,6 +81,16 @@ export const useTaskStore = create(
       // ---------- Quick tasks (manual checklist, synced to Firestore) ----------
       setQuickTasks: (quickTasks) =>
         set({ quickTasks: Array.isArray(quickTasks) ? quickTasks : [] }),
+
+      applyRemoteDataClear: (clearedAt) => {
+        const at = Number(clearedAt) || 0;
+        set({
+          dataClearedAt: at,
+          tasks: [],
+          quickTasks: [],
+          persona: [],
+        });
+      },
 
       addQuickTask: ({ title, dateKey }) => {
         const clean = title?.trim();
@@ -106,8 +132,20 @@ export const useTaskStore = create(
       /** Wipe local task data + cloud quick tasks. Keeps One Password, auth, collab. */
       resetAppData: async () => {
         const uid = auth.currentUser?.uid;
-        set({ tasks: [], quickTasks: [], persona: [] });
-        if (uid) await clearAllQuickTaskDocs(uid);
+        const clearedAt = Date.now();
+        // Mark wipe first so sync/migrate cannot resurrect old locals mid-delete.
+        set({ tasks: [], quickTasks: [], persona: [], dataClearedAt: clearedAt });
+        if (!uid) return;
+        try {
+          await markAppDataCleared(uid, clearedAt);
+          await clearAllQuickTaskDocs(uid);
+        } catch (err) {
+          // Keep dataClearedAt so in-flight upserts stay blocked; surface failure to UI.
+          set({ tasks: [], quickTasks: [], persona: [], dataClearedAt: clearedAt });
+          throw err;
+        }
+        // Snapshot races can briefly refill — force empty after cloud delete.
+        set({ tasks: [], quickTasks: [], persona: [], dataClearedAt: clearedAt });
       },
 
       applyQuickLabel: (id, tag, patternSource) => {
@@ -290,12 +328,13 @@ export const useTaskStore = create(
     }),
     {
       name: "seentasks-store",
-      version: 2,
+      version: 3,
+      // Quick tasks live in Firestore only — do not mirror them in localStorage.
       partialize: (state) => ({
         tasks: state.tasks,
-        quickTasks: state.quickTasks,
         members: state.members,
         persona: state.persona,
+        dataClearedAt: state.dataClearedAt || 0,
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {
@@ -307,19 +346,24 @@ export const useTaskStore = create(
           incomingRequests: _ir,
           assignedByMe: _ab,
           assignedToMe: _at,
+          quickTasks: _qt,
           ...safe
         } = incoming;
         return {
           ...current,
           ...safe,
+          quickTasks: [],
           onePassword: null,
         };
       },
-      migrate: (persisted) => {
+      migrate: (persisted, version) => {
         if (!persisted || typeof persisted !== "object") return persisted;
         const next = { ...persisted };
         delete next.onePassword;
         delete next.quickDeletePassword;
+        if (version < 3) {
+          delete next.quickTasks;
+        }
         return next;
       },
     }

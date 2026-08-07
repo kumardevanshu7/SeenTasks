@@ -25,13 +25,19 @@ function normalizeQuickTask(id, data = {}) {
   };
 }
 
-export function listenQuickTasks(uid, cb) {
-  return onSnapshot(quickTasksRef(uid), (snap) => {
-    const items = snap.docs
-      .map((d) => normalizeQuickTask(d.id, d.data()))
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-    cb(items);
-  });
+export function listenQuickTasks(uid, cb, onError) {
+  return onSnapshot(
+    quickTasksRef(uid),
+    (snap) => {
+      const items = snap.docs
+        .map((d) => normalizeQuickTask(d.id, d.data()))
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      cb(items);
+    },
+    (error) => {
+      onError?.(error);
+    }
+  );
 }
 
 export async function upsertQuickTask(uid, task) {
@@ -55,19 +61,27 @@ export async function removeQuickTaskDoc(uid, taskId) {
   await deleteDoc(doc(db, "users", uid, "quickTasks", taskId));
 }
 
-/** Delete every quick task for this user (app reset). */
+/** Delete every quick task for this user (app reset). Retries once if anything remains. */
 export async function clearAllQuickTaskDocs(uid) {
   if (!uid) return 0;
-  const snap = await getDocs(quickTasksRef(uid));
-  if (snap.empty) return 0;
-  const docs = snap.docs;
-  const CHUNK = 400;
-  for (let i = 0; i < docs.length; i += CHUNK) {
-    const batch = writeBatch(db);
-    docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
-    await batch.commit();
+  let total = 0;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const snap = await getDocs(quickTasksRef(uid));
+    if (snap.empty) return total;
+    const docs = snap.docs;
+    const CHUNK = 400;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      total += Math.min(CHUNK, docs.length - i);
+    }
   }
-  return docs.length;
+  const left = await getDocs(quickTasksRef(uid));
+  if (!left.empty) {
+    throw new Error("Some quick tasks could not be deleted from Firestore.");
+  }
+  return total;
 }
 
 export async function fetchQuickTasks(uid) {
@@ -76,24 +90,36 @@ export async function fetchQuickTasks(uid) {
 }
 
 /** Upload local-only items that are missing in the cloud (one-time / first sync). */
-export async function migrateLocalQuickTasks(uid, localItems) {
+export async function migrateLocalQuickTasks(uid, localItems, clearedAt = 0) {
   if (!uid || !localItems?.length) return 0;
+  const cut = Number(clearedAt) || 0;
+  const eligible = localItems.filter((t) => {
+    if (!t?.id) return false;
+    if (!cut) return true;
+    const created = new Date(t.createdAt || 0).getTime();
+    return !Number.isNaN(created) && created > cut;
+  });
+  if (!eligible.length) return 0;
+
   const cloud = await fetchQuickTasks(uid);
   const cloudIds = new Set(cloud.map((t) => t.id));
-  const missing = localItems.filter((t) => t?.id && !cloudIds.has(t.id));
+  const missing = eligible.filter((t) => !cloudIds.has(t.id));
   if (!missing.length) return 0;
 
-  const batch = writeBatch(db);
-  missing.forEach((task) => {
-    batch.set(doc(db, "users", uid, "quickTasks", task.id), {
-      title: task.title || "",
-      done: Boolean(task.done),
-      dateKey: task.dateKey || "",
-      createdAt: task.createdAt || new Date().toISOString(),
-      completedAt: task.completedAt || null,
-      updatedAt: serverTimestamp(),
+  const CHUNK = 400;
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    missing.slice(i, i + CHUNK).forEach((task) => {
+      batch.set(doc(db, "users", uid, "quickTasks", task.id), {
+        title: task.title || "",
+        done: Boolean(task.done),
+        dateKey: task.dateKey || "",
+        createdAt: task.createdAt || new Date().toISOString(),
+        completedAt: task.completedAt || null,
+        updatedAt: serverTimestamp(),
+      });
     });
-  });
-  await batch.commit();
+    await batch.commit();
+  }
   return missing.length;
 }
