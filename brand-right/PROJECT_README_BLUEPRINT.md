@@ -129,7 +129,7 @@ This project is fully optimized for **Vercel** deployments.
 | 6 | `npm run dev` | Port / start script if not Astro |
 | 7 | Push → Vercel → env vars → Deploy | Project name / domain |
 | 8 | Add Vercel domain to Firebase Authorized domains | Domain string |
-| 9 | Arigato branding (`brand-right` → Explore + sidebar) | `[App Name]` text only — see `ARIGATO_BRANDING_SETUP.md` |
+| 9 | Arigato branding (`brand-right` → Explore + sidebar + legal pages) | `[App Name]` text only — see `ARIGATO_BRANDING_SETUP.md` + `Important integration.md` |
 
 ---
 
@@ -153,4 +153,6 @@ This project is fully optimized for **Vercel** deployments.
 | `arigato-labs-logo.png` | Large Explore-page logo → copy to `public/` |
 | `arigato-single-logo.png` | Sidebar / nav icon → copy to `public/` |
 | `ARIGATO_BRANDING_SETUP.md` | Explore page, nav item, legal footer steps |
+| `ARIGATO_LABS_LICENSE.md` | Company/brand license + registration notes |
+| `Important integration.md` | Privacy, Terms, Disclaimer, About, Contact (agent playbook) |
 | `PROJECT_README_BLUEPRINT.md` | This file — README + setup process template |

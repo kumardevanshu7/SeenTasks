@@ -1,5 +1,7 @@
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BadgeCheck } from "lucide-react";
+import LegalLinks from "../components/LegalLinks";
 
 export default function ExplorePage() {
   return (
@@ -21,11 +23,21 @@ export default function ExplorePage() {
       </motion.div>
 
       <footer className="explore-footer">
-        <h4>Legal disclaimer &amp; license</h4>
+        <h4>Arigato Labs</h4>
         <p>Copyright © 2026 Arigato Labs. All Rights Reserved.</p>
-        <p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
-        <p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
-        <p className="disclaimer-fine">THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY.</p>
+        <p>
+          <strong>SeenTasks</strong> is a product of Arigato Labs, founded by Kumar Devanshu.
+          Brand name and logos may not be reused outside Arigato Labs apps without permission.
+        </p>
+        <p className="disclaimer-fine">
+          See{" "}
+          <Link to="/privacy">Privacy</Link>,{" "}
+          <Link to="/terms">Terms</Link>, and{" "}
+          <Link to="/disclaimer">Disclaimer</Link>.
+          {" "}Contact:{" "}
+          <a href="mailto:kumardevanshu3001@gmail.com">kumardevanshu3001@gmail.com</a>
+        </p>
+        <LegalLinks className="legal-links-explore" muted />
       </footer>
     </div>
   );

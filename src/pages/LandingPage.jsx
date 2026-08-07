@@ -97,7 +97,19 @@ export default function LandingPage() {
         <section className="landing-cta"><div><span>✣</span><h2>Begin with what is on your mind.</h2><p>Let SeenTasks turn a crowded list into a considered day.</p></div><div><button className="button button-cream" disabled={busy || loading} onClick={enterApp}>{!user && <GoogleIcon />}{ctaLabel}<ArrowRight size={17} /></button><InstallButton className="button landing-install-light" /></div></section>
       </main>
 
-      <footer className="landing-footer"><a className="landing-brand" href="#top"><Logo size={24} /> SeenTasks</a><p>Thoughtful work, one day at a time.</p><div><a href="#method">Method</a><a href="#features">Features</a><span>© 2026 SeenTasks</span></div></footer>
+      <footer className="landing-footer">
+        <a className="landing-brand" href="#top"><Logo size={24} /> SeenTasks</a>
+        <p>Thoughtful work, one day at a time.</p>
+        <div>
+          <a href="#method">Method</a>
+          <a href="#features">Features</a>
+          <a href="/about">About</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/contact">Contact</a>
+          <span>© 2026 Arigato Labs</span>
+        </div>
+      </footer>
     </div>
   );
 }

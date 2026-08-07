@@ -90,24 +90,24 @@ Create a dedicated page (e.g., `/explore`) that showcases the company.
 
 ## 4. Legal Footer
 
-Always include the standard Arigato Labs legal disclaimer at the bottom of the Explore page. It should look symmetrical and use slightly muted text.
+Always include the standard Arigato Labs notice at the bottom of the Explore page. It should look symmetrical and use slightly muted text.
+
+Also wire Privacy / Terms / Disclaimer / About / Contact from [`Important integration.md`](./Important%20integration.md).
 
 ```html
 <footer style="text-align: center; margin-top: 50px; border-top: 1px solid #eee; padding-top: 40px;">
-  <h4>LEGAL DISCLAIMER & LICENSE</h4>
+  <h4>ARIGATO LABS</h4>
   <p>Copyright © 2026 Arigato Labs. All Rights Reserved.</p>
-  
   <p>
-    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+    <strong>[App Name]</strong> is a product of Arigato Labs, founded by Kumar Devanshu.
+    Brand name and logos may not be reused outside Arigato Labs apps without permission.
   </p>
-  <p>
-    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-  </p>
-  
   <p style="opacity: 0.7; font-size: 0.85em;">
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY.
+    See Privacy, Terms, and Disclaimer in this app. Contact: kumardevanshu3001@gmail.com
   </p>
 </footer>
 ```
+
+Full company license: [`ARIGATO_LABS_LICENSE.md`](./ARIGATO_LABS_LICENSE.md).
 
 *Note: Remember to replace `[App Name]` with the actual name of the application whenever you copy this layout.*
