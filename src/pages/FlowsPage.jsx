@@ -4,6 +4,16 @@ import { GitBranch, Plus } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { flowColorInk, flowProgress } from "../lib/flowService";
+import { formatFriendly } from "../lib/date";
+
+function flowStartedLabel(createdAt) {
+  if (!createdAt) return null;
+  try {
+    return formatFriendly(createdAt);
+  } catch {
+    return null;
+  }
+}
 
 export default function FlowsPage() {
   const navigate = useNavigate();
@@ -45,6 +55,7 @@ export default function FlowsPage() {
           <div className="flow-list">
             {followFlows.map((flow) => {
               const prog = flowProgress(flow);
+              const started = flowStartedLabel(flow.createdAt);
               return (
                 <Link
                   key={flow.id}
@@ -63,6 +74,7 @@ export default function FlowsPage() {
                         : prog.complete
                           ? "All steps complete"
                           : `Step ${Math.min(prog.activeIndex + 1, prog.total)} of ${prog.total}`}
+                      {started ? ` · Started ${started}` : ""}
                     </span>
                   </div>
                   <em>{prog.pct}%</em>

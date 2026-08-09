@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Lock, Pencil, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Trash2, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { flowColorInk, flowProgress, isFlowStepUnlocked } from "../lib/flowService";
@@ -17,12 +17,34 @@ export default function FlowPage() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [gate, setGate] = useState(null); // { type: 'edit' | 'delete-flow' | 'delete-step', stepId?, title? }
+  const [gate, setGate] = useState(null);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const switchRef = useRef(null);
 
   const flow = useMemo(
     () => (followFlows || []).find((f) => f.id === flowId),
     [followFlows, flowId]
   );
+
+  const flowList = useMemo(() => followFlows || [], [followFlows]);
+
+  useEffect(() => {
+    if (!switchOpen) return undefined;
+    function onDoc(e) {
+      if (switchRef.current && !switchRef.current.contains(e.target)) {
+        setSwitchOpen(false);
+      }
+    }
+    function onKey(e) {
+      if (e.key === "Escape") setSwitchOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [switchOpen]);
 
   if (followFlows?.length && !flow) {
     return <Navigate to="/app/flows" replace />;
@@ -51,6 +73,13 @@ export default function FlowPage() {
       return;
     }
     setGate({ type: "edit" });
+  }
+
+  function goFlow(id) {
+    setSwitchOpen(false);
+    if (!id || id === flowId) return;
+    setEditing(false);
+    navigate(`/app/flows/${id}`);
   }
 
   function runGateConfirm() {
@@ -87,9 +116,50 @@ export default function FlowPage() {
       className="page narrow-page page-flow"
       style={{ "--flow-bg": flow.color, "--flow-ink": ink }}
     >
-      <Link to="/app/flows" className="workspace-back">
-        <ArrowLeft size={16} /> Flows
-      </Link>
+      <div className="workspace-topbar">
+        <Link to="/app/flows" className="workspace-back">
+          <ArrowLeft size={16} /> Flows
+        </Link>
+
+        {flowList.length > 1 && (
+          <div className="workspace-switcher flow-switcher" ref={switchRef}>
+            <button
+              type="button"
+              className="workspace-switcher-btn"
+              aria-haspopup="listbox"
+              aria-expanded={switchOpen}
+              onClick={() => setSwitchOpen((v) => !v)}
+            >
+              Switch flow
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            {switchOpen && (
+              <ul className="workspace-switcher-menu" role="listbox" aria-label="Flows">
+                {flowList.map((item) => {
+                  const active = item.id === flowId;
+                  return (
+                    <li key={item.id} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        className={`workspace-switcher-item${active ? " is-active" : ""}`}
+                        onClick={() => goFlow(item.id)}
+                      >
+                        <span
+                          className="workspace-switcher-dot"
+                          style={{ background: item.color }}
+                          aria-hidden="true"
+                        />
+                        <span className="workspace-switcher-name">{item.name}</span>
+                        {active && <Check size={14} aria-hidden="true" />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
       <header className="flow-page-head">
         <div>

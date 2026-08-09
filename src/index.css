@@ -257,6 +257,15 @@ p, h1, h2, h3, h4 { margin: 0; }
   background: color-mix(in srgb, white 55%, var(--flow-bg, #d8f3e4));
   border-color: color-mix(in srgb, var(--flow-ink, #4a4038) 20%, transparent);
 }
+.page-flow .workspace-switcher-btn:hover {
+  border-color: color-mix(in srgb, var(--flow-ink, #b8aea1) 35%, #ddd5c8);
+  background: color-mix(in srgb, white 70%, var(--flow-bg, #e8e1d6));
+}
+.page-flow .workspace-switcher-item.is-active {
+  color: var(--flow-ink, var(--ink));
+  background: color-mix(in srgb, white 55%, var(--flow-bg, #e8e1d6));
+}
+.page-flow .workspace-switcher-item svg { color: var(--flow-ink, var(--primary)); }
 .flow-delete-link {
   padding: 0;
   color: var(--error);
