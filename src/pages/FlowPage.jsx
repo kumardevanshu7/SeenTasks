@@ -17,7 +17,7 @@ export default function FlowPage() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [gate, setGate] = useState(null); // { type: 'edit' | 'delete-flow' | 'delete-step', stepId?, title? }
 
   const flow = useMemo(
     () => (followFlows || []).find((f) => f.id === flowId),
@@ -45,6 +45,43 @@ export default function FlowPage() {
     if (added) setDraft("");
   }
 
+  function requestEdit() {
+    if (editing) {
+      setEditing(false);
+      return;
+    }
+    setGate({ type: "edit" });
+  }
+
+  function runGateConfirm() {
+    if (!gate) return;
+    if (gate.type === "edit") {
+      setEditing(true);
+    } else if (gate.type === "delete-flow") {
+      deleteFollowFlow(flow.id);
+      setGate(null);
+      navigate("/app/flows");
+      return;
+    } else if (gate.type === "delete-step" && gate.stepId) {
+      deleteFlowStep(flow.id, gate.stepId);
+    }
+    setGate(null);
+  }
+
+  const gateTitle =
+    gate?.type === "edit"
+      ? "Edit this flow"
+      : gate?.type === "delete-step"
+        ? `Delete step “${gate.title || ""}”`
+        : `Delete flow “${flow.name}”`;
+
+  const gateDescription =
+    gate?.type === "edit"
+      ? "Answer your One Password question to reorder or remove steps."
+      : gate?.type === "delete-step"
+        ? "Answer your One Password question to delete this step."
+        : "This removes the whole step path. Answer your One Password question to continue.";
+
   return (
     <div
       className="page narrow-page page-flow"
@@ -70,12 +107,16 @@ export default function FlowPage() {
           <button
             type="button"
             className={`button button-secondary${editing ? " is-active" : ""}`}
-            onClick={() => setEditing((v) => !v)}
+            onClick={requestEdit}
           >
             {editing ? <X size={14} /> : <Pencil size={14} />}
             {editing ? "Done" : "Edit"}
           </button>
-          <button type="button" className="flow-delete-link" onClick={() => setDeleteOpen(true)}>
+          <button
+            type="button"
+            className="flow-delete-link"
+            onClick={() => setGate({ type: "delete-flow" })}
+          >
             Delete flow
           </button>
         </div>
@@ -141,7 +182,9 @@ export default function FlowPage() {
                     <button
                       type="button"
                       className="icon-button icon-button-danger"
-                      onClick={() => deleteFlowStep(flow.id, step.id)}
+                      onClick={() =>
+                        setGate({ type: "delete-step", stepId: step.id, title: step.title })
+                      }
                       aria-label="Delete step"
                     >
                       <Trash2 size={14} />
@@ -184,15 +227,11 @@ export default function FlowPage() {
       </div>
 
       <OnePasswordGate
-        open={deleteOpen}
-        title={`Delete flow “${flow.name}”`}
-        description="This removes the whole step path. Answer your One Password question to continue."
-        onClose={() => setDeleteOpen(false)}
-        onConfirm={() => {
-          deleteFollowFlow(flow.id);
-          setDeleteOpen(false);
-          navigate("/app/flows");
-        }}
+        open={Boolean(gate)}
+        title={gateTitle}
+        description={gateDescription}
+        onClose={() => setGate(null)}
+        onConfirm={runGateConfirm}
       />
     </div>
   );
