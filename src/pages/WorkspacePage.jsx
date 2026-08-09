@@ -55,49 +55,56 @@ export default function WorkspacePage() {
   const ink = workspaceColorInk(theme);
 
   return (
-    <div
-      className="page narrow-page page-quick page-workspace"
-      style={{ "--ws-bg": theme, "--ws-ink": ink }}
-    >
-      <Link to="/app" className="workspace-back">
-        <ArrowLeft size={16} /> Quick tasks
-      </Link>
+    <div className="workspace-page-shell" style={{ "--ws-bg": theme, "--ws-ink": ink }}>
+      <div className="page narrow-page page-quick page-workspace">
+        <Link to="/app" className="workspace-back">
+          <ArrowLeft size={16} /> Quick tasks
+        </Link>
 
-      <section className="simple-hero simple-hero-compact workspace-hero">
-        <p className="eyebrow">Workspace</p>
-        <h1>{workspace?.name || "Workspace"}</h1>
-        <p>
-          {openLeft === 0
-            ? "No open tasks — add something below."
-            : `${openLeft} open task${openLeft === 1 ? "" : "s"} left in this space.`}
-        </p>
-        {workspace && workspace.id !== DEFAULT_WORKSPACE_ID && (
-          <button type="button" className="workspace-hero-delete" onClick={() => setDeleteOpen(true)}>
-            Delete workspace
-          </button>
-        )}
-      </section>
+        <section className="simple-hero simple-hero-compact workspace-hero">
+          <div className="workspace-hero-top">
+            <div>
+              <p className="eyebrow">Workspace</p>
+              <h1>{workspace?.name || "Workspace"}</h1>
+            </div>
+            <div className="workspace-open-pill" aria-label="Open tasks">
+              <span aria-hidden="true" />
+              {openLeft === 0 ? "All clear" : `${openLeft} open`}
+            </div>
+          </div>
+          <p className="workspace-hero-copy">
+            {openLeft === 0
+              ? "No open tasks — add something below."
+              : `${openLeft} open task${openLeft === 1 ? "" : "s"} left in this space.`}
+          </p>
+          {workspace && workspace.id !== DEFAULT_WORKSPACE_ID && (
+            <button type="button" className="workspace-hero-delete" onClick={() => setDeleteOpen(true)}>
+              Delete workspace
+            </button>
+          )}
+        </section>
 
-      <DateStrip
-        selected={selectedDate}
-        onSelect={setSelectedDate}
-        counts={counts}
-        range={14}
-        instantScroll
-      />
-      <QuickTasks dateKey={selectedDate} workspaceId={workspaceId} />
+        <DateStrip
+          selected={selectedDate}
+          onSelect={setSelectedDate}
+          counts={counts}
+          range={14}
+          instantScroll
+        />
+        <QuickTasks dateKey={selectedDate} workspaceId={workspaceId} />
 
-      <OnePasswordGate
-        open={deleteOpen}
-        title={`Delete workspace “${workspace?.name || ""}”`}
-        description="Open tasks move to Personal. Answer your One Password question to continue."
-        onClose={() => setDeleteOpen(false)}
-        onConfirm={() => {
-          deleteQuickWorkspace(workspaceId);
-          setDeleteOpen(false);
-          navigate("/app");
-        }}
-      />
+        <OnePasswordGate
+          open={deleteOpen}
+          title={`Delete workspace “${workspace?.name || ""}”`}
+          description="Open tasks move to Personal. Answer your One Password question to continue."
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={() => {
+            deleteQuickWorkspace(workspaceId);
+            setDeleteOpen(false);
+            navigate("/app");
+          }}
+        />
+      </div>
     </div>
   );
 }
