@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarDays, CircleAlert, Trash2, X } from "lucide-react";
+import { CalendarDays, CircleAlert, Plus, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
-import { DEFAULT_WORKSPACE_ID } from "../lib/quickTaskService";
+import CreateLabelModal from "./CreateLabelModal";
+import { DEFAULT_WORKSPACE_ID, labelColorInk } from "../lib/quickTaskService";
 import { formatClock, formatDateTime, formatDuration, formatFriendly, formatMonthDay, isBeforeToday, todayKey, toKey } from "../lib/date";
 
 function sortDayItems(items) {
@@ -30,7 +31,7 @@ function taskWorkspaceId(task) {
   return task.workspaceId || DEFAULT_WORKSPACE_ID;
 }
 
-function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
+function QuickTaskRow({ item, label, missed = false, onToggle, onRequestDelete }) {
   const recovered = isRecoveredQuickTask(item);
   const started = recovered ? formatDateTime(item.createdAt) : formatClock(item.createdAt);
   const ended = item.done
@@ -93,6 +94,17 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
       <div className="quick-task-body">
         <div className="quick-task-title-row">
           <span className="quick-task-title">{item.title}</span>
+          {label && (
+            <span
+              className="quick-task-label-chip"
+              style={{
+                "--label-bg": label.color,
+                "--label-ink": labelColorInk(label.color),
+              }}
+            >
+              {label.name}
+            </span>
+          )}
           {item.dueDate && (
             <span
               className={`quick-task-due${dueOverdue ? " is-overdue" : ""}${dueToday ? " is-due-today" : ""}`}
@@ -132,14 +144,27 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
 export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID }) {
   const [draft, setDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
+  const [labelDraft, setLabelDraft] = useState("");
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
   const quickTasks = useTaskStore((s) => s.quickTasks);
+  const quickLabels = useTaskStore((s) => s.quickLabels);
   const addQuickTask = useTaskStore((s) => s.addQuickTask);
+  const addQuickLabel = useTaskStore((s) => s.addQuickLabel);
+  const deleteQuickLabel = useTaskStore((s) => s.deleteQuickLabel);
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
   const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
   const spaceId = workspaceId || DEFAULT_WORKSPACE_ID;
   const isWorkspace = spaceId !== DEFAULT_WORKSPACE_ID;
+
+  const labelsById = useMemo(() => {
+    const map = {};
+    (quickLabels || []).forEach((l) => {
+      map[l.id] = l;
+    });
+    return map;
+  }, [quickLabels]);
 
   useEffect(() => {
     const tick = () => setDayNow(todayKey());
@@ -199,10 +224,12 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       dateKey: target,
       workspaceId: spaceId,
       dueDate: isWorkspace && dueDraft ? dueDraft : null,
+      labelId: isWorkspace && labelDraft ? labelDraft : null,
     });
     if (added) {
       setDraft("");
       setDueDraft("");
+      setLabelDraft("");
     }
   }
 
@@ -213,6 +240,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     } else if (e.key === "Escape") {
       setDraft("");
       setDueDraft("");
+      setLabelDraft("");
     }
   }
 
@@ -220,10 +248,18 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     if (!request) return;
     if (request.type === "clear") {
       dayDone.forEach((t) => deleteQuickTask(t.id));
+    } else if (request.type === "label" && request.id) {
+      deleteQuickLabel(request.id);
     } else if (request.id) {
       deleteQuickTask(request.id);
     }
     setDeleteRequest(null);
+  }
+
+  function handleCreateLabel({ name, color }) {
+    const created = addQuickLabel({ name, color });
+    setLabelModalOpen(false);
+    if (created?.id) setLabelDraft(created.id);
   }
 
   return (
@@ -235,56 +271,104 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             {dayHasEnded
               ? "This day has closed. Unfinished items sit in Not completed."
               : isWorkspace
-                ? "Tasks in this workspace only. Deadline is optional."
+                ? "Tasks in this workspace only. Deadline and label are optional."
                 : "Your everyday checklist. Workspaces keep category lists separate."}
           </p>
         </div>
 
         <div className="quick-tasks-panel">
           {canAdd && (
-            <div className="quick-tasks-input-row">
-              <span className="quick-tasks-input-mark" aria-hidden="true" />
-              <input
-                className="quick-tasks-input"
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Add a quick task"
-                aria-label="Add a quick task"
-                maxLength={200}
-              />
+            <div className="quick-tasks-composer">
+              <div className="quick-tasks-input-row">
+                <span className="quick-tasks-input-mark" aria-hidden="true" />
+                <input
+                  className="quick-tasks-input"
+                  type="text"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Add a quick task"
+                  aria-label="Add a quick task"
+                  maxLength={200}
+                />
+                {isWorkspace && (
+                  <label className={`quick-tasks-due-inline${dueDraft ? " has-date" : ""}`}>
+                    <CalendarDays size={14} aria-hidden="true" />
+                    <input
+                      type="date"
+                      className="quick-tasks-due-input"
+                      value={dueDraft}
+                      min={dayNow}
+                      onChange={(e) => setDueDraft(e.target.value)}
+                      aria-label="Optional expected deadline"
+                      title="Expected deadline (optional)"
+                    />
+                    {dueDraft && (
+                      <button
+                        type="button"
+                        className="quick-tasks-due-clear"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setDueDraft("");
+                        }}
+                        aria-label="Clear deadline"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </label>
+                )}
+                {draft.trim() && (
+                  <button type="button" className="quick-tasks-add" onClick={submit}>
+                    Add
+                  </button>
+                )}
+              </div>
+
               {isWorkspace && (
-                <label className={`quick-tasks-due-inline${dueDraft ? " has-date" : ""}`}>
-                  <CalendarDays size={14} aria-hidden="true" />
-                  <input
-                    type="date"
-                    className="quick-tasks-due-input"
-                    value={dueDraft}
-                    min={dayNow}
-                    onChange={(e) => setDueDraft(e.target.value)}
-                    aria-label="Optional expected deadline"
-                    title="Expected deadline (optional)"
-                  />
-                  {dueDraft && (
-                    <button
-                      type="button"
-                      className="quick-tasks-due-clear"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setDueDraft("");
-                      }}
-                      aria-label="Clear deadline"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </label>
-              )}
-              {draft.trim() && (
-                <button type="button" className="quick-tasks-add" onClick={submit}>
-                  Add
-                </button>
+                <div className="quick-label-tray" aria-label="Task labels">
+                  <Tag size={13} className="quick-label-tray-icon" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className={`quick-label-pill${!labelDraft ? " is-selected" : ""}`}
+                    onClick={() => setLabelDraft("")}
+                  >
+                    None
+                  </button>
+                  {(quickLabels || []).map((label) => {
+                    const selected = labelDraft === label.id;
+                    return (
+                      <button
+                        key={label.id}
+                        type="button"
+                        className={`quick-label-pill${selected ? " is-selected" : ""}`}
+                        style={{
+                          "--label-bg": label.color,
+                          "--label-ink": labelColorInk(label.color),
+                        }}
+                        onClick={() => setLabelDraft(selected ? "" : label.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setDeleteRequest({
+                            type: "label",
+                            id: label.id,
+                            title: label.name,
+                          });
+                        }}
+                        title="Click to use · right-click to delete"
+                      >
+                        {label.name}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="quick-label-create"
+                    onClick={() => setLabelModalOpen(true)}
+                  >
+                    <Plus size={13} /> Create label
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -303,6 +387,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                 <QuickTaskRow
                   key={item.id}
                   item={item}
+                  label={item.labelId ? labelsById[item.labelId] : null}
                   onToggle={toggleQuickTask}
                   onRequestDelete={setDeleteRequest}
                 />
@@ -352,6 +437,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   <QuickTaskRow
                     key={item.id}
                     item={item}
+                    label={item.labelId ? labelsById[item.labelId] : null}
                     missed
                     onToggle={toggleQuickTask}
                     onRequestDelete={setDeleteRequest}
@@ -363,14 +449,26 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
         </section>
       )}
 
+      <CreateLabelModal
+        open={labelModalOpen}
+        onClose={() => setLabelModalOpen(false)}
+        onCreate={handleCreateLabel}
+      />
+
       <OnePasswordGate
         open={Boolean(deleteRequest)}
         title={
           deleteRequest?.type === "clear"
             ? "Clear all completed tasks"
-            : `Delete “${deleteRequest?.title || "task"}”`
+            : deleteRequest?.type === "label"
+              ? `Delete label “${deleteRequest?.title || ""}”`
+              : `Delete “${deleteRequest?.title || "task"}”`
         }
-        description="Answer your One Password question to delete this."
+        description={
+          deleteRequest?.type === "label"
+            ? "Tasks keep their text; this label is removed from them."
+            : "Answer your One Password question to delete this."
+        }
         onClose={() => setDeleteRequest(null)}
         onConfirm={() => {
           const pending = deleteRequest;

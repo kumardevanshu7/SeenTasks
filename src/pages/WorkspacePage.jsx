@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, BadgeCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Check, ChevronDown } from "lucide-react";
 import QuickTasks from "../components/QuickTasks";
 import DateStrip from "../components/DateStrip";
 import OnePasswordGate from "../components/OnePasswordGate";
@@ -13,6 +13,8 @@ export default function WorkspacePage() {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const switchRef = useRef(null);
   const workspaces = useTaskStore((s) => s.quickWorkspaces);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const deleteQuickWorkspace = useTaskStore((s) => s.deleteQuickWorkspace);
@@ -21,6 +23,19 @@ export default function WorkspacePage() {
     () => (workspaces || []).find((w) => w.id === workspaceId),
     [workspaces, workspaceId]
   );
+
+  const switchList = useMemo(() => {
+    const custom = (workspaces || []).filter((w) => w.id !== DEFAULT_WORKSPACE_ID);
+    return [
+      { id: DEFAULT_WORKSPACE_ID, name: "Personal", color: "#e8e1d6", href: "/app" },
+      ...custom.map((w) => ({
+        id: w.id,
+        name: w.name,
+        color: w.color,
+        href: `/app/workspace/${w.id}`,
+      })),
+    ];
+  }, [workspaces]);
 
   const scopedTasks = useMemo(
     () => (quickTasks || []).filter((t) => (t.workspaceId || DEFAULT_WORKSPACE_ID) === workspaceId),
@@ -41,6 +56,24 @@ export default function WorkspacePage() {
     return map;
   }, [scopedTasks]);
 
+  useEffect(() => {
+    if (!switchOpen) return undefined;
+    function onDoc(e) {
+      if (switchRef.current && !switchRef.current.contains(e.target)) {
+        setSwitchOpen(false);
+      }
+    }
+    function onKey(e) {
+      if (e.key === "Escape") setSwitchOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [switchOpen]);
+
   if (!workspaceId || workspaceId === DEFAULT_WORKSPACE_ID) {
     return <Navigate to="/app" replace />;
   }
@@ -52,14 +85,59 @@ export default function WorkspacePage() {
   const theme = workspace?.color || "#c9dff3";
   const ink = workspaceColorInk(theme);
 
+  function goWorkspace(item) {
+    setSwitchOpen(false);
+    if (item.id === workspaceId) return;
+    navigate(item.href);
+  }
+
   return (
     <div
       className="page narrow-page page-quick page-workspace"
       style={{ "--ws-color": theme, "--ws-ink": ink }}
     >
-      <Link to="/app" className="workspace-back">
-        <ArrowLeft size={16} /> Quick tasks
-      </Link>
+      <div className="workspace-topbar">
+        <Link to="/app" className="workspace-back">
+          <ArrowLeft size={16} /> Quick tasks
+        </Link>
+
+        <div className="workspace-switcher" ref={switchRef}>
+          <button
+            type="button"
+            className="workspace-switcher-btn"
+            aria-haspopup="listbox"
+            aria-expanded={switchOpen}
+            onClick={() => setSwitchOpen((v) => !v)}
+          >
+            Switch workspace
+            <ChevronDown size={15} aria-hidden="true" />
+          </button>
+          {switchOpen && (
+            <ul className="workspace-switcher-menu" role="listbox" aria-label="Workspaces">
+              {switchList.map((item) => {
+                const active = item.id === workspaceId;
+                return (
+                  <li key={item.id} role="option" aria-selected={active}>
+                    <button
+                      type="button"
+                      className={`workspace-switcher-item${active ? " is-active" : ""}`}
+                      onClick={() => goWorkspace(item)}
+                    >
+                      <span
+                        className="workspace-switcher-dot"
+                        style={{ background: item.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="workspace-switcher-name">{item.name}</span>
+                      {active && <Check size={14} aria-hidden="true" />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
 
       <header className="workspace-title-block">
         <h1 className="workspace-title">

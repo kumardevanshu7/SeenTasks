@@ -4,7 +4,7 @@ import { v4 as uuid } from "uuid";
 import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
-import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, makeDefaultWorkspace, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
+import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -56,6 +56,22 @@ function syncWorkspaceRemove(id) {
   });
 }
 
+function syncLabelUpsert(label) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !label) return;
+  upsertQuickLabel(uid, label).catch((err) => {
+    console.warn("Label upsert failed:", err);
+  });
+}
+
+function syncLabelRemove(id) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !id) return;
+  removeQuickLabelDoc(uid, id).catch((err) => {
+    console.warn("Label delete failed:", err);
+  });
+}
+
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
     id: uuid(),
@@ -87,8 +103,9 @@ export const useTaskStore = create(
   persist(
     (set, get) => ({
       tasks: [],
-      quickTasks: [], // { id, title, done, dateKey, workspaceId, dueDate, createdAt, completedAt }
+      quickTasks: [], // { id, title, done, dateKey, workspaceId, dueDate, labelId, createdAt, completedAt }
       quickWorkspaces: [makeDefaultWorkspace()],
+      quickLabels: [], // { id, name, color, createdAt }
       activeWorkspaceId: DEFAULT_WORKSPACE_ID,
       dataClearedAt: 0, // millis — shared wipe marker so devices don't re-upload old locals
       members: [], // { id, name, username, photoURL }
@@ -113,6 +130,9 @@ export const useTaskStore = create(
         });
       },
 
+      setQuickLabels: (quickLabels) =>
+        set({ quickLabels: Array.isArray(quickLabels) ? quickLabels : [] }),
+
       setActiveWorkspaceId: (id) =>
         set({ activeWorkspaceId: id || DEFAULT_WORKSPACE_ID }),
 
@@ -123,16 +143,18 @@ export const useTaskStore = create(
           tasks: [],
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
+          quickLabels: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
         });
       },
 
-      addQuickTask: ({ title, dateKey, workspaceId, dueDate }) => {
+      addQuickTask: ({ title, dateKey, workspaceId, dueDate, labelId }) => {
         const clean = title?.trim();
         if (!clean) return null;
         const ws = workspaceId || get().activeWorkspaceId || DEFAULT_WORKSPACE_ID;
         const due = dueDate && String(dueDate).trim() ? String(dueDate).trim() : null;
+        const label = labelId && String(labelId).trim() ? String(labelId).trim() : null;
         const item = {
           id: uuid(),
           title: clean,
@@ -140,6 +162,7 @@ export const useTaskStore = create(
           dateKey: dateKey || todayKey(),
           workspaceId: ws,
           dueDate: due,
+          labelId: label,
           createdAt: new Date().toISOString(),
           completedAt: null,
         };
@@ -224,6 +247,41 @@ export const useTaskStore = create(
         syncWorkspaceRemove(id);
       },
 
+      addQuickLabel: ({ name, color }) => {
+        const clean = name?.trim();
+        if (!clean) return null;
+        const picked = LABEL_COLORS.find((c) => c.id === color || c.value === color);
+        const colorValue = picked?.value || LABEL_COLORS[0].value;
+        const item = {
+          id: uuid(),
+          name: clean.slice(0, 28),
+          color: colorValue,
+          createdAt: new Date().toISOString(),
+        };
+        set((s) => ({ quickLabels: [...(s.quickLabels || []), item] }));
+        syncLabelUpsert(item);
+        return item;
+      },
+
+      deleteQuickLabel: (id) => {
+        if (!id) return;
+        const touched = [];
+        set((s) => {
+          const quickTasks = s.quickTasks.map((t) => {
+            if (t.labelId !== id) return t;
+            const next = { ...t, labelId: null };
+            touched.push(next);
+            return next;
+          });
+          return {
+            quickTasks,
+            quickLabels: (s.quickLabels || []).filter((l) => l.id !== id),
+          };
+        });
+        touched.forEach((t) => syncQuickUpsert(t));
+        syncLabelRemove(id);
+      },
+
       /** Wipe local task data + cloud quick tasks. Keeps One Password, auth, collab. */
       resetAppData: async () => {
         const uid = auth.currentUser?.uid;
@@ -232,6 +290,7 @@ export const useTaskStore = create(
           tasks: [],
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
+          quickLabels: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
           dataClearedAt: clearedAt,
@@ -245,6 +304,7 @@ export const useTaskStore = create(
             tasks: [],
             quickTasks: [],
             quickWorkspaces: [makeDefaultWorkspace()],
+            quickLabels: [],
             activeWorkspaceId: DEFAULT_WORKSPACE_ID,
             persona: [],
             dataClearedAt: clearedAt,
@@ -255,6 +315,7 @@ export const useTaskStore = create(
           tasks: [],
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
+          quickLabels: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
           dataClearedAt: clearedAt,
@@ -439,6 +500,7 @@ export const useTaskStore = create(
           assignedToMe: _at,
           quickTasks: _qt,
           quickWorkspaces: _qw,
+          quickLabels: _ql,
           ...safe
         } = incoming;
         return {
@@ -446,6 +508,7 @@ export const useTaskStore = create(
           ...safe,
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
+          quickLabels: [],
           onePassword: null,
           activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
         };

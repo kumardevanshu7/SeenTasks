@@ -162,6 +162,10 @@ service cloud.firestore {
         allow read, write: if isSelf(userId);
       }
 
+      match /quickLabels/{labelId} {
+        allow read, write: if isSelf(userId);
+      }
+
       // One Password + other owner settings. onePassword must store hashed answer only.
       match /settings/{settingId} {
         allow read: if isSelf(userId);

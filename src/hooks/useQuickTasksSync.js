@@ -4,6 +4,7 @@ import { useTaskStore } from "../store/useTaskStore";
 import { isCreatedAfterClear, loadAppState } from "../lib/appStateService";
 import {
   ensureDefaultWorkspace,
+  listenQuickLabels,
   listenQuickTasks,
   listenQuickWorkspaces,
   migrateLocalQuickTasks,
@@ -58,11 +59,13 @@ export function useQuickTasksSync() {
   const { user } = useAuth();
   const setQuickTasks = useTaskStore((s) => s.setQuickTasks);
   const setQuickWorkspaces = useTaskStore((s) => s.setQuickWorkspaces);
+  const setQuickLabels = useTaskStore((s) => s.setQuickLabels);
 
   useEffect(() => {
     if (!user?.uid) {
       setQuickTasks([]);
       setQuickWorkspaces([]);
+      setQuickLabels([]);
       return undefined;
     }
 
@@ -70,6 +73,7 @@ export function useQuickTasksSync() {
     const uid = user.uid;
     let unsubTasks = null;
     let unsubSpaces = null;
+    let unsubLabels = null;
     let clearedAt = useTaskStore.getState().dataClearedAt || 0;
 
     (async () => {
@@ -110,6 +114,15 @@ export function useQuickTasksSync() {
         (error) => console.warn("Workspaces listener error:", error)
       );
 
+      unsubLabels = listenQuickLabels(
+        uid,
+        (items) => {
+          if (!active) return;
+          setQuickLabels(items);
+        },
+        (error) => console.warn("Labels listener error:", error)
+      );
+
       unsubTasks = listenQuickTasks(
         uid,
         (items) => {
@@ -132,6 +145,7 @@ export function useQuickTasksSync() {
       active = false;
       unsubTasks?.();
       unsubSpaces?.();
+      unsubLabels?.();
     };
-  }, [user?.uid, setQuickTasks, setQuickWorkspaces]);
+  }, [user?.uid, setQuickTasks, setQuickWorkspaces, setQuickLabels]);
 }
