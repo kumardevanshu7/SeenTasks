@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import QuickTasks from "../components/QuickTasks";
 import WorkspaceOverview from "../components/WorkspaceOverview";
-import FlowOverview from "../components/FlowOverview";
 import DateStrip from "../components/DateStrip";
 import { todayKey, toKey } from "../lib/date";
 import { useTaskStore } from "../store/useTaskStore";
@@ -53,8 +52,6 @@ export default function QuickTasksPage() {
         instantScroll
       />
       <QuickTasks dateKey={selectedDate} workspaceId={DEFAULT_WORKSPACE_ID} />
-
-      <FlowOverview />
     </div>
   );
 }

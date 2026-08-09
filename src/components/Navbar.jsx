@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, CalendarRange, CheckSquare, LogOut, MessageCircle, Menu, Plus, Settings, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
+import { CalendarDays, CalendarRange, CheckSquare, GitBranch, LogOut, MessageCircle, Menu, Plus, Settings, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
 import { todayKey } from "../lib/date";
+import { flowProgress } from "../lib/flowService";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -13,6 +14,13 @@ export default function Navbar() {
   const binCount = useTaskStore((state) => state.getBinTasks().length);
   const quickOpenCount = useTaskStore(
     (state) => state.quickTasks.filter((t) => t.dateKey === todayKey() && !t.done).length
+  );
+  const flowActiveCount = useTaskStore(
+    (state) =>
+      (state.followFlows || []).filter((f) => {
+        const p = flowProgress(f);
+        return p.total > 0 && !p.complete;
+      }).length
   );
   const connectionCount = useTaskStore((state) => state.connections.length);
   const requestCount = useTaskStore((state) => state.incomingRequests.length);
@@ -57,6 +65,7 @@ export default function Navbar() {
 
         <nav className="side-nav" aria-label="Main navigation">
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
+          <NavLink to="/app/flows" className={linkClass} onClick={() => setOpen(false)}><GitBranch size={17} /><span>Follow Flow</span>{flowActiveCount > 0 && <em>{flowActiveCount}</em>}</NavLink>
           <NavLink to="/app/today" className={linkClass} onClick={() => setOpen(false)}><CalendarDays size={17} /><span>Today</span></NavLink>
           <NavLink to="/app/calendar" className={linkClass} onClick={() => setOpen(false)}><CalendarRange size={17} /><span>Calendar</span></NavLink>
           <NavLink to="/app/persona" className={linkClass} onClick={() => setOpen(false)}><UserCircle size={17} /><span>Your persona</span></NavLink>
