@@ -68,6 +68,7 @@ export function normalizeQuickTask(id, data = {}) {
     done: Boolean(data.done),
     dateKey: data.dateKey || "",
     workspaceId: data.workspaceId || DEFAULT_WORKSPACE_ID,
+    dueDate: data.dueDate || null,
     createdAt: data.createdAt || new Date().toISOString(),
     completedAt: data.completedAt || null,
   };
@@ -146,6 +147,7 @@ export async function upsertQuickTask(uid, task) {
       done: Boolean(task.done),
       dateKey: task.dateKey || "",
       workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
+      dueDate: task.dueDate || null,
       createdAt: task.createdAt || new Date().toISOString(),
       completedAt: task.completedAt || null,
       updatedAt: serverTimestamp(),
@@ -219,6 +221,7 @@ export async function migrateLocalQuickTasks(uid, localItems, clearedAt = 0) {
         done: Boolean(task.done),
         dateKey: task.dateKey || "",
         workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
+        dueDate: task.dueDate || null,
         createdAt: task.createdAt || new Date().toISOString(),
         completedAt: task.completedAt || null,
         updatedAt: serverTimestamp(),

@@ -87,7 +87,7 @@ export const useTaskStore = create(
   persist(
     (set, get) => ({
       tasks: [],
-      quickTasks: [], // { id, title, done, dateKey, workspaceId, createdAt, completedAt }
+      quickTasks: [], // { id, title, done, dateKey, workspaceId, dueDate, createdAt, completedAt }
       quickWorkspaces: [makeDefaultWorkspace()],
       activeWorkspaceId: DEFAULT_WORKSPACE_ID,
       dataClearedAt: 0, // millis — shared wipe marker so devices don't re-upload old locals
@@ -128,16 +128,18 @@ export const useTaskStore = create(
         });
       },
 
-      addQuickTask: ({ title, dateKey, workspaceId }) => {
+      addQuickTask: ({ title, dateKey, workspaceId, dueDate }) => {
         const clean = title?.trim();
         if (!clean) return null;
         const ws = workspaceId || get().activeWorkspaceId || DEFAULT_WORKSPACE_ID;
+        const due = dueDate && String(dueDate).trim() ? String(dueDate).trim() : null;
         const item = {
           id: uuid(),
           title: clean,
           done: false,
           dateKey: dateKey || todayKey(),
           workspaceId: ws,
+          dueDate: due,
           createdAt: new Date().toISOString(),
           completedAt: null,
         };

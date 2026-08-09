@@ -17,12 +17,14 @@ export default function WorkspaceOverview() {
     [workspaces]
   );
 
-  const remainingBySpace = useMemo(() => {
+  const statsBySpace = useMemo(() => {
     const map = {};
     (quickTasks || []).forEach((t) => {
-      if (t.done) return;
       const id = t.workspaceId || DEFAULT_WORKSPACE_ID;
-      map[id] = (map[id] || 0) + 1;
+      if (!map[id]) map[id] = { total: 0, done: 0, open: 0 };
+      map[id].total += 1;
+      if (t.done) map[id].done += 1;
+      else map[id].open += 1;
     });
     return map;
   }, [quickTasks]);
@@ -50,7 +52,11 @@ export default function WorkspaceOverview() {
       ) : (
         <div className="workspace-overview-grid">
           {customSpaces.map((ws) => {
-            const left = remainingBySpace[ws.id] || 0;
+            const stats = statsBySpace[ws.id] || { total: 0, done: 0, open: 0 };
+            const pct = stats.total === 0 ? 0 : Math.round((stats.done / stats.total) * 100);
+            const radius = 16;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference - (pct / 100) * circumference;
             return (
               <Link
                 key={ws.id}
@@ -61,9 +67,39 @@ export default function WorkspaceOverview() {
                   "--ws-ink": workspaceColorInk(ws.color),
                 }}
               >
-                <span className="workspace-overview-name">{ws.name}</span>
+                <div className="workspace-overview-card-top">
+                  <span className="workspace-overview-name">{ws.name}</span>
+                  <div
+                    className="workspace-progress"
+                    role="img"
+                    aria-label={
+                      stats.total === 0
+                        ? "No tasks yet"
+                        : `${stats.done} of ${stats.total} complete`
+                    }
+                  >
+                    <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+                      <circle className="workspace-progress-track" cx="20" cy="20" r={radius} />
+                      <circle
+                        className="workspace-progress-value"
+                        cx="20"
+                        cy="20"
+                        r={radius}
+                        strokeDasharray={circumference}
+                        strokeDashoffset={offset}
+                      />
+                    </svg>
+                    <span className="workspace-progress-label">
+                      {stats.total === 0 ? "—" : `${pct}%`}
+                    </span>
+                  </div>
+                </div>
                 <span className="workspace-overview-count">
-                  {left === 0 ? "All clear" : `${left} open`}
+                  {stats.total === 0
+                    ? "No tasks yet"
+                    : stats.open === 0
+                      ? "All clear"
+                      : `${stats.open} open`}
                 </span>
               </Link>
             );
