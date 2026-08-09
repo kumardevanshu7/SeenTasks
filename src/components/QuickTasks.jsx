@@ -3,81 +3,18 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CircleAlert, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
+import { DEFAULT_WORKSPACE_ID } from "../lib/quickTaskService";
 import { formatClock, formatDateTime, formatDuration, formatFriendly, formatMonthDay, isBeforeToday, todayKey, toKey } from "../lib/date";
-
-const QUICK_LABELS = [
-  {
-    id: "arigato",
-    name: "Arigato",
-    tag: "#ari",
-    pattern: /#(?:arigato|ari)\b/gi,
-    className: "quick-label-arigato",
-    rowClass: "quick-task-arigato",
-  },
-  {
-    id: "insta",
-    name: "Insta",
-    tag: "#insta",
-    pattern: /#insta\b/gi,
-    className: "quick-label-insta",
-    rowClass: "quick-task-insta",
-  },
-  {
-    id: "snap",
-    name: "Snap",
-    tag: "#snap",
-    pattern: /#snap\b/gi,
-    className: "quick-label-snap",
-    rowClass: "quick-task-snap",
-  },
-  {
-    id: "job",
-    name: "Job",
-    tag: "#job",
-    pattern: /#job\b/gi,
-    className: "quick-label-job",
-    rowClass: "quick-task-job",
-  },
-  {
-    id: "youtube",
-    name: "YouTube",
-    tag: "#yt",
-    pattern: /#(?:youtube|yt)\b/gi,
-    className: "quick-label-youtube",
-    rowClass: "quick-task-youtube",
-  },
-];
-
-const ALL_TAG_PATTERN = /#(?:arigato|ari|insta|snap|job|youtube|yt)\b/gi;
-const LABEL_DRAG_TYPE = "application/x-quick-label";
-
-function parseQuickLabels(title) {
-  const text = title || "";
-  return QUICK_LABELS.filter((label) => {
-    label.pattern.lastIndex = 0;
-    return label.pattern.test(text);
-  });
-}
-
-function displayQuickTitle(title) {
-  const cleaned = (title || "").replace(ALL_TAG_PATTERN, "").replace(/\s{2,}/g, " ").trim();
-  return cleaned || title;
-}
-
-function labelRank(title) {
-  return parseQuickLabels(title).length > 0 ? 0 : 1;
-}
 
 function sortDayItems(items) {
   const byCreated = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
   const byCompleted = (a, b) => (a.completedAt < b.completedAt ? 1 : -1);
   return [
-    ...items.filter((t) => !t.done).sort((a, b) => labelRank(a.title) - labelRank(b.title) || byCreated(a, b)),
-    ...items.filter((t) => t.done).sort((a, b) => labelRank(a.title) - labelRank(b.title) || byCompleted(a, b)),
+    ...items.filter((t) => !t.done).sort(byCreated),
+    ...items.filter((t) => t.done).sort(byCompleted),
   ];
 }
 
-/** Completed on a later calendar day than the day it was started. */
 function isRecoveredQuickTask(item) {
   if (!item?.done || !item.completedAt || !item.dateKey) return false;
   return toKey(item.completedAt) > item.dateKey;
@@ -86,65 +23,16 @@ function isRecoveredQuickTask(item) {
 function belongsToDayDone(item, activeDate) {
   if (!item.done) return false;
   if (item.dateKey === activeDate) return true;
-  // Late finish also appears on the day you finally ticked it.
   return Boolean(item.completedAt && toKey(item.completedAt) === activeDate);
 }
 
-function findLabel(id) {
-  return QUICK_LABELS.find((l) => l.id === id) || null;
+function taskWorkspaceId(task) {
+  return task.workspaceId || DEFAULT_WORKSPACE_ID;
 }
 
-function hasLabelDrag(e) {
-  const types = [...(e.dataTransfer?.types || [])];
-  return types.includes(LABEL_DRAG_TYPE) || types.includes("text/plain");
-}
-
-function readLabelDrag(e) {
-  return e.dataTransfer.getData(LABEL_DRAG_TYPE) || e.dataTransfer.getData("text/plain");
-}
-
-function appendTagToDraft(draft, label) {
-  label.pattern.lastIndex = 0;
-  if (label.pattern.test(draft || "")) return draft;
-  return `${(draft || "").trim()} ${label.tag}`.trim();
-}
-
-function QuickLabelTray({ onPick, onDragStart, onDragEnd }) {
-  return (
-    <div className="quick-label-tray" aria-label="Quick labels">
-      <p className="quick-label-tray-hint">Drag a label onto a task — or tap to add it in the box</p>
-      <div className="quick-label-tray-row">
-        {QUICK_LABELS.map((label) => (
-          <button
-            key={label.id}
-            type="button"
-            className={`quick-label quick-label-chip ${label.className}`}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(LABEL_DRAG_TYPE, label.id);
-              e.dataTransfer.setData("text/plain", label.id);
-              e.dataTransfer.effectAllowed = "copy";
-              onDragStart?.();
-            }}
-            onDragEnd={() => onDragEnd?.()}
-            onClick={() => onPick(label)}
-            title={`Drag onto a task, or click to insert ${label.tag}`}
-          >
-            {label.name}
-            <span>{label.tag}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropLabel, dragActive }) {
-  const [over, setOver] = useState(false);
+function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
   const recovered = isRecoveredQuickTask(item);
-  const started = recovered
-    ? formatDateTime(item.createdAt)
-    : formatClock(item.createdAt);
+  const started = recovered ? formatDateTime(item.createdAt) : formatClock(item.createdAt);
   const ended = item.done
     ? recovered
       ? formatDateTime(item.completedAt)
@@ -152,31 +40,9 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
     : null;
   const duration = recovered ? formatDuration(item.createdAt, item.completedAt) : "";
   const stamp = formatMonthDay(item.dateKey);
-  const labels = parseQuickLabels(item.title);
-  const title = displayQuickTitle(item.title);
-  const rowExtras = labels.map((l) => l.rowClass).join(" ");
-
-  function handleDragOver(e) {
-    if (!hasLabelDrag(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    setOver(true);
-  }
-
-  function handleDrop(e) {
-    e.preventDefault();
-    setOver(false);
-    const label = findLabel(readLabelDrag(e));
-    if (label) onDropLabel(item.id, label);
-  }
 
   return (
-    <li
-      className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}${rowExtras ? ` ${rowExtras}` : ""}${over ? " quick-task-drop-target" : ""}${dragActive ? " quick-task-drop-ready" : ""}`}
-      onDragOver={handleDragOver}
-      onDragLeave={() => setOver(false)}
-      onDrop={handleDrop}
-    >
+    <li className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}`}>
       <div className="quick-task-rail">
         <button
           type="button"
@@ -224,10 +90,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
 
       <div className="quick-task-body">
         <div className="quick-task-title-row">
-          {labels.map((label) => (
-            <span key={label.id} className={`quick-label ${label.className}`}>{label.name}</span>
-          ))}
-          <span className="quick-task-title">{title}</span>
+          <span className="quick-task-title">{item.title}</span>
         </div>
         <div className="quick-task-times">
           {started && <span>Started {started}</span>}
@@ -254,17 +117,16 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete, onDropL
   );
 }
 
-export default function QuickTasks({ dateKey }) {
+/** Checklist for one workspace (Personal on home, or a dedicated workspace page). */
+export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID }) {
   const [draft, setDraft] = useState("");
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [inputOver, setInputOver] = useState(false);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const addQuickTask = useTaskStore((s) => s.addQuickTask);
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
   const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
-  const applyQuickLabel = useTaskStore((s) => s.applyQuickLabel);
+  const spaceId = workspaceId || DEFAULT_WORKSPACE_ID;
 
   useEffect(() => {
     const tick = () => setDayNow(todayKey());
@@ -279,37 +141,39 @@ export default function QuickTasks({ dateKey }) {
     };
   }, []);
 
+  const scoped = useMemo(
+    () => quickTasks.filter((t) => taskWorkspaceId(t) === spaceId),
+    [quickTasks, spaceId]
+  );
+
   const activeDate = dateKey || dayNow;
   const viewingToday = activeDate === dayNow;
   const dayHasEnded = isBeforeToday(activeDate);
 
   const dayOpen = useMemo(() => {
     if (dayHasEnded) return [];
-    return sortDayItems(quickTasks.filter((t) => t.dateKey === activeDate && !t.done));
-  }, [quickTasks, activeDate, dayHasEnded]);
+    return sortDayItems(scoped.filter((t) => t.dateKey === activeDate && !t.done));
+  }, [scoped, activeDate, dayHasEnded]);
 
   const dayDone = useMemo(
-    () => sortDayItems(quickTasks.filter((t) => belongsToDayDone(t, activeDate))),
-    [quickTasks, activeDate]
+    () => sortDayItems(scoped.filter((t) => belongsToDayDone(t, activeDate))),
+    [scoped, activeDate]
   );
 
   const notCompleted = useMemo(() => {
     if (viewingToday) {
-      return quickTasks
+      return scoped
         .filter((t) => !t.done && isBeforeToday(t.dateKey))
         .sort((a, b) => {
-          const arA = labelRank(a.title);
-          const arB = labelRank(b.title);
-          if (arA !== arB) return arA - arB;
           if (a.dateKey === b.dateKey) return a.createdAt < b.createdAt ? 1 : -1;
           return a.dateKey < b.dateKey ? 1 : -1;
         });
     }
     if (dayHasEnded) {
-      return sortDayItems(quickTasks.filter((t) => t.dateKey === activeDate && !t.done));
+      return sortDayItems(scoped.filter((t) => t.dateKey === activeDate && !t.done));
     }
     return [];
-  }, [quickTasks, viewingToday, dayHasEnded, activeDate]);
+  }, [scoped, viewingToday, dayHasEnded, activeDate]);
 
   const activeList = [...dayOpen, ...dayDone];
   const canAdd = !dayHasEnded || viewingToday;
@@ -317,7 +181,11 @@ export default function QuickTasks({ dateKey }) {
   function submit() {
     if (!canAdd) return;
     const target = viewingToday || !dayHasEnded ? activeDate : dayNow;
-    const added = addQuickTask({ title: draft, dateKey: target });
+    const added = addQuickTask({
+      title: draft,
+      dateKey: target,
+      workspaceId: spaceId,
+    });
     if (added) setDraft("");
   }
 
@@ -340,64 +208,23 @@ export default function QuickTasks({ dateKey }) {
     setDeleteRequest(null);
   }
 
-  function dropLabelOnTask(taskId, label) {
-    applyQuickLabel(taskId, label.tag, label.pattern);
-  }
-
-  function pickLabelForDraft(label) {
-    setDraft((prev) => appendTagToDraft(prev, label));
-  }
-
-  function onLabelDragStart() {
-    setDragActive(true);
-  }
-
-  function onLabelDragEnd() {
-    setDragActive(false);
-    setInputOver(false);
-  }
-
   return (
-    <div
-      className="quick-tasks-stack"
-      onDragEnd={onLabelDragEnd}
-      onDrop={onLabelDragEnd}
-    >
-      <QuickLabelTray
-        onPick={pickLabelForDraft}
-        onDragStart={onLabelDragStart}
-        onDragEnd={onLabelDragEnd}
-      />
-
+    <div className="quick-tasks-stack">
       <section className="quick-tasks" aria-label="Quick tasks for the day">
         <div className="quick-section-head">
           <h2>{viewingToday ? "Today" : formatFriendly(activeDate)}</h2>
           <p>
             {dayHasEnded
               ? "This day has closed. Unfinished items sit in Not completed."
-              : "Add small things, tick them off. Started and ended times stay with each task."}
+              : spaceId === DEFAULT_WORKSPACE_ID
+                ? "Your everyday checklist. Workspaces keep category lists separate."
+                : "Tasks in this workspace only."}
           </p>
         </div>
 
         <div className="quick-tasks-panel">
           {canAdd && (
-            <div
-              className={`quick-tasks-input-row${inputOver ? " quick-tasks-input-drop" : ""}`}
-              onDragOver={(e) => {
-                if (!hasLabelDrag(e)) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "copy";
-                setInputOver(true);
-              }}
-              onDragLeave={() => setInputOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setInputOver(false);
-                const label = findLabel(readLabelDrag(e));
-                if (label) pickLabelForDraft(label);
-                onLabelDragEnd();
-              }}
-            >
+            <div className="quick-tasks-input-row">
               <span className="quick-tasks-input-mark" aria-hidden="true" />
               <input
                 className="quick-tasks-input"
@@ -405,7 +232,7 @@ export default function QuickTasks({ dateKey }) {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Add a quick task — or drop a label here"
+                placeholder="Add a quick task"
                 aria-label="Add a quick task"
                 maxLength={200}
               />
@@ -418,9 +245,7 @@ export default function QuickTasks({ dateKey }) {
           )}
 
           {activeList.length === 0 && !dayHasEnded ? (
-            <p className="quick-tasks-empty">
-              Nothing here yet—type above and press Enter. No AI, just a checklist.
-            </p>
+            <p className="quick-tasks-empty">Nothing here yet—type above and press Enter.</p>
           ) : activeList.length === 0 && dayHasEnded ? (
             <p className="quick-tasks-empty">
               {notCompleted.length > 0
@@ -430,15 +255,13 @@ export default function QuickTasks({ dateKey }) {
           ) : (
             <ul className="quick-tasks-list">
               {activeList.map((item) => (
-                  <QuickTaskRow
-                    key={item.id}
-                    item={item}
-                    onToggle={toggleQuickTask}
-                    onRequestDelete={setDeleteRequest}
-                    onDropLabel={dropLabelOnTask}
-                    dragActive={dragActive}
-                  />
-                ))}
+                <QuickTaskRow
+                  key={item.id}
+                  item={item}
+                  onToggle={toggleQuickTask}
+                  onRequestDelete={setDeleteRequest}
+                />
+              ))}
             </ul>
           )}
 
@@ -481,16 +304,14 @@ export default function QuickTasks({ dateKey }) {
             ) : (
               <ul className="quick-tasks-list">
                 {notCompleted.map((item) => (
-                    <QuickTaskRow
-                      key={item.id}
-                      item={item}
-                      missed
-                      onToggle={toggleQuickTask}
-                      onRequestDelete={setDeleteRequest}
-                      onDropLabel={dropLabelOnTask}
-                      dragActive={dragActive}
-                    />
-                  ))}
+                  <QuickTaskRow
+                    key={item.id}
+                    item={item}
+                    missed
+                    onToggle={toggleQuickTask}
+                    onRequestDelete={setDeleteRequest}
+                  />
+                ))}
               </ul>
             )}
           </div>

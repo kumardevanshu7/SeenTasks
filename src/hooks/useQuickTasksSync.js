@@ -2,7 +2,12 @@ import { useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 import { isCreatedAfterClear, loadAppState } from "../lib/appStateService";
-import { listenQuickTasks, migrateLocalQuickTasks } from "../lib/quickTaskService";
+import {
+  ensureDefaultWorkspace,
+  listenQuickTasks,
+  listenQuickWorkspaces,
+  migrateLocalQuickTasks,
+} from "../lib/quickTaskService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
 
@@ -24,7 +29,7 @@ function markLegacyMigrated() {
   try {
     localStorage.setItem(LEGACY_MIGRATE_FLAG, "1");
   } catch {
-    // ignore quota / private mode
+    // ignore
   }
 }
 
@@ -37,9 +42,11 @@ function scrubQuickTasksFromPersist() {
     const root = parsed?.state && typeof parsed.state === "object" ? parsed : null;
     if (root?.state && "quickTasks" in root.state) {
       delete root.state.quickTasks;
+      delete root.state.quickWorkspaces;
       localStorage.setItem("seentasks-store", JSON.stringify(root));
     } else if (parsed && typeof parsed === "object" && "quickTasks" in parsed) {
       delete parsed.quickTasks;
+      delete parsed.quickWorkspaces;
       localStorage.setItem("seentasks-store", JSON.stringify(parsed));
     }
   } catch {
@@ -47,21 +54,22 @@ function scrubQuickTasksFromPersist() {
   }
 }
 
-// Cloud is source of truth. Memory holds live list + short-lived optimistic adds only.
 export function useQuickTasksSync() {
   const { user } = useAuth();
   const setQuickTasks = useTaskStore((s) => s.setQuickTasks);
+  const setQuickWorkspaces = useTaskStore((s) => s.setQuickWorkspaces);
 
   useEffect(() => {
     if (!user?.uid) {
       setQuickTasks([]);
+      setQuickWorkspaces([]);
       return undefined;
     }
 
     let active = true;
     const uid = user.uid;
-    let unsub = null;
-    // Known wipe marker for this session (updated after appState loads).
+    let unsubTasks = null;
+    let unsubSpaces = null;
     let clearedAt = useTaskStore.getState().dataClearedAt || 0;
 
     (async () => {
@@ -77,16 +85,15 @@ export function useQuickTasksSync() {
           useTaskStore.setState({ dataClearedAt: clearedAt });
         }
 
-        // Read legacy mirror BEFORE scrubbing it out of localStorage.
         const legacy = readLegacyLocalQuickTasks().filter((t) =>
           isCreatedAfterClear(t, clearedAt)
         );
         scrubQuickTasksFromPersist();
 
+        await ensureDefaultWorkspace(uid);
         if (legacy.length) {
           await migrateLocalQuickTasks(uid, legacy, clearedAt);
         }
-        // Mark done even when empty so we don't keep scanning forever.
         markLegacyMigrated();
       } catch (err) {
         console.warn("Quick tasks bootstrap failed:", err);
@@ -94,8 +101,16 @@ export function useQuickTasksSync() {
 
       if (!active) return;
 
-      // Attach listener only after appState so pending/optimistic logic uses the wipe marker.
-      unsub = listenQuickTasks(
+      unsubSpaces = listenQuickWorkspaces(
+        uid,
+        (items) => {
+          if (!active) return;
+          setQuickWorkspaces(items);
+        },
+        (error) => console.warn("Workspaces listener error:", error)
+      );
+
+      unsubTasks = listenQuickTasks(
         uid,
         (items) => {
           if (!active) return;
@@ -109,15 +124,14 @@ export function useQuickTasksSync() {
             [...pending, ...cloud].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
           );
         },
-        (error) => {
-          console.warn("Quick tasks listener error:", error);
-        }
+        (error) => console.warn("Quick tasks listener error:", error)
       );
     })();
 
     return () => {
       active = false;
-      unsub?.();
+      unsubTasks?.();
+      unsubSpaces?.();
     };
-  }, [user?.uid, setQuickTasks]);
+  }, [user?.uid, setQuickTasks, setQuickWorkspaces]);
 }

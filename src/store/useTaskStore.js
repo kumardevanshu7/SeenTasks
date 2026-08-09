@@ -4,7 +4,7 @@ import { v4 as uuid } from "uuid";
 import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
-import { clearAllQuickTaskDocs, removeQuickTaskDoc, upsertQuickTask } from "../lib/quickTaskService";
+import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, makeDefaultWorkspace, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -40,6 +40,22 @@ function syncQuickRemove(id) {
   });
 }
 
+function syncWorkspaceUpsert(workspace) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !workspace) return;
+  upsertQuickWorkspace(uid, workspace).catch((err) => {
+    console.warn("Workspace upsert failed:", err);
+  });
+}
+
+function syncWorkspaceRemove(id) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !id) return;
+  removeQuickWorkspaceDoc(uid, id).catch((err) => {
+    console.warn("Workspace delete failed:", err);
+  });
+}
+
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
     id: uuid(),
@@ -71,7 +87,9 @@ export const useTaskStore = create(
   persist(
     (set, get) => ({
       tasks: [],
-      quickTasks: [], // { id, title, done, dateKey, createdAt, completedAt } — manual checklist, no AI
+      quickTasks: [], // { id, title, done, dateKey, workspaceId, createdAt, completedAt }
+      quickWorkspaces: [makeDefaultWorkspace()],
+      activeWorkspaceId: DEFAULT_WORKSPACE_ID,
       dataClearedAt: 0, // millis — shared wipe marker so devices don't re-upload old locals
       members: [], // { id, name, username, photoURL }
       persona: [], // selected trait ids from lib/persona.js
@@ -82,24 +100,44 @@ export const useTaskStore = create(
       setQuickTasks: (quickTasks) =>
         set({ quickTasks: Array.isArray(quickTasks) ? quickTasks : [] }),
 
+      setQuickWorkspaces: (quickWorkspaces) => {
+        const list = Array.isArray(quickWorkspaces) && quickWorkspaces.length
+          ? quickWorkspaces
+          : [makeDefaultWorkspace()];
+        set((s) => {
+          const stillThere = list.some((w) => w.id === s.activeWorkspaceId);
+          return {
+            quickWorkspaces: list,
+            activeWorkspaceId: stillThere ? s.activeWorkspaceId : DEFAULT_WORKSPACE_ID,
+          };
+        });
+      },
+
+      setActiveWorkspaceId: (id) =>
+        set({ activeWorkspaceId: id || DEFAULT_WORKSPACE_ID }),
+
       applyRemoteDataClear: (clearedAt) => {
         const at = Number(clearedAt) || 0;
         set({
           dataClearedAt: at,
           tasks: [],
           quickTasks: [],
+          quickWorkspaces: [makeDefaultWorkspace()],
+          activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
         });
       },
 
-      addQuickTask: ({ title, dateKey }) => {
+      addQuickTask: ({ title, dateKey, workspaceId }) => {
         const clean = title?.trim();
         if (!clean) return null;
+        const ws = workspaceId || get().activeWorkspaceId || DEFAULT_WORKSPACE_ID;
         const item = {
           id: uuid(),
           title: clean,
           done: false,
           dateKey: dateKey || todayKey(),
+          workspaceId: ws,
           createdAt: new Date().toISOString(),
           completedAt: null,
         };
@@ -129,46 +167,96 @@ export const useTaskStore = create(
         syncQuickRemove(id);
       },
 
+      addQuickWorkspace: ({ name, color }) => {
+        const clean = name?.trim();
+        if (!clean) return null;
+        const picked = WORKSPACE_COLORS.find((c) => c.id === color || c.value === color);
+        const colorValue = picked?.value || WORKSPACE_COLORS[0].value;
+        const item = {
+          id: uuid(),
+          name: clean.slice(0, 40),
+          color: colorValue,
+          createdAt: new Date().toISOString(),
+        };
+        set((s) => ({
+          quickWorkspaces: [...(s.quickWorkspaces || []), item],
+          activeWorkspaceId: item.id,
+        }));
+        syncWorkspaceUpsert(item);
+        return item;
+      },
+
+      renameQuickWorkspace: (id, name) => {
+        const clean = name?.trim();
+        if (!id || !clean || id === DEFAULT_WORKSPACE_ID) return;
+        let next = null;
+        set((s) => ({
+          quickWorkspaces: (s.quickWorkspaces || []).map((w) => {
+            if (w.id !== id) return w;
+            next = { ...w, name: clean.slice(0, 40) };
+            return next;
+          }),
+        }));
+        if (next) syncWorkspaceUpsert(next);
+      },
+
+      /** Moves tasks into Personal, then removes the workspace. */
+      deleteQuickWorkspace: (id) => {
+        if (!id || id === DEFAULT_WORKSPACE_ID) return;
+        const moved = [];
+        set((s) => {
+          const quickTasks = s.quickTasks.map((t) => {
+            if ((t.workspaceId || DEFAULT_WORKSPACE_ID) !== id) return t;
+            const next = { ...t, workspaceId: DEFAULT_WORKSPACE_ID };
+            moved.push(next);
+            return next;
+          });
+          return {
+            quickTasks,
+            quickWorkspaces: (s.quickWorkspaces || []).filter((w) => w.id !== id),
+            activeWorkspaceId:
+              s.activeWorkspaceId === id ? DEFAULT_WORKSPACE_ID : s.activeWorkspaceId,
+          };
+        });
+        moved.forEach((t) => syncQuickUpsert(t));
+        syncWorkspaceRemove(id);
+      },
+
       /** Wipe local task data + cloud quick tasks. Keeps One Password, auth, collab. */
       resetAppData: async () => {
         const uid = auth.currentUser?.uid;
         const clearedAt = Date.now();
-        // Mark wipe first so sync/migrate cannot resurrect old locals mid-delete.
-        set({ tasks: [], quickTasks: [], persona: [], dataClearedAt: clearedAt });
+        set({
+          tasks: [],
+          quickTasks: [],
+          quickWorkspaces: [makeDefaultWorkspace()],
+          activeWorkspaceId: DEFAULT_WORKSPACE_ID,
+          persona: [],
+          dataClearedAt: clearedAt,
+        });
         if (!uid) return;
         try {
           await markAppDataCleared(uid, clearedAt);
           await clearAllQuickTaskDocs(uid);
         } catch (err) {
-          // Keep dataClearedAt so in-flight upserts stay blocked; surface failure to UI.
-          set({ tasks: [], quickTasks: [], persona: [], dataClearedAt: clearedAt });
+          set({
+            tasks: [],
+            quickTasks: [],
+            quickWorkspaces: [makeDefaultWorkspace()],
+            activeWorkspaceId: DEFAULT_WORKSPACE_ID,
+            persona: [],
+            dataClearedAt: clearedAt,
+          });
           throw err;
         }
-        // Snapshot races can briefly refill — force empty after cloud delete.
-        set({ tasks: [], quickTasks: [], persona: [], dataClearedAt: clearedAt });
-      },
-
-      applyQuickLabel: (id, tag, patternSource) => {
-        const tagText = String(tag || "").trim();
-        if (!id || !tagText) return;
-        const re = patternSource instanceof RegExp
-          ? new RegExp(patternSource.source, patternSource.flags.includes("g") ? patternSource.flags : `${patternSource.flags}g`)
-          : null;
-        let next = null;
-        set((s) => ({
-          quickTasks: s.quickTasks.map((t) => {
-            if (t.id !== id) return t;
-            if (re) {
-              re.lastIndex = 0;
-              if (re.test(t.title || "")) return t;
-            } else if ((t.title || "").toLowerCase().includes(tagText.toLowerCase())) {
-              return t;
-            }
-            next = { ...t, title: `${(t.title || "").trim()} ${tagText}`.trim() };
-            return next;
-          }),
-        }));
-        if (next) syncQuickUpsert(next);
+        set({
+          tasks: [],
+          quickTasks: [],
+          quickWorkspaces: [makeDefaultWorkspace()],
+          activeWorkspaceId: DEFAULT_WORKSPACE_ID,
+          persona: [],
+          dataClearedAt: clearedAt,
+        });
       },
 
       // One Password — Firebase only; memory holds { question, answerHash, updatedAt }
@@ -335,6 +423,7 @@ export const useTaskStore = create(
         members: state.members,
         persona: state.persona,
         dataClearedAt: state.dataClearedAt || 0,
+        activeWorkspaceId: state.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {
@@ -347,13 +436,16 @@ export const useTaskStore = create(
           assignedByMe: _ab,
           assignedToMe: _at,
           quickTasks: _qt,
+          quickWorkspaces: _qw,
           ...safe
         } = incoming;
         return {
           ...current,
           ...safe,
           quickTasks: [],
+          quickWorkspaces: [makeDefaultWorkspace()],
           onePassword: null,
+          activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
         };
       },
       migrate: (persisted, version) => {
@@ -364,6 +456,7 @@ export const useTaskStore = create(
         if (version < 3) {
           delete next.quickTasks;
         }
+        delete next.quickWorkspaces;
         return next;
       },
     }

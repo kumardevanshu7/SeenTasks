@@ -1,17 +1,24 @@
 import { useMemo, useState } from "react";
 import QuickTasks from "../components/QuickTasks";
+import WorkspaceOverview from "../components/WorkspaceOverview";
 import DateStrip from "../components/DateStrip";
 import { todayKey, toKey } from "../lib/date";
 import { useTaskStore } from "../store/useTaskStore";
+import { DEFAULT_WORKSPACE_ID } from "../lib/quickTaskService";
 
 export default function QuickTasksPage() {
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const isToday = selectedDate === todayKey();
 
+  const personalTasks = useMemo(
+    () => (quickTasks || []).filter((t) => (t.workspaceId || DEFAULT_WORKSPACE_ID) === DEFAULT_WORKSPACE_ID),
+    [quickTasks]
+  );
+
   const counts = useMemo(() => {
     const map = {};
-    quickTasks.forEach((task) => {
+    personalTasks.forEach((task) => {
       if (task.dateKey) map[task.dateKey] = (map[task.dateKey] || 0) + 1;
       if (task.done && task.completedAt) {
         const doneKey = toKey(task.completedAt);
@@ -21,7 +28,7 @@ export default function QuickTasksPage() {
       }
     });
     return map;
-  }, [quickTasks]);
+  }, [personalTasks]);
 
   return (
     <div className="page narrow-page page-quick">
@@ -30,10 +37,12 @@ export default function QuickTasksPage() {
         <h1>Quick tasks</h1>
         <p>
           {isToday
-            ? "Add, tick, done. Unfinished moves to Not completed at midnight."
-            : "Checklist for this day."}
+            ? "Everyday list here. Use workspaces for separate categories."
+            : "Personal checklist for this day."}
         </p>
       </section>
+
+      <WorkspaceOverview />
 
       <DateStrip
         selected={selectedDate}
@@ -42,7 +51,7 @@ export default function QuickTasksPage() {
         range={14}
         instantScroll
       />
-      <QuickTasks dateKey={selectedDate} />
+      <QuickTasks dateKey={selectedDate} workspaceId={DEFAULT_WORKSPACE_ID} />
     </div>
   );
 }
