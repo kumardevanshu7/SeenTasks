@@ -16,6 +16,8 @@ const TeamPage = lazy(() => import("./pages/TeamPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage"));
+const FlowsPage = lazy(() => import("./pages/FlowsPage"));
+const FlowPage = lazy(() => import("./pages/FlowPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
@@ -55,6 +57,8 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="explore" element={<ExplorePage />} />
             <Route path="workspace/:workspaceId" element={<WorkspacePage />} />
+            <Route path="flows" element={<FlowsPage />} />
+            <Route path="flows/:flowId" element={<FlowPage />} />
             <Route path="about" element={<Navigate to="/about" replace />} />
             <Route path="privacy" element={<Navigate to="/privacy" replace />} />
             <Route path="terms" element={<Navigate to="/terms" replace />} />

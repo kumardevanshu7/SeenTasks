@@ -9,6 +9,7 @@ import {
   listenQuickWorkspaces,
   migrateLocalQuickTasks,
 } from "../lib/quickTaskService";
+import { listenFollowFlows } from "../lib/flowService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
 
@@ -60,12 +61,14 @@ export function useQuickTasksSync() {
   const setQuickTasks = useTaskStore((s) => s.setQuickTasks);
   const setQuickWorkspaces = useTaskStore((s) => s.setQuickWorkspaces);
   const setQuickLabels = useTaskStore((s) => s.setQuickLabels);
+  const setFollowFlows = useTaskStore((s) => s.setFollowFlows);
 
   useEffect(() => {
     if (!user?.uid) {
       setQuickTasks([]);
       setQuickWorkspaces([]);
       setQuickLabels([]);
+      setFollowFlows([]);
       return undefined;
     }
 
@@ -74,6 +77,7 @@ export function useQuickTasksSync() {
     let unsubTasks = null;
     let unsubSpaces = null;
     let unsubLabels = null;
+    let unsubFlows = null;
     let clearedAt = useTaskStore.getState().dataClearedAt || 0;
 
     (async () => {
@@ -123,6 +127,15 @@ export function useQuickTasksSync() {
         (error) => console.warn("Labels listener error:", error)
       );
 
+      unsubFlows = listenFollowFlows(
+        uid,
+        (items) => {
+          if (!active) return;
+          setFollowFlows(items);
+        },
+        (error) => console.warn("Flows listener error:", error)
+      );
+
       unsubTasks = listenQuickTasks(
         uid,
         (items) => {
@@ -146,6 +159,7 @@ export function useQuickTasksSync() {
       unsubTasks?.();
       unsubSpaces?.();
       unsubLabels?.();
+      unsubFlows?.();
     };
-  }, [user?.uid, setQuickTasks, setQuickWorkspaces, setQuickLabels]);
+  }, [user?.uid, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows]);
 }

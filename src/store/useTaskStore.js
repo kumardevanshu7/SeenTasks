@@ -5,6 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
+import { clearAllFollowFlowDocs, FLOW_COLORS, flowColorValue, removeFollowFlowDoc, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -72,6 +73,22 @@ function syncLabelRemove(id) {
   });
 }
 
+function syncFlowUpsert(flow) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !flow) return;
+  upsertFollowFlow(uid, flow).catch((err) => {
+    console.warn("Flow upsert failed:", err);
+  });
+}
+
+function syncFlowRemove(id) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !id) return;
+  removeFollowFlowDoc(uid, id).catch((err) => {
+    console.warn("Flow delete failed:", err);
+  });
+}
+
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
     id: uuid(),
@@ -106,6 +123,7 @@ export const useTaskStore = create(
       quickTasks: [], // { id, title, done, dateKey, workspaceId, dueDate, labelId, createdAt, completedAt }
       quickWorkspaces: [makeDefaultWorkspace()],
       quickLabels: [], // { id, name, color, createdAt }
+      followFlows: [], // { id, name, color, steps[], createdAt }
       activeWorkspaceId: DEFAULT_WORKSPACE_ID,
       dataClearedAt: 0, // millis — shared wipe marker so devices don't re-upload old locals
       members: [], // { id, name, username, photoURL }
@@ -133,6 +151,9 @@ export const useTaskStore = create(
       setQuickLabels: (quickLabels) =>
         set({ quickLabels: Array.isArray(quickLabels) ? quickLabels : [] }),
 
+      setFollowFlows: (followFlows) =>
+        set({ followFlows: Array.isArray(followFlows) ? followFlows : [] }),
+
       setActiveWorkspaceId: (id) =>
         set({ activeWorkspaceId: id || DEFAULT_WORKSPACE_ID }),
 
@@ -144,6 +165,7 @@ export const useTaskStore = create(
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
           quickLabels: [],
+          followFlows: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
         });
@@ -297,44 +319,176 @@ export const useTaskStore = create(
         syncLabelRemove(id);
       },
 
+      addFollowFlow: ({ name, color }) => {
+        const clean = name?.trim();
+        if (!clean) return null;
+        const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+        const item = {
+          id: uuid(),
+          name: clean.slice(0, 48),
+          color: flowColorValue(picked?.value || color || FLOW_COLORS[0].value),
+          steps: [],
+          createdAt: new Date().toISOString(),
+        };
+        set((s) => ({ followFlows: [item, ...(s.followFlows || [])] }));
+        syncFlowUpsert(item);
+        return item;
+      },
+
+      deleteFollowFlow: (id) => {
+        if (!id) return;
+        set((s) => ({
+          followFlows: (s.followFlows || []).filter((f) => f.id !== id),
+        }));
+        syncFlowRemove(id);
+      },
+
+      addFlowStep: (flowId, title) => {
+        const clean = title?.trim();
+        if (!flowId || !clean) return null;
+        let next = null;
+        const step = {
+          id: uuid(),
+          title: clean.slice(0, 120),
+          done: false,
+          completedAt: null,
+        };
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            next = { ...f, steps: [...(f.steps || []), step] };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return step;
+      },
+
+      toggleFlowStep: (flowId, stepId) => {
+        if (!flowId || !stepId) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const steps = f.steps || [];
+            const index = steps.findIndex((st) => st.id === stepId);
+            if (index < 0) return f;
+            for (let i = 0; i < index; i += 1) {
+              if (!steps[i].done) return f;
+            }
+            const updated = steps.map((st, i) => {
+              if (st.id !== stepId) return st;
+              const done = !st.done;
+              return {
+                ...st,
+                done,
+                completedAt: done ? new Date().toISOString() : null,
+              };
+            });
+            // If unchecking, also uncheck all later steps (keep sequence honest)
+            const unchecked = !updated[index].done;
+            const finalSteps = unchecked
+              ? updated.map((st, i) =>
+                  i > index ? { ...st, done: false, completedAt: null } : st
+                )
+              : updated;
+            next = { ...f, steps: finalSteps };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      deleteFlowStep: (flowId, stepId) => {
+        if (!flowId || !stepId) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            next = {
+              ...f,
+              steps: (f.steps || []).filter((st) => st.id !== stepId),
+            };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      reorderFlowSteps: (flowId, fromIndex, toIndex) => {
+        if (!flowId || fromIndex === toIndex) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const steps = [...(f.steps || [])];
+            if (
+              fromIndex < 0 ||
+              toIndex < 0 ||
+              fromIndex >= steps.length ||
+              toIndex >= steps.length
+            ) {
+              return f;
+            }
+            const [moved] = steps.splice(fromIndex, 1);
+            steps.splice(toIndex, 0, moved);
+            // After reorder, truncate done state so sequence stays valid:
+            // first incomplete forces all after to incomplete.
+            let sawOpen = false;
+            const normalized = steps.map((st) => {
+              if (sawOpen) return { ...st, done: false, completedAt: null };
+              if (!st.done) {
+                sawOpen = true;
+                return st;
+              }
+              return st;
+            });
+            next = { ...f, steps: normalized };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      renameFollowFlow: (id, name) => {
+        const clean = name?.trim();
+        if (!id || !clean) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== id) return f;
+            next = { ...f, name: clean.slice(0, 48) };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
       /** Wipe local task data + cloud quick tasks. Keeps One Password, auth, collab. */
       resetAppData: async () => {
         const uid = auth.currentUser?.uid;
         const clearedAt = Date.now();
-        set({
+        const wipe = {
           tasks: [],
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
           quickLabels: [],
+          followFlows: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
           dataClearedAt: clearedAt,
-        });
+        };
+        set(wipe);
         if (!uid) return;
         try {
           await markAppDataCleared(uid, clearedAt);
           await clearAllQuickTaskDocs(uid);
+          await clearAllFollowFlowDocs(uid);
         } catch (err) {
-          set({
-            tasks: [],
-            quickTasks: [],
-            quickWorkspaces: [makeDefaultWorkspace()],
-            quickLabels: [],
-            activeWorkspaceId: DEFAULT_WORKSPACE_ID,
-            persona: [],
-            dataClearedAt: clearedAt,
-          });
+          set(wipe);
           throw err;
         }
-        set({
-          tasks: [],
-          quickTasks: [],
-          quickWorkspaces: [makeDefaultWorkspace()],
-          quickLabels: [],
-          activeWorkspaceId: DEFAULT_WORKSPACE_ID,
-          persona: [],
-          dataClearedAt: clearedAt,
-        });
+        set(wipe);
       },
 
       // One Password — Firebase only; memory holds { question, answerHash, updatedAt }
@@ -516,6 +670,7 @@ export const useTaskStore = create(
           quickTasks: _qt,
           quickWorkspaces: _qw,
           quickLabels: _ql,
+          followFlows: _ff,
           ...safe
         } = incoming;
         return {
@@ -524,6 +679,7 @@ export const useTaskStore = create(
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
           quickLabels: [],
+          followFlows: [],
           onePassword: null,
           activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
         };
