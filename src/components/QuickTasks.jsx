@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CircleAlert, Trash2, X } from "lucide-react";
+import { CalendarDays, CircleAlert, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import { DEFAULT_WORKSPACE_ID } from "../lib/quickTaskService";
@@ -40,6 +40,8 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
     : null;
   const duration = recovered ? formatDuration(item.createdAt, item.completedAt) : "";
   const stamp = formatMonthDay(item.dateKey);
+  const dueOverdue = Boolean(item.dueDate && !item.done && isBeforeToday(item.dueDate));
+  const dueToday = Boolean(item.dueDate && !item.done && item.dueDate === todayKey());
 
   return (
     <li className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}`}>
@@ -91,6 +93,15 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
       <div className="quick-task-body">
         <div className="quick-task-title-row">
           <span className="quick-task-title">{item.title}</span>
+          {item.dueDate && (
+            <span
+              className={`quick-task-due${dueOverdue ? " is-overdue" : ""}${dueToday ? " is-due-today" : ""}`}
+            >
+              <CalendarDays size={11} aria-hidden="true" />
+              {dueOverdue ? "Overdue · " : dueToday ? "Due today · " : "Due "}
+              {formatFriendly(item.dueDate)}
+            </span>
+          )}
         </div>
         <div className="quick-task-times">
           {started && <span>Started {started}</span>}
@@ -120,6 +131,7 @@ function QuickTaskRow({ item, missed = false, onToggle, onRequestDelete }) {
 /** Checklist for one workspace (Personal on home, or a dedicated workspace page). */
 export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID }) {
   const [draft, setDraft] = useState("");
+  const [dueDraft, setDueDraft] = useState("");
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
   const quickTasks = useTaskStore((s) => s.quickTasks);
@@ -127,6 +139,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
   const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
   const spaceId = workspaceId || DEFAULT_WORKSPACE_ID;
+  const isWorkspace = spaceId !== DEFAULT_WORKSPACE_ID;
 
   useEffect(() => {
     const tick = () => setDayNow(todayKey());
@@ -185,8 +198,12 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       title: draft,
       dateKey: target,
       workspaceId: spaceId,
+      dueDate: isWorkspace && dueDraft ? dueDraft : null,
     });
-    if (added) setDraft("");
+    if (added) {
+      setDraft("");
+      setDueDraft("");
+    }
   }
 
   function onKeyDown(e) {
@@ -195,6 +212,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       submit();
     } else if (e.key === "Escape") {
       setDraft("");
+      setDueDraft("");
     }
   }
 
@@ -216,30 +234,59 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
           <p>
             {dayHasEnded
               ? "This day has closed. Unfinished items sit in Not completed."
-              : spaceId === DEFAULT_WORKSPACE_ID
-                ? "Your everyday checklist. Workspaces keep category lists separate."
-                : "Tasks in this workspace only."}
+              : isWorkspace
+                ? "Tasks in this workspace only. Deadline is optional."
+                : "Your everyday checklist. Workspaces keep category lists separate."}
           </p>
         </div>
 
         <div className="quick-tasks-panel">
           {canAdd && (
-            <div className="quick-tasks-input-row">
-              <span className="quick-tasks-input-mark" aria-hidden="true" />
-              <input
-                className="quick-tasks-input"
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Add a quick task"
-                aria-label="Add a quick task"
-                maxLength={200}
-              />
-              {draft.trim() && (
-                <button type="button" className="quick-tasks-add" onClick={submit}>
-                  Add
-                </button>
+            <div className="quick-tasks-composer">
+              <div className="quick-tasks-input-row">
+                <span className="quick-tasks-input-mark" aria-hidden="true" />
+                <input
+                  className="quick-tasks-input"
+                  type="text"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Add a quick task"
+                  aria-label="Add a quick task"
+                  maxLength={200}
+                />
+                {draft.trim() && (
+                  <button type="button" className="quick-tasks-add" onClick={submit}>
+                    Add
+                  </button>
+                )}
+              </div>
+              {isWorkspace && (
+                <div className="quick-tasks-due-row">
+                  <label className="quick-tasks-due-field">
+                    <CalendarDays size={14} aria-hidden="true" />
+                    <span>Expected deadline</span>
+                    <input
+                      type="date"
+                      className="quick-tasks-due-input"
+                      value={dueDraft}
+                      min={dayNow}
+                      onChange={(e) => setDueDraft(e.target.value)}
+                      aria-label="Optional expected deadline"
+                    />
+                  </label>
+                  {dueDraft ? (
+                    <button
+                      type="button"
+                      className="quick-tasks-due-clear"
+                      onClick={() => setDueDraft("")}
+                    >
+                      Clear
+                    </button>
+                  ) : (
+                    <span className="quick-tasks-due-hint">Optional</span>
+                  )}
+                </div>
               )}
             </div>
           )}
