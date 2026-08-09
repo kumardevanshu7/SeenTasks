@@ -276,10 +276,22 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       dayDone.forEach((t) => deleteQuickTask(t.id));
     } else if (request.type === "label" && request.id) {
       deleteQuickLabel(request.id);
+    } else if (request.type === "clear-label" && request.taskId) {
+      setQuickTaskLabel(request.taskId, null);
     } else if (request.id) {
       deleteQuickTask(request.id);
     }
     setDeleteRequest(null);
+  }
+
+  function requestClearTaskLabel(taskId) {
+    const task = quickTasks.find((t) => t.id === taskId);
+    const label = task?.labelId ? labelsById[task.labelId] : null;
+    setDeleteRequest({
+      type: "clear-label",
+      taskId,
+      title: label?.name || task?.title || "label",
+    });
   }
 
   function handleCreateLabel({ name, color }) {
@@ -328,7 +340,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     setDraggingLabel(false);
     setDropTargetId(null);
     if (!labelId || labelId === "__none__") {
-      if (labelId === "__none__") setQuickTaskLabel(taskId, null);
+      if (labelId === "__none__") requestClearTaskLabel(taskId);
       return;
     }
     setQuickTaskLabel(taskId, labelId);
@@ -340,7 +352,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
         onDragOverRow,
         onDragLeaveRow,
         onDropLabel,
-        onClearLabel: (id) => setQuickTaskLabel(id, null),
+        onClearLabel: requestClearTaskLabel,
       }
     : {};
 
@@ -555,12 +567,16 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             ? "Clear all completed tasks"
             : deleteRequest?.type === "label"
               ? `Delete label “${deleteRequest?.title || ""}”`
-              : `Delete “${deleteRequest?.title || "task"}”`
+              : deleteRequest?.type === "clear-label"
+                ? `Remove label “${deleteRequest?.title || ""}”`
+                : `Delete “${deleteRequest?.title || "task"}”`
         }
         description={
           deleteRequest?.type === "label"
             ? "Tasks keep their text; this label is removed from them."
-            : "Answer your One Password question to delete this."
+            : deleteRequest?.type === "clear-label"
+              ? "Answer your One Password question to remove this label from the task."
+              : "Answer your One Password question to delete this."
         }
         onClose={() => setDeleteRequest(null)}
         onConfirm={() => {
