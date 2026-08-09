@@ -282,15 +282,32 @@ p, h1, h2, h3, h4 { margin: 0; }
   display: flex;
   justify-content: center;
 }
-.flow-step:not(:last-child) .flow-step-rail::after {
+/* Line above node — stops at circle edge */
+.flow-step:not(:first-child) .flow-step-rail::before {
   content: "";
   position: absolute;
-  top: 28px;
-  bottom: -8px;
+  top: 0;
+  height: 2px;
   left: 50%;
   width: 2px;
   transform: translateX(-50%);
   background: #ddd5c8;
+  pointer-events: none;
+}
+.flow-step.is-done + .flow-step .flow-step-rail::before {
+  background: var(--flow-ink, #1f6b48);
+}
+/* Line below node — stops at bottom of this step, next ::before continues */
+.flow-step:not(:last-child) .flow-step-rail::after {
+  content: "";
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: #ddd5c8;
+  pointer-events: none;
 }
 .flow-step.is-done:not(:last-child) .flow-step-rail::after {
   background: var(--flow-ink, #1f6b48);
