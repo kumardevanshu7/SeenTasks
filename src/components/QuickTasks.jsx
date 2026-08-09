@@ -7,6 +7,8 @@ import CreateLabelModal from "./CreateLabelModal";
 import { DEFAULT_WORKSPACE_ID, labelColorInk } from "../lib/quickTaskService";
 import { formatClock, formatDateTime, formatDuration, formatFriendly, formatMonthDay, isBeforeToday, todayKey, toKey } from "../lib/date";
 
+const LABEL_DRAG_TYPE = "application/x-seentasks-label";
+
 function sortDayItems(items) {
   const byCreated = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
   const byCompleted = (a, b) => (a.completedAt < b.completedAt ? 1 : -1);
@@ -31,7 +33,19 @@ function taskWorkspaceId(task) {
   return task.workspaceId || DEFAULT_WORKSPACE_ID;
 }
 
-function QuickTaskRow({ item, label, missed = false, onToggle, onRequestDelete }) {
+function QuickTaskRow({
+  item,
+  label,
+  missed = false,
+  dropReady = false,
+  isDropTarget = false,
+  onToggle,
+  onRequestDelete,
+  onClearLabel,
+  onDragOverRow,
+  onDragLeaveRow,
+  onDropLabel,
+}) {
   const recovered = isRecoveredQuickTask(item);
   const started = recovered ? formatDateTime(item.createdAt) : formatClock(item.createdAt);
   const ended = item.done
@@ -45,7 +59,12 @@ function QuickTaskRow({ item, label, missed = false, onToggle, onRequestDelete }
   const dueToday = Boolean(item.dueDate && !item.done && item.dueDate === todayKey());
 
   return (
-    <li className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}`}>
+    <li
+      className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}${dropReady ? " quick-task-drop-ready" : ""}${isDropTarget ? " quick-task-drop-target" : ""}`}
+      onDragOver={(e) => onDragOverRow?.(e, item.id)}
+      onDragLeave={() => onDragLeaveRow?.(item.id)}
+      onDrop={(e) => onDropLabel?.(e, item.id)}
+    >
       <div className="quick-task-rail">
         <button
           type="button"
@@ -95,15 +114,19 @@ function QuickTaskRow({ item, label, missed = false, onToggle, onRequestDelete }
         <div className="quick-task-title-row">
           <span className="quick-task-title">{item.title}</span>
           {label && (
-            <span
+            <button
+              type="button"
               className="quick-task-label-chip"
               style={{
                 "--label-bg": label.color,
                 "--label-ink": labelColorInk(label.color),
               }}
+              onClick={() => onClearLabel?.(item.id)}
+              title="Click to remove label"
             >
               {label.name}
-            </span>
+              <X size={10} aria-hidden="true" />
+            </button>
           )}
           {item.dueDate && (
             <span
@@ -146,6 +169,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const [dueDraft, setDueDraft] = useState("");
   const [labelDraft, setLabelDraft] = useState("");
   const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [draggingLabel, setDraggingLabel] = useState(false);
+  const [dropTargetId, setDropTargetId] = useState(null);
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
   const quickTasks = useTaskStore((s) => s.quickTasks);
@@ -154,6 +179,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const addQuickLabel = useTaskStore((s) => s.addQuickLabel);
   const deleteQuickLabel = useTaskStore((s) => s.deleteQuickLabel);
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
+  const setQuickTaskLabel = useTaskStore((s) => s.setQuickTaskLabel);
   const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
   const spaceId = workspaceId || DEFAULT_WORKSPACE_ID;
   const isWorkspace = spaceId !== DEFAULT_WORKSPACE_ID;
@@ -262,6 +288,62 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     if (created?.id) setLabelDraft(created.id);
   }
 
+  function readDroppedLabelId(e) {
+    return (
+      e.dataTransfer.getData(LABEL_DRAG_TYPE) ||
+      e.dataTransfer.getData("text/plain") ||
+      ""
+    ).trim();
+  }
+
+  function onLabelDragStart(e, labelId) {
+    e.dataTransfer.setData(LABEL_DRAG_TYPE, labelId);
+    e.dataTransfer.setData("text/plain", labelId);
+    e.dataTransfer.effectAllowed = "copy";
+    setDraggingLabel(true);
+    setDropTargetId(null);
+  }
+
+  function onLabelDragEnd() {
+    setDraggingLabel(false);
+    setDropTargetId(null);
+  }
+
+  function onDragOverRow(e, taskId) {
+    if (!draggingLabel && ![...e.dataTransfer.types].includes(LABEL_DRAG_TYPE) && ![...e.dataTransfer.types].includes("text/plain")) {
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDropTargetId(taskId);
+  }
+
+  function onDragLeaveRow(taskId) {
+    setDropTargetId((cur) => (cur === taskId ? null : cur));
+  }
+
+  function onDropLabel(e, taskId) {
+    e.preventDefault();
+    const labelId = readDroppedLabelId(e);
+    setDraggingLabel(false);
+    setDropTargetId(null);
+    if (!labelId || labelId === "__none__") {
+      if (labelId === "__none__") setQuickTaskLabel(taskId, null);
+      return;
+    }
+    setQuickTaskLabel(taskId, labelId);
+  }
+
+  const rowDragProps = isWorkspace
+    ? {
+        dropReady: draggingLabel,
+        onDragOverRow,
+        onDragLeaveRow,
+        onDropLabel,
+        onClearLabel: (id) => setQuickTaskLabel(id, null),
+      }
+    : {};
+
   return (
     <div className="quick-tasks-stack">
       <section className="quick-tasks" aria-label="Quick tasks for the day">
@@ -271,7 +353,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             {dayHasEnded
               ? "This day has closed. Unfinished items sit in Not completed."
               : isWorkspace
-                ? "Tasks in this workspace only. Deadline and label are optional."
+                ? "Tasks in this workspace only. Drag a label onto any task."
                 : "Your everyday checklist. Workspaces keep category lists separate."}
           </p>
         </div>
@@ -331,7 +413,11 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   <button
                     type="button"
                     className={`quick-label-pill${!labelDraft ? " is-selected" : ""}`}
+                    draggable
+                    onDragStart={(e) => onLabelDragStart(e, "__none__")}
+                    onDragEnd={onLabelDragEnd}
                     onClick={() => setLabelDraft("")}
+                    title="Drag onto a task to clear its label"
                   >
                     None
                   </button>
@@ -341,11 +427,14 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                       <button
                         key={label.id}
                         type="button"
-                        className={`quick-label-pill${selected ? " is-selected" : ""}`}
+                        className={`quick-label-pill${selected ? " is-selected" : ""}${draggingLabel ? " is-dragging-source" : ""}`}
                         style={{
                           "--label-bg": label.color,
                           "--label-ink": labelColorInk(label.color),
                         }}
+                        draggable
+                        onDragStart={(e) => onLabelDragStart(e, label.id)}
+                        onDragEnd={onLabelDragEnd}
                         onClick={() => setLabelDraft(selected ? "" : label.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
@@ -355,7 +444,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                             title: label.name,
                           });
                         }}
-                        title="Click to use · right-click to delete"
+                        title="Drag onto a task · click for new tasks · right-click to delete"
                       >
                         {label.name}
                       </button>
@@ -388,8 +477,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   key={item.id}
                   item={item}
                   label={item.labelId ? labelsById[item.labelId] : null}
+                  isDropTarget={dropTargetId === item.id}
                   onToggle={toggleQuickTask}
                   onRequestDelete={setDeleteRequest}
+                  {...rowDragProps}
                 />
               ))}
             </ul>
@@ -439,8 +530,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     item={item}
                     label={item.labelId ? labelsById[item.labelId] : null}
                     missed
+                    isDropTarget={dropTargetId === item.id}
                     onToggle={toggleQuickTask}
                     onRequestDelete={setDeleteRequest}
+                    {...rowDragProps}
                   />
                 ))}
               </ul>

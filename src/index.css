@@ -401,20 +401,31 @@ p, h1, h2, h3, h4 { margin: 0; }
   border-color: var(--ws-ink, var(--primary));
   color: var(--ws-ink, var(--primary));
 }
+.quick-label-pill.is-dragging-source { cursor: grabbing; }
+.quick-label-pill[draggable="true"] { cursor: grab; }
 .quick-task-label-chip {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   max-width: 120px;
   padding: 2px 8px;
   overflow: hidden;
   color: var(--label-ink, var(--ink));
   background: var(--label-bg, #e8e1d6);
+  border: 0;
   border-radius: 999px;
+  font: inherit;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+.quick-task-label-chip svg { flex: 0 0 auto; opacity: .7; }
+.page-workspace .quick-task-drop-target {
+  background: color-mix(in srgb, var(--ws-color, #e8e1d6) 45%, white);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ws-ink, var(--primary)) 45%, transparent);
 }
 .quick-task-due {
   display: inline-flex;

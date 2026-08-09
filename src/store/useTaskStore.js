@@ -187,6 +187,21 @@ export const useTaskStore = create(
         if (next) syncQuickUpsert(next);
       },
 
+      setQuickTaskLabel: (taskId, labelId) => {
+        if (!taskId) return;
+        const nextLabel = labelId && String(labelId).trim() ? String(labelId).trim() : null;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== taskId) return t;
+            if ((t.labelId || null) === nextLabel) return t;
+            next = { ...t, labelId: nextLabel };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
       deleteQuickTask: (id) => {
         set((s) => ({ quickTasks: s.quickTasks.filter((t) => t.id !== id) }));
         syncQuickRemove(id);
