@@ -250,6 +250,27 @@ p, h1, h2, h3, h4 { margin: 0; }
   margin: 4px 0 24px;
 }
 .flow-page-head h1 { margin: 0; font-size: clamp(1.7rem, 4.5vw, 2.2rem); letter-spacing: -.4px; }
+.flow-title-input {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  margin: 0;
+  padding: 4px 0 6px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid color-mix(in srgb, var(--flow-ink, var(--primary)) 45%, #ddd5c8);
+  border-radius: 0;
+  outline: none;
+  font: inherit;
+  font-size: clamp(1.7rem, 4.5vw, 2.2rem);
+  font-weight: 650;
+  letter-spacing: -.4px;
+  line-height: 1.15;
+}
+.flow-title-input:focus {
+  border-bottom-color: var(--flow-ink, var(--primary));
+}
 .flow-page-head p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; max-width: 420px; }
 .flow-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .flow-page-actions .button.is-active {

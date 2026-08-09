@@ -13,10 +13,12 @@ export default function FlowPage() {
   const toggleFlowStep = useTaskStore((s) => s.toggleFlowStep);
   const deleteFlowStep = useTaskStore((s) => s.deleteFlowStep);
   const reorderFlowSteps = useTaskStore((s) => s.reorderFlowSteps);
+  const renameFollowFlow = useTaskStore((s) => s.renameFollowFlow);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [titleDraft, setTitleDraft] = useState("");
   const [gate, setGate] = useState(null);
   const [switchOpen, setSwitchOpen] = useState(false);
   const switchRef = useRef(null);
@@ -46,6 +48,14 @@ export default function FlowPage() {
     };
   }, [switchOpen]);
 
+  useEffect(() => {
+    setTitleDraft(flow?.name || "");
+  }, [flow?.id, flow?.name]);
+
+  useEffect(() => {
+    if (editing) setTitleDraft(flow?.name || "");
+  }, [editing, flow?.name]);
+
   if (followFlows?.length && !flow) {
     return <Navigate to="/app/flows" replace />;
   }
@@ -67,8 +77,18 @@ export default function FlowPage() {
     if (added) setDraft("");
   }
 
+  function saveTitle() {
+    const clean = titleDraft.trim();
+    if (!clean) {
+      setTitleDraft(flow.name);
+      return;
+    }
+    if (clean !== flow.name) renameFollowFlow(flow.id, clean);
+  }
+
   function requestEdit() {
     if (editing) {
+      saveTitle();
       setEditing(false);
       return;
     }
@@ -106,7 +126,7 @@ export default function FlowPage() {
 
   const gateDescription =
     gate?.type === "edit"
-      ? "Answer your One Password question to reorder or remove steps."
+      ? "Answer your One Password question to rename, reorder, or remove steps."
       : gate?.type === "delete-step"
         ? "Answer your One Password question to delete this step."
         : "This removes the whole step path. Answer your One Password question to continue.";
@@ -164,7 +184,29 @@ export default function FlowPage() {
       <header className="flow-page-head">
         <div>
           <p className="eyebrow">Follow Flow</p>
-          <h1>{flow.name}</h1>
+          {editing ? (
+            <input
+              className="flow-title-input"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveTitle();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setTitleDraft(flow.name);
+                  e.currentTarget.blur();
+                }
+              }}
+              maxLength={48}
+              aria-label="Flow title"
+              autoFocus
+            />
+          ) : (
+            <h1>{flow.name}</h1>
+          )}
           <p>
             {steps.length === 0
               ? "Add steps below. No dates — just the path."
