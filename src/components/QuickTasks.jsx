@@ -242,51 +242,49 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
 
         <div className="quick-tasks-panel">
           {canAdd && (
-            <div className="quick-tasks-composer">
-              <div className="quick-tasks-input-row">
-                <span className="quick-tasks-input-mark" aria-hidden="true" />
-                <input
-                  className="quick-tasks-input"
-                  type="text"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder="Add a quick task"
-                  aria-label="Add a quick task"
-                  maxLength={200}
-                />
-                {draft.trim() && (
-                  <button type="button" className="quick-tasks-add" onClick={submit}>
-                    Add
-                  </button>
-                )}
-              </div>
+            <div className="quick-tasks-input-row">
+              <span className="quick-tasks-input-mark" aria-hidden="true" />
+              <input
+                className="quick-tasks-input"
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Add a quick task"
+                aria-label="Add a quick task"
+                maxLength={200}
+              />
               {isWorkspace && (
-                <div className="quick-tasks-due-row">
-                  <label className="quick-tasks-due-field">
-                    <CalendarDays size={14} aria-hidden="true" />
-                    <span>Expected deadline</span>
-                    <input
-                      type="date"
-                      className="quick-tasks-due-input"
-                      value={dueDraft}
-                      min={dayNow}
-                      onChange={(e) => setDueDraft(e.target.value)}
-                      aria-label="Optional expected deadline"
-                    />
-                  </label>
-                  {dueDraft ? (
+                <label className={`quick-tasks-due-inline${dueDraft ? " has-date" : ""}`}>
+                  <CalendarDays size={14} aria-hidden="true" />
+                  <input
+                    type="date"
+                    className="quick-tasks-due-input"
+                    value={dueDraft}
+                    min={dayNow}
+                    onChange={(e) => setDueDraft(e.target.value)}
+                    aria-label="Optional expected deadline"
+                    title="Expected deadline (optional)"
+                  />
+                  {dueDraft && (
                     <button
                       type="button"
                       className="quick-tasks-due-clear"
-                      onClick={() => setDueDraft("")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setDueDraft("");
+                      }}
+                      aria-label="Clear deadline"
                     >
-                      Clear
+                      <X size={12} />
                     </button>
-                  ) : (
-                    <span className="quick-tasks-due-hint">Optional</span>
                   )}
-                </div>
+                </label>
+              )}
+              {draft.trim() && (
+                <button type="button" className="quick-tasks-add" onClick={submit}>
+                  Add
+                </button>
               )}
             </div>
           )}
