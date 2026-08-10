@@ -1,7 +1,7 @@
 import { TASK_ANALYSIS_SYSTEM_PROMPT } from "./systemPrompt";
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "google/gemma-4-31b-it:free";
+const MODEL = "openai/gpt-oss-20b:free";
 const CATEGORIES = new Set(["danger", "first", "second", "endofday", "tomorrow"]);
 const WINDOWS = new Set(["avoid", "now", "next", "end_of_day", "tomorrow"]);
 
