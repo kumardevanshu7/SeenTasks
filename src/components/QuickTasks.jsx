@@ -33,6 +33,20 @@ function taskWorkspaceId(task) {
   return task.workspaceId || DEFAULT_WORKSPACE_ID;
 }
 
+/** Open past its day: no due → midnight; with due → only after due date passes. */
+function belongsInNotCompleted(task) {
+  if (task?.done) return false;
+  if (!task?.dateKey || !isBeforeToday(task.dateKey)) return false;
+  if (task.dueDate && !isBeforeToday(task.dueDate)) return false;
+  return true;
+}
+
+/** Past-day open task still waiting on a future/today due date. */
+function isDueCarry(task) {
+  if (task?.done || !task?.dateKey || !task?.dueDate) return false;
+  return isBeforeToday(task.dateKey) && !isBeforeToday(task.dueDate);
+}
+
 function QuickTaskRow({
   item,
   label,
@@ -112,7 +126,6 @@ function QuickTaskRow({
 
       <div className="quick-task-body">
         <div className="quick-task-title-row">
-          <span className="quick-task-title">{item.title}</span>
           {label && (
             <button
               type="button"
@@ -128,6 +141,7 @@ function QuickTaskRow({
               <X size={10} aria-hidden="true" />
             </button>
           )}
+          <span className="quick-task-title">{item.title}</span>
           {item.dueDate && (
             <span
               className={`quick-task-due${dueOverdue ? " is-overdue" : ""}${dueToday ? " is-due-today" : ""}`}
@@ -215,9 +229,22 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const dayHasEnded = isBeforeToday(activeDate);
 
   const dayOpen = useMemo(() => {
-    if (dayHasEnded) return [];
-    return sortDayItems(scoped.filter((t) => t.dateKey === activeDate && !t.done));
-  }, [scoped, activeDate, dayHasEnded]);
+    if (dayHasEnded) {
+      // Past day: keep open tasks that still have a future/today due date in the list
+      return sortDayItems(
+        scoped.filter((t) => t.dateKey === activeDate && !t.done && isDueCarry(t))
+      );
+    }
+    return sortDayItems(
+      scoped.filter((t) => {
+        if (t.done) return false;
+        if (t.dateKey === activeDate) return true;
+        // On Today: carry past open tasks that are not due yet
+        if (viewingToday && isDueCarry(t)) return true;
+        return false;
+      })
+    );
+  }, [scoped, activeDate, dayHasEnded, viewingToday]);
 
   const dayDone = useMemo(
     () => sortDayItems(scoped.filter((t) => belongsToDayDone(t, activeDate))),
@@ -227,14 +254,16 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const notCompleted = useMemo(() => {
     if (viewingToday) {
       return scoped
-        .filter((t) => !t.done && isBeforeToday(t.dateKey))
+        .filter((t) => belongsInNotCompleted(t))
         .sort((a, b) => {
           if (a.dateKey === b.dateKey) return a.createdAt < b.createdAt ? 1 : -1;
           return a.dateKey < b.dateKey ? 1 : -1;
         });
     }
     if (dayHasEnded) {
-      return sortDayItems(scoped.filter((t) => t.dateKey === activeDate && !t.done));
+      return sortDayItems(
+        scoped.filter((t) => t.dateKey === activeDate && belongsInNotCompleted(t))
+      );
     }
     return [];
   }, [scoped, viewingToday, dayHasEnded, activeDate]);
@@ -526,8 +555,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             </h2>
             <p>
               {viewingToday
-                ? "Tasks left open when the day hit 12:00 AM move here automatically."
-                : "Left unfinished when this day ended at midnight."}
+                ? "No due date: open items move here at 12:00 AM. With a due date: they stay in tasks until that date passes."
+                : "Left unfinished when this day ended (or after the due date)."}
             </p>
           </div>
 
