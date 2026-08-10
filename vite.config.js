@@ -29,9 +29,12 @@ export default defineConfig({
         "favicon-16x16.png",
         "favicon-32x32.png",
         "apple-touch-icon.png",
+        "apple-touch-icon-180x180.png",
         "android-chrome-192x192.png",
         "android-chrome-512x512.png",
         "maskable-icon-512x512.png",
+        "pwa-192x192.png",
+        "pwa-512x512.png",
         "seentasks-logo.png",
       ],
       manifest: {
@@ -40,7 +43,7 @@ export default defineConfig({
         short_name: "SeenTasks",
         description: "Human-centered AI task planning for calmer, more intentional days.",
         theme_color: "#faf9f5",
-        background_color: "#faf9f5",
+        background_color: "#000000",
         display: "standalone",
         display_override: ["standalone", "browser"],
         orientation: "portrait-primary",
@@ -71,13 +74,15 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2,webmanifest}"],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        globPatterns: ["**/*.{js,css,html,png,ico,woff2,webmanifest}"],
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === "image",
             handler: "CacheFirst",
             options: {
-              cacheName: "seentasks-images",
+              cacheName: "seentasks-images-v2",
               expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },

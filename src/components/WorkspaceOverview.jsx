@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import CreateWorkspaceModal from "./CreateWorkspaceModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { DEFAULT_WORKSPACE_ID, workspaceColorInk } from "../lib/quickTaskService";
+import { prefetchRoute } from "../lib/prefetchRoute";
 
 export default function WorkspaceOverview() {
   const navigate = useNavigate();
@@ -62,6 +63,8 @@ export default function WorkspaceOverview() {
                 key={ws.id}
                 to={`/app/workspace/${ws.id}`}
                 className="workspace-overview-card"
+                onPointerEnter={() => prefetchRoute(`/app/workspace/${ws.id}`)}
+                onTouchStart={() => prefetchRoute(`/app/workspace/${ws.id}`)}
                 style={{
                   "--ws-bg": ws.color,
                   "--ws-ink": workspaceColorInk(ws.color),

@@ -1,7 +1,4 @@
-import { motion } from "framer-motion";
-
-// Reusable SeenTasks brand mark. `animated` adds a gentle breathing motion,
-// used on loading and hero moments.
+// Reusable SeenTasks brand mark. `animated` uses CSS breath — no motion lib.
 export default function Logo({ size = 28, withWordmark = false, animated = false, className = "" }) {
   const image = (
     <img
@@ -10,22 +7,13 @@ export default function Logo({ size = 28, withWordmark = false, animated = false
       width={size}
       height={size}
       className="logo-mark"
+      decoding="async"
+      fetchPriority={animated ? "high" : "low"}
       style={{ width: size, height: size }}
     />
   );
 
-  const mark = animated ? (
-    <motion.span
-      className="logo-animated"
-      initial={{ scale: 0.9, opacity: 0.7 }}
-      animate={{ scale: [0.94, 1, 0.94], opacity: [0.75, 1, 0.75] }}
-      transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-    >
-      {image}
-    </motion.span>
-  ) : (
-    image
-  );
+  const mark = animated ? <span className="logo-animated">{image}</span> : image;
 
   if (!withWordmark) return <span className={`logo ${className}`.trim()}>{mark}</span>;
   return (

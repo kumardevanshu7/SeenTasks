@@ -11,14 +11,9 @@ export default function QuickTasksPage() {
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const isToday = selectedDate === todayKey();
 
-  const personalTasks = useMemo(
-    () => (quickTasks || []).filter((t) => (t.workspaceId || DEFAULT_WORKSPACE_ID) === DEFAULT_WORKSPACE_ID),
-    [quickTasks]
-  );
-
   const counts = useMemo(() => {
     const map = {};
-    personalTasks.forEach((task) => {
+    (quickTasks || []).forEach((task) => {
       if (task.dateKey) map[task.dateKey] = (map[task.dateKey] || 0) + 1;
       if (task.done && task.completedAt) {
         const doneKey = toKey(task.completedAt);
@@ -28,7 +23,7 @@ export default function QuickTasksPage() {
       }
     });
     return map;
-  }, [personalTasks]);
+  }, [quickTasks]);
 
   return (
     <div className="page narrow-page page-quick">
@@ -37,8 +32,8 @@ export default function QuickTasksPage() {
         <h1>Quick tasks</h1>
         <p>
           {isToday
-            ? "Everyday list here. Use workspaces for separate categories."
-            : "Personal checklist for this day."}
+            ? "Everyday list here. Workspace tasks appear below too."
+            : "Checklist for this day, including workspace tasks."}
         </p>
       </section>
 
