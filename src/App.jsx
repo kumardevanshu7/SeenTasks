@@ -11,6 +11,7 @@ import QuickTasksPage from "./pages/QuickTasksPage";
 import WorkspacePage from "./pages/WorkspacePage";
 import FlowsPage from "./pages/FlowsPage";
 import FlowPage from "./pages/FlowPage";
+import ReportPage from "./pages/ReportPage";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const TodayPage = lazy(() => import("./pages/TodayPage"));
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="workspace/:workspaceId" element={<WorkspacePage />} />
             <Route path="flows" element={<FlowsPage />} />
             <Route path="flows/:flowId" element={<FlowPage />} />
+            <Route path="reports" element={<ReportPage />} />
             <Route path="about" element={<Navigate to="/about" replace />} />
             <Route path="privacy" element={<Navigate to="/privacy" replace />} />
             <Route path="terms" element={<Navigate to="/terms" replace />} />

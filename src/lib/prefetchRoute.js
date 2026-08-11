@@ -19,7 +19,8 @@ export function prefetchRoute(path) {
     key === "/app" ||
     key.startsWith("/app/workspace/") ||
     key === "/app/flows" ||
-    key.startsWith("/app/flows/")
+    key.startsWith("/app/flows/") ||
+    key === "/app/reports"
   ) {
     return;
   }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GitBranch, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { flowColorInk, flowProgress, isEverydayActive } from "../lib/flowService";
@@ -196,7 +196,7 @@ export default function FlowsPage() {
           </section>
 
           {(yesterdayReports.length > 0 || everydayFlows.length > 0) && (
-            <section className="flow-section flow-yesterday" aria-label="Yesterday report cards">
+            <section className="flow-section flow-yesterday" aria-label="Yesterday reports">
               <div className="flow-list-head">
                 <div>
                   <h2>Yesterday</h2>
@@ -204,6 +204,9 @@ export default function FlowsPage() {
                     Report cards for {formatFriendly(yKey)}
                   </p>
                 </div>
+                <Link to="/app/reports" className="button button-secondary">
+                  <ClipboardList size={15} /> Full report
+                </Link>
               </div>
 
               {yesterdayReports.length === 0 ? (
@@ -211,33 +214,25 @@ export default function FlowsPage() {
                   No report yet — finish today and check back after midnight.
                 </p>
               ) : (
-                <div className="everyday-report-grid">
-                  {yesterdayReports.map(({ flow, report }) => (
-                    <article
-                      key={`${flow.id}-${report.dateKey}`}
-                      className="everyday-report-card"
-                      style={{
-                        "--flow-bg": flow.color,
-                        "--flow-ink": flowColorInk(flow.color),
-                      }}
-                    >
-                      <header>
-                        <span className="everyday-report-name">{flow.name}</span>
-                        <span className={`everyday-grade grade-${report.grade.replace("+", "p")}`}>
-                          {report.grade}
-                        </span>
-                      </header>
-                      <div className="everyday-report-pct">{report.pct}%</div>
-                      <p className="everyday-report-meta">
-                        {report.done}/{report.total || 0} steps
-                      </p>
-                      <p className="everyday-report-feedback">
-                        <Sparkles size={13} aria-hidden="true" />
-                        {report.feedback}
-                      </p>
-                    </article>
-                  ))}
-                </div>
+                <Link to="/app/reports" className="report-teaser">
+                  <div className="report-teaser-copy">
+                    <strong>
+                      {yesterdayReports.length} report card
+                      {yesterdayReports.length === 1 ? "" : "s"} ready
+                    </strong>
+                    <span>
+                      {yesterdayReports
+                        .slice(0, 2)
+                        .map(({ flow, report }) => `${flow.name} ${report.grade}`)
+                        .join(" · ")}
+                      {yesterdayReports.length > 2 ? "…" : ""}
+                    </span>
+                  </div>
+                  <span className="report-teaser-go">
+                    Open Report
+                    <ArrowUpRight size={14} aria-hidden="true" />
+                  </span>
+                </Link>
               )}
             </section>
           )}

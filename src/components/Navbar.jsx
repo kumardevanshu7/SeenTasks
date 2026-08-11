@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, CalendarRange, CheckSquare, GitBranch, LogOut, MessageCircle, Menu, Plus, Settings, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
+import { CalendarDays, CalendarRange, CheckSquare, ClipboardList, GitBranch, LogOut, MessageCircle, Menu, Plus, Settings, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -77,6 +77,7 @@ export default function Navbar() {
         <nav className="side-nav" aria-label="Main navigation">
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app")}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
           <NavLink to="/app/flows" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/flows")}><GitBranch size={17} /><span>Follow Flow</span>{flowActiveCount > 0 && <em>{flowActiveCount}</em>}</NavLink>
+          <NavLink to="/app/reports" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/reports")}><ClipboardList size={17} /><span>Report</span></NavLink>
           <NavLink to="/app/today" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/today")}><CalendarDays size={17} /><span>Today</span></NavLink>
           <NavLink to="/app/calendar" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/calendar")}><CalendarRange size={17} /><span>Calendar</span></NavLink>
           <NavLink to="/app/persona" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/persona")}><UserCircle size={17} /><span>Your persona</span></NavLink>
