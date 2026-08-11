@@ -6,10 +6,10 @@
 
 ---
 
-## How to use this
+## How to use this:
 
-1. Read the **Answer** (facts).  
-2. Practice the **Say this** line out loud once.  
+1. Read the **Answer** (facts).
+2. Practice the **Say this** line out loud once.
 3. If they dig deeper → use one extra sentence from “If they ask more”.
 
 ---
@@ -93,7 +93,7 @@
 **Say this:**  
 “When you add a task, we call OpenRouter with your persona. It returns a category and a short reason. If the API fails, a local heuristic still works.”
 
-*If they ask more:* Categories are danger, first, second, end-of-day, tomorrow.
+_If they ask more:_ Categories are danger, first, second, end-of-day, tomorrow.
 
 ---
 
