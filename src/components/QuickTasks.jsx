@@ -6,7 +6,7 @@ import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
 import { DEFAULT_WORKSPACE_ID, labelColorInk, workspaceColorInk } from "../lib/quickTaskService";
 import { flowColorInk, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
-import { formatClock, formatDateTime, formatDuration, formatDelayDays, formatFriendly, formatMonthDay, delayedCompletionMessage, isBeforeToday, taskDelayDays, todayKey, toKey } from "../lib/date";
+import { formatDateTime, formatDuration, formatDelayDays, formatFriendly, formatMonthDay, delayedCompletionMessage, isBeforeToday, taskDelayDays, todayKey, toKey } from "../lib/date";
 
 const LABEL_DRAG_TYPE = "application/x-seentasks-label";
 
@@ -144,13 +144,9 @@ function QuickTaskRow({
   const delayLabel = formatDelayDays(delayDays);
   const delayNote =
     recovered && delayDays > 0 ? delayedCompletionMessage(delayDays) : "";
-  const started = recovered ? formatDateTime(item.createdAt) : formatClock(item.createdAt);
-  const ended = item.done
-    ? recovered
-      ? formatDateTime(item.completedAt)
-      : formatClock(item.completedAt)
-    : null;
-  const duration = recovered ? formatDuration(item.createdAt, item.completedAt) : "";
+  const started = formatDateTime(item.createdAt);
+  const ended = item.done ? formatDateTime(item.completedAt) : null;
+  const duration = item.done ? formatDuration(item.createdAt, item.completedAt) : "";
   const stamp = formatMonthDay(item.dateKey);
   const dueOverdue = Boolean(item.dueDate && !item.done && isBeforeToday(item.dueDate));
   const dueToday = Boolean(item.dueDate && !item.done && item.dueDate === todayKey());
