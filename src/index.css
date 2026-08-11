@@ -244,6 +244,47 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-list-card strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 16px; font-weight: 650; }
 .flow-list-card span { display: block; margin-top: 4px; font-size: 12px; opacity: .82; }
 .flow-list-card > em { flex: 0 0 auto; font-size: 18px; font-style: normal; font-weight: 700; }
+.flow-list-card.is-ended { opacity: .72; }
+.flow-card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.flow-meta-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  max-width: 420px;
+}
+.flow-end-date-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.flow-end-date-field .text-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-weight: 500;
+}
+.flow-end-date-clear {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.flow-field-optional { font-weight: 500; opacity: .7; }
+.flow-label-field { display: flex; flex-direction: column; gap: 8px; }
+.flow-label-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.flow-label-empty { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .flow-everyday-badge {
   display: inline-flex;
   align-items: center;
@@ -464,19 +505,65 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step-title { color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.35; }
 .flow-step.is-done .flow-step-title { color: var(--muted-soft); text-decoration: line-through; font-weight: 500; }
 .flow-step.is-locked .flow-step-title { color: var(--muted-soft); }
+.flow-step.is-scheduled { opacity: .72; }
+.flow-step.is-scheduled .flow-step-title { color: var(--muted); font-weight: 500; }
 .flow-step-status { color: var(--muted); font-size: 12px; }
 .flow-step.is-active .flow-step-status { color: var(--flow-ink, var(--primary)); font-weight: 600; }
-.flow-step-edit { display: inline-flex; gap: 4px; }
-.flow-steps-empty { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
-.flow-add-row {
+.flow-step-window { color: var(--muted-soft); font-size: 11px; }
+.flow-step-edit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.flow-step-dates {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+  width: 100%;
+}
+.flow-step-dates label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.flow-step-dates .text-input {
+  min-width: 132px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.flow-steps-empty { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+.flow-add-block {
   margin-top: 8px;
   padding-top: 16px;
   border-top: 1px solid #e8e1d6;
 }
+.flow-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .flow-add-row .text-input { flex: 1; min-width: 180px; }
+.flow-add-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+.flow-add-dates label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.flow-add-dates .text-input { font-size: 13px; }
 
 .workspace-create-body { display: flex; flex-direction: column; gap: 16px; }
 .workspace-create-body label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }

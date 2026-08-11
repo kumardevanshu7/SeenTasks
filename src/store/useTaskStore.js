@@ -5,7 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
-import { clearAllFollowFlowDocs, FLOW_COLORS, flowColorValue, removeFollowFlowDoc, rollEverydayFlow, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, FLOW_COLORS, flowColorValue, isFlowStepActiveOnDay, removeFollowFlowDoc, rollEverydayFlow, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -343,6 +343,7 @@ export const useTaskStore = create(
       deleteQuickLabel: (id) => {
         if (!id) return;
         const touched = [];
+        const touchedFlows = [];
         set((s) => {
           const quickTasks = s.quickTasks.map((t) => {
             const cur = Array.isArray(t.labelIds) ? t.labelIds : t.labelId ? [t.labelId] : [];
@@ -352,20 +353,36 @@ export const useTaskStore = create(
             touched.push(next);
             return next;
           });
+          const followFlows = (s.followFlows || []).map((f) => {
+            const cur = Array.isArray(f.labelIds) ? f.labelIds : [];
+            if (!cur.includes(id)) return f;
+            const next = { ...f, labelIds: cur.filter((x) => x !== id) };
+            touchedFlows.push(next);
+            return next;
+          });
           return {
             quickTasks,
+            followFlows,
             quickLabels: (s.quickLabels || []).filter((l) => l.id !== id),
           };
         });
         touched.forEach((t) => syncQuickUpsert(t));
+        touchedFlows.forEach((f) => syncFlowUpsert(f));
         syncLabelRemove(id);
       },
 
-      addFollowFlow: ({ name, color, repeat }) => {
+      addFollowFlow: ({ name, color, repeat, endDate, labelIds }) => {
         const clean = name?.trim();
         if (!clean) return null;
         const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
         const isDaily = repeat === "daily";
+        const labels = Array.isArray(labelIds)
+          ? labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
+          : [];
+        const end =
+          isDaily && typeof endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+            ? endDate
+            : null;
         const item = {
           id: uuid(),
           name: clean.slice(0, 48),
@@ -373,12 +390,47 @@ export const useTaskStore = create(
           steps: [],
           repeat: isDaily ? "daily" : null,
           dayKey: isDaily ? todayKey() : null,
+          endDate: end,
+          labelIds: labels,
           reports: [],
           createdAt: new Date().toISOString(),
         };
         set((s) => ({ followFlows: [item, ...(s.followFlows || [])] }));
         syncFlowUpsert(item);
         return item;
+      },
+
+      updateFollowFlow: (id, patch = {}) => {
+        if (!id) return null;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== id) return f;
+            const updates = {};
+            if (typeof patch.name === "string") {
+              const clean = patch.name.trim();
+              if (clean) updates.name = clean.slice(0, 48);
+            }
+            if (Object.prototype.hasOwnProperty.call(patch, "endDate")) {
+              const raw = patch.endDate;
+              updates.endDate =
+                f.repeat === "daily" &&
+                typeof raw === "string" &&
+                /^\d{4}-\d{2}-\d{2}$/.test(raw)
+                  ? raw
+                  : null;
+            }
+            if (Object.prototype.hasOwnProperty.call(patch, "labelIds")) {
+              updates.labelIds = Array.isArray(patch.labelIds)
+                ? patch.labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
+                : [];
+            }
+            next = { ...f, ...updates };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return next;
       },
 
       /** Archive yesterday + reset Everyday flows when the calendar day changes. */
@@ -404,15 +456,25 @@ export const useTaskStore = create(
         syncFlowRemove(id);
       },
 
-      addFlowStep: (flowId, title) => {
+      addFlowStep: (flowId, title, opts = {}) => {
         const clean = title?.trim();
         if (!flowId || !clean) return null;
         let next = null;
+        const startDate =
+          typeof opts.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.startDate)
+            ? opts.startDate
+            : null;
+        const endDate =
+          typeof opts.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.endDate)
+            ? opts.endDate
+            : null;
         const step = {
           id: uuid(),
           title: clean.slice(0, 120),
           done: false,
           completedAt: null,
+          startDate,
+          endDate,
         };
         set((s) => ({
           followFlows: (s.followFlows || []).map((f) => {
@@ -425,19 +487,62 @@ export const useTaskStore = create(
         return step;
       },
 
+      updateFlowStep: (flowId, stepId, patch = {}) => {
+        if (!flowId || !stepId) return null;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const steps = (f.steps || []).map((st) => {
+              if (st.id !== stepId) return st;
+              const updates = {};
+              if (typeof patch.title === "string") {
+                const clean = patch.title.trim();
+                if (clean) updates.title = clean.slice(0, 120);
+              }
+              if (Object.prototype.hasOwnProperty.call(patch, "startDate")) {
+                const raw = patch.startDate;
+                updates.startDate =
+                  typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+              }
+              if (Object.prototype.hasOwnProperty.call(patch, "endDate")) {
+                const raw = patch.endDate;
+                updates.endDate =
+                  typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+              }
+              return { ...st, ...updates };
+            });
+            next = { ...f, steps };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return next;
+      },
+
       toggleFlowStep: (flowId, stepId) => {
         if (!flowId || !stepId) return;
         let next = null;
+        const day = todayKey();
         set((s) => ({
           followFlows: (s.followFlows || []).map((f) => {
             if (f.id !== flowId) return f;
             const steps = f.steps || [];
             const index = steps.findIndex((st) => st.id === stepId);
             if (index < 0) return f;
-            for (let i = 0; i < index; i += 1) {
-              if (!steps[i].done) return f;
+            const everyday = f.repeat === "daily";
+            if (everyday) {
+              for (let i = 0; i < index; i += 1) {
+                if (!isFlowStepActiveOnDay(steps[i], day)) continue;
+                if (!steps[i].done) return f;
+              }
+              if (!isFlowStepActiveOnDay(steps[index], day)) return f;
+            } else {
+              for (let i = 0; i < index; i += 1) {
+                if (!steps[i].done) return f;
+              }
             }
-            const updated = steps.map((st, i) => {
+            const updated = steps.map((st) => {
               if (st.id !== stepId) return st;
               const done = !st.done;
               return {
@@ -446,7 +551,6 @@ export const useTaskStore = create(
                 completedAt: done ? new Date().toISOString() : null,
               };
             });
-            // If unchecking, also uncheck all later steps (keep sequence honest)
             const unchecked = !updated[index].done;
             const finalSteps = unchecked
               ? updated.map((st, i) =>

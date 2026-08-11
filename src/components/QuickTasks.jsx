@@ -5,9 +5,42 @@ import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
 import { DEFAULT_WORKSPACE_ID, labelColorInk, workspaceColorInk } from "../lib/quickTaskService";
+import { flowColorInk, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
 import { formatClock, formatDateTime, formatDuration, formatFriendly, formatMonthDay, isBeforeToday, todayKey, toKey } from "../lib/date";
 
 const LABEL_DRAG_TYPE = "application/x-seentasks-label";
+
+/** Build Quick Tasks mirror rows from active Everyday flow steps. */
+function buildEverydayMirrors(followFlows, activeDate, dayNow) {
+  const flows = (followFlows || []).filter(
+    (f) => isEverydayActive(f, activeDate) && (f.dayKey || dayNow) === activeDate
+  );
+  const items = [];
+  flows.forEach((flow) => {
+    const steps = flow.steps || [];
+    steps.forEach((step, index) => {
+      if (!isFlowStepActiveOnDay(step, activeDate)) return;
+      const unlocked = isFlowStepUnlocked(steps, index, activeDate, true);
+      items.push({
+        id: `flow:${flow.id}:${step.id}`,
+        title: step.title,
+        done: Boolean(step.done),
+        dateKey: activeDate,
+        labelIds: Array.isArray(flow.labelIds) ? flow.labelIds : [],
+        createdAt: flow.createdAt || null,
+        completedAt: step.completedAt || null,
+        dueDate: step.endDate || null,
+        flowLocked: !unlocked && !step.done,
+        flowRef: {
+          id: flow.id,
+          name: flow.name,
+          color: flow.color,
+        },
+      });
+    });
+  });
+  return sortDayItems(items);
+}
 
 function sortDayItems(items) {
   const byCreated = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
@@ -88,6 +121,7 @@ function QuickTaskRow({
   item,
   labels = [],
   workspaceRef = null,
+  flowRef = null,
   missed = false,
   dropReady = false,
   isDropTarget = false,
@@ -98,7 +132,8 @@ function QuickTaskRow({
   onDragLeaveRow,
   onDropLabel,
 }) {
-  const isMirror = Boolean(workspaceRef);
+  const isMirror = Boolean(workspaceRef || flowRef);
+  const mirrorRef = flowRef || workspaceRef;
   const recovered = !isMirror && isRecoveredQuickTask(item);
   const started = recovered ? formatDateTime(item.createdAt) : formatClock(item.createdAt);
   const ended = item.done
@@ -110,8 +145,23 @@ function QuickTaskRow({
   const stamp = formatMonthDay(item.dateKey);
   const dueOverdue = Boolean(item.dueDate && !item.done && isBeforeToday(item.dueDate));
   const dueToday = Boolean(item.dueDate && !item.done && item.dueDate === todayKey());
-  const wsHref = workspaceRef ? `/app/workspace/${workspaceRef.id}` : null;
-  const wsInk = workspaceRef ? workspaceColorInk(workspaceRef.color) : null;
+  const mirrorHref = flowRef
+    ? `/app/flows/${flowRef.id}`
+    : workspaceRef
+      ? `/app/workspace/${workspaceRef.id}`
+      : null;
+  const mirrorInk = mirrorRef
+    ? flowRef
+      ? flowColorInk(flowRef.color)
+      : workspaceColorInk(workspaceRef.color)
+    : null;
+  const mirrorChipLabel = flowRef ? flowRef.name : workspaceRef?.name;
+  const gotoLabel = flowRef ? "Go to flow" : "Go to workspace";
+  const openHint = flowRef
+    ? item.flowLocked
+      ? "Locked in flow sequence"
+      : "Open in Everyday flow"
+    : "Open in workspace";
 
   return (
     <li
@@ -125,15 +175,15 @@ function QuickTaskRow({
           <span
             className={`quick-task-check quick-task-check-locked${item.done ? " is-done" : ""}`}
             style={
-              workspaceRef
+              mirrorRef
                 ? {
-                    "--ws-color": workspaceRef.color,
-                    "--ws-ink": wsInk,
+                    "--ws-color": mirrorRef.color,
+                    "--ws-ink": mirrorInk,
                   }
                 : undefined
             }
             aria-hidden="true"
-            title="Complete this in its workspace"
+            title={flowRef ? "Complete this in its Everyday flow" : "Complete this in its workspace"}
           />
         ) : (
           <button
@@ -168,15 +218,15 @@ function QuickTaskRow({
 
       <div className="quick-task-body">
         <div className="quick-task-title-row">
-          {workspaceRef && (
+          {mirrorRef && (
             <span
               className="quick-task-workspace-chip"
               style={{
-                "--ws-color": workspaceRef.color,
-                "--ws-ink": wsInk,
+                "--ws-color": mirrorRef.color,
+                "--ws-ink": mirrorInk,
               }}
             >
-              {workspaceRef.name}
+              {mirrorChipLabel}
             </span>
           )}
           {labels.length > 0 && !isMirror && (
@@ -221,7 +271,17 @@ function QuickTaskRow({
               className={`quick-task-due${dueOverdue ? " is-overdue" : ""}${dueToday ? " is-due-today" : ""}`}
             >
               <CalendarDays size={11} aria-hidden="true" />
-              {dueOverdue ? "Overdue · " : dueToday ? "Due today · " : "Due "}
+              {flowRef
+                ? dueToday
+                  ? "Ends today · "
+                  : dueOverdue
+                    ? "Ended · "
+                    : "Until "
+                : dueOverdue
+                  ? "Overdue · "
+                  : dueToday
+                    ? "Due today · "
+                    : "Due "}
               {formatFriendly(item.dueDate)}
             </span>
           )}
@@ -233,7 +293,7 @@ function QuickTaskRow({
           ) : missed ? (
             <span>Left open past midnight</span>
           ) : isMirror ? (
-            <span>Open in workspace</span>
+            <span>{openHint}</span>
           ) : (
             <span>In progress</span>
           )}
@@ -243,18 +303,18 @@ function QuickTaskRow({
 
       {isMirror ? (
         <Link
-          to={wsHref}
+          to={mirrorHref}
           className="quick-task-goto"
           style={
-            workspaceRef
+            mirrorRef
               ? {
-                  "--ws-color": workspaceRef.color,
-                  "--ws-ink": wsInk,
+                  "--ws-color": mirrorRef.color,
+                  "--ws-ink": mirrorInk,
                 }
               : undefined
           }
         >
-          Go to workspace
+          {gotoLabel}
           <ArrowUpRight size={13} aria-hidden="true" />
         </Link>
       ) : (
@@ -284,6 +344,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const quickLabels = useTaskStore((s) => s.quickLabels);
   const quickWorkspaces = useTaskStore((s) => s.quickWorkspaces);
+  const followFlows = useTaskStore((s) => s.followFlows);
+  const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const addQuickTask = useTaskStore((s) => s.addQuickTask);
   const addQuickLabel = useTaskStore((s) => s.addQuickLabel);
   const deleteQuickLabel = useTaskStore((s) => s.deleteQuickLabel);
@@ -295,6 +357,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const spaceId = workspaceId || DEFAULT_WORKSPACE_ID;
   const isWorkspace = spaceId !== DEFAULT_WORKSPACE_ID;
   const showWorkspaceMirrors = !isWorkspace;
+  const showFlowMirrors = !isWorkspace;
 
   const labelsById = useMemo(() => {
     const map = {};
@@ -313,7 +376,11 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   }, [quickWorkspaces]);
 
   useEffect(() => {
-    const tick = () => setDayNow(todayKey());
+    const tick = () => {
+      setDayNow(todayKey());
+      if (showFlowMirrors) rollEverydayFlows();
+    };
+    tick();
     const id = window.setInterval(tick, 30_000);
     const onFocus = () => tick();
     window.addEventListener("focus", onFocus);
@@ -323,7 +390,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, []);
+  }, [rollEverydayFlows, showFlowMirrors]);
 
   const scoped = useMemo(
     () => quickTasks.filter((t) => taskWorkspaceId(t) === spaceId),
@@ -375,7 +442,11 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
 
   const activeList = [...dayOpen, ...dayDone];
   const mirrorList = showWorkspaceMirrors ? [...mirrorOpen, ...mirrorDone] : [];
-  const displayList = [...activeList, ...mirrorList];
+  const flowMirrorList = useMemo(
+    () => (showFlowMirrors ? buildEverydayMirrors(followFlows, activeDate, dayNow) : []),
+    [showFlowMirrors, followFlows, activeDate, dayNow]
+  );
+  const displayList = [...activeList, ...mirrorList, ...flowMirrorList];
   const missedList = showWorkspaceMirrors
     ? [...notCompleted, ...mirrorMissed]
     : notCompleted;
@@ -531,7 +602,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
               ? "This day has closed. Unfinished items sit in Not completed."
               : isWorkspace
                 ? "Tasks in this workspace only. Drag a label onto any task."
-                : "Your everyday checklist. Workspace tasks show here too—open the workspace to complete them."}
+                : "Your everyday checklist. Workspace and Everyday flow steps show here too."}
           </p>
         </div>
 
@@ -650,23 +721,26 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
           ) : (
             <ul className="quick-tasks-list">
               {displayList.map((item) => {
-                const workspaceRef = workspaceRefFor(item);
+                const workspaceRef = item.flowRef ? null : workspaceRefFor(item);
+                const flowRef = item.flowRef || null;
                 const labelIds = Array.isArray(item.labelIds)
                   ? item.labelIds
                   : item.labelId
                     ? [item.labelId]
                     : [];
                 const labels = labelIds.map((id) => labelsById[id]).filter(Boolean);
+                const isMirror = Boolean(workspaceRef || flowRef);
                 return (
                   <QuickTaskRow
                     key={item.id}
                     item={item}
                     labels={labels}
                     workspaceRef={workspaceRef}
-                    isDropTarget={!workspaceRef && dropTargetId === item.id}
+                    flowRef={flowRef}
+                    isDropTarget={!isMirror && dropTargetId === item.id}
                     onToggle={handleToggle}
                     onRequestDelete={setDeleteRequest}
-                    {...(workspaceRef ? {} : rowDragProps)}
+                    {...(isMirror ? {} : rowDragProps)}
                   />
                 );
               })}
@@ -679,6 +753,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                 {dayOpen.length} open
                 {dayDone.length > 0 ? ` · ${dayDone.length} done` : ""}
                 {mirrorList.length > 0 ? ` · ${mirrorList.length} from workspaces` : ""}
+                {flowMirrorList.length > 0 ? ` · ${flowMirrorList.length} from Everyday` : ""}
               </span>
               {dayDone.length > 0 && dayOpen.length === 0 && (
                 <button

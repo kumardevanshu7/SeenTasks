@@ -23,7 +23,7 @@ export default function Navbar() {
   const flowActiveCount = useTaskStore(
     (state) =>
       (state.followFlows || []).filter((f) => {
-        const p = flowProgress(f);
+      const p = flowProgress(f, todayKey());
         return p.total > 0 && !p.complete;
       }).length
   );

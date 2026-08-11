@@ -41,12 +41,18 @@ function flowsRef(uid) {
   return collection(db, "users", uid, "followFlows");
 }
 
+function isValidDateKey(value) {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export function normalizeFlowStep(data = {}, index = 0) {
   return {
     id: data.id || `step-${index}`,
     title: (data.title || "").trim() || `Step ${index + 1}`,
     done: Boolean(data.done),
     completedAt: data.completedAt || null,
+    startDate: isValidDateKey(data.startDate) ? data.startDate : null,
+    endDate: isValidDateKey(data.endDate) ? data.endDate : null,
   };
 }
 
@@ -68,6 +74,15 @@ export function normalizeFollowFlow(id, data = {}) {
         .slice(0, 30)
     : [];
   const repeat = data.repeat === "daily" ? "daily" : null;
+  const labelIds = Array.isArray(data.labelIds)
+    ? data.labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
+    : data.labelId
+      ? [String(data.labelId).trim()].filter(Boolean)
+      : [];
+  const endDate =
+    repeat === "daily" && typeof data.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.endDate)
+      ? data.endDate
+      : null;
   return {
     id,
     name: (data.name || "Flow").trim() || "Flow",
@@ -75,13 +90,43 @@ export function normalizeFollowFlow(id, data = {}) {
     steps,
     repeat,
     dayKey: data.dayKey || null,
+    endDate,
+    labelIds,
     reports,
     createdAt: data.createdAt || new Date().toISOString(),
   };
 }
 
-export function flowProgress(flow) {
+/** Everyday still running on this calendar day (inclusive of flow endDate). */
+export function isEverydayActive(flow, day = null) {
+  if (!flow || flow.repeat !== "daily") return false;
+  const d = day || todayKey();
+  if (flow.endDate && flow.endDate < d) return false;
+  return true;
+}
+
+/** Step counts for this day: optional startDate ≤ day ≤ optional endDate. */
+export function isFlowStepActiveOnDay(step, day = null) {
+  const d = day || todayKey();
+  if (step?.startDate && isValidDateKey(step.startDate) && step.startDate > d) return false;
+  if (step?.endDate && isValidDateKey(step.endDate) && step.endDate < d) return false;
+  return true;
+}
+
+/** Steps that belong in today’s Everyday sequence (all steps for one-shot flows). */
+export function activeFlowSteps(flow, day = null) {
   const steps = flow?.steps || [];
+  if (flow?.repeat !== "daily") return steps;
+  const d = day || flow.dayKey || todayKey();
+  return steps.filter((s) => isFlowStepActiveOnDay(s, d));
+}
+
+export function flowProgress(flow, day = null) {
+  const d =
+    day ||
+    (flow?.repeat === "daily" ? flow.dayKey || todayKey() : null) ||
+    todayKey();
+  const steps = activeFlowSteps(flow, d);
   const total = steps.length;
   const done = steps.filter((s) => s.done).length;
   const activeIndex = steps.findIndex((s) => !s.done);
@@ -135,7 +180,7 @@ export function feedbackForGrade(grade) {
 }
 
 export function buildEverydayReport(flow, dateKey) {
-  const prog = flowProgress(flow);
+  const prog = flowProgress(flow, dateKey);
   const grade = gradeFromPct(prog.pct);
   return {
     dateKey,
@@ -157,15 +202,21 @@ export function rollEverydayFlow(flow, today = null) {
     return { flow: { ...flow, dayKey: day }, changed: true, report: null };
   }
 
-  const report = buildEverydayReport(flow, dayKey);
-  const reports = [report, ...(flow.reports || [])]
-    .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
-    .slice(0, 30);
-  const resetSteps = (flow.steps || []).map((s) => ({
-    ...s,
-    done: false,
-    completedAt: null,
-  }));
+  const shouldReport = !flow.endDate || dayKey <= flow.endDate;
+  const report = shouldReport ? buildEverydayReport(flow, dayKey) : null;
+  const reports = report
+    ? [report, ...(flow.reports || [])]
+        .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
+        .slice(0, 30)
+    : flow.reports || [];
+  const stillActive = isEverydayActive(flow, day);
+  const resetSteps = stillActive
+    ? (flow.steps || []).map((s) => ({
+        ...s,
+        done: false,
+        completedAt: null,
+      }))
+    : flow.steps || [];
   return {
     flow: { ...flow, steps: resetSteps, dayKey: day, reports },
     changed: true,
@@ -173,9 +224,21 @@ export function rollEverydayFlow(flow, today = null) {
   };
 }
 
-/** Step is actionable only when all previous steps are done. */
-export function isFlowStepUnlocked(steps, index) {
+/**
+ * Step is actionable when all earlier steps that are active on `day` are done.
+ * Inactive (future/expired) steps are skipped in the Everyday sequence.
+ */
+export function isFlowStepUnlocked(steps, index, day = null, everyday = false) {
   if (index < 0 || index >= (steps?.length || 0)) return false;
+  const d = day || todayKey();
+  if (everyday) {
+    if (!isFlowStepActiveOnDay(steps[index], d)) return false;
+    for (let i = 0; i < index; i += 1) {
+      if (!isFlowStepActiveOnDay(steps[i], d)) continue;
+      if (!steps[i]?.done) return false;
+    }
+    return true;
+  }
   for (let i = 0; i < index; i += 1) {
     if (!steps[i]?.done) return false;
   }
@@ -207,9 +270,20 @@ export async function upsertFollowFlow(uid, flow) {
         title: s.title || `Step ${i + 1}`,
         done: Boolean(s.done),
         completedAt: s.completedAt || null,
+        startDate: isValidDateKey(s.startDate) ? s.startDate : null,
+        endDate: isValidDateKey(s.endDate) ? s.endDate : null,
       })),
       repeat: flow.repeat === "daily" ? "daily" : null,
       dayKey: flow.dayKey || null,
+      endDate:
+        flow.repeat === "daily" &&
+        typeof flow.endDate === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(flow.endDate)
+          ? flow.endDate
+          : null,
+      labelIds: Array.isArray(flow.labelIds)
+        ? flow.labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
+        : [],
       reports: Array.isArray(flow.reports)
         ? flow.reports.slice(0, 30).map((r) => ({
             dateKey: r.dateKey || "",
