@@ -6,7 +6,7 @@ import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
 import { DEFAULT_WORKSPACE_ID, labelColorInk, workspaceColorInk } from "../lib/quickTaskService";
 import { flowColorInk, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
-import { formatClock, formatDateTime, formatDuration, formatFriendly, formatMonthDay, isBeforeToday, todayKey, toKey } from "../lib/date";
+import { formatClock, formatDateTime, formatDuration, formatDelayDays, formatFriendly, formatMonthDay, delayedCompletionMessage, isBeforeToday, taskDelayDays, todayKey, toKey } from "../lib/date";
 
 const LABEL_DRAG_TYPE = "application/x-seentasks-label";
 
@@ -51,9 +51,10 @@ function sortDayItems(items) {
   ];
 }
 
+/** Finished after midnight (no due) or after the due day. */
 function isRecoveredQuickTask(item) {
-  if (!item?.done || !item.completedAt || !item.dateKey) return false;
-  return toKey(item.completedAt) > item.dateKey;
+  if (!item?.done || !item.completedAt) return false;
+  return taskDelayDays(item) > 0;
 }
 
 function belongsToDayDone(item, activeDate) {
@@ -66,7 +67,11 @@ function taskWorkspaceId(task) {
   return task.workspaceId || DEFAULT_WORKSPACE_ID;
 }
 
-/** Open past its day: no due → midnight; with due → only after due date passes. */
+/**
+ * Not completed:
+ * - no dueDate → after 12:00 AM on the day after dateKey
+ * - with dueDate → only after the due day ends (never before due)
+ */
 function belongsInNotCompleted(task) {
   if (task?.done) return false;
   if (!task?.dateKey || !isBeforeToday(task.dateKey)) return false;
@@ -74,7 +79,7 @@ function belongsInNotCompleted(task) {
   return true;
 }
 
-/** Past-day open task still waiting on a future/today due date. */
+/** Past-day open task still waiting on a future/today due date — stays in Today. */
 function isDueCarry(task) {
   if (task?.done || !task?.dateKey || !task?.dueDate) return false;
   return isBeforeToday(task.dateKey) && !isBeforeToday(task.dueDate);
@@ -135,6 +140,10 @@ function QuickTaskRow({
   const isMirror = Boolean(workspaceRef || flowRef);
   const mirrorRef = flowRef || workspaceRef;
   const recovered = !isMirror && isRecoveredQuickTask(item);
+  const delayDays = isMirror ? 0 : taskDelayDays(item);
+  const delayLabel = formatDelayDays(delayDays);
+  const delayNote =
+    recovered && delayDays > 0 ? delayedCompletionMessage(delayDays) : "";
   const started = recovered ? formatDateTime(item.createdAt) : formatClock(item.createdAt);
   const ended = item.done
     ? recovered
@@ -162,6 +171,9 @@ function QuickTaskRow({
       ? "Locked in flow sequence"
       : "Open in Everyday flow"
     : "Open in workspace";
+  const missedHint = item.dueDate
+    ? "Left open past the due date"
+    : "Left open past midnight";
 
   return (
     <li
@@ -266,6 +278,11 @@ function QuickTaskRow({
             </>
           )}
           <span className="quick-task-title">{item.title}</span>
+          {delayLabel && (missed || recovered) && (
+            <span className="quick-task-delay-badge" title={delayNote || undefined}>
+              Delayed · {delayLabel}
+            </span>
+          )}
           {item.dueDate && (
             <span
               className={`quick-task-due${dueOverdue ? " is-overdue" : ""}${dueToday ? " is-due-today" : ""}`}
@@ -291,7 +308,7 @@ function QuickTaskRow({
           {ended ? (
             <span>Ended {ended}</span>
           ) : missed ? (
-            <span>Left open past midnight</span>
+            <span>{missedHint}</span>
           ) : isMirror ? (
             <span>{openHint}</span>
           ) : (
@@ -299,6 +316,7 @@ function QuickTaskRow({
           )}
           {duration && <span>{duration} total</span>}
         </div>
+        {delayNote && <p className="quick-task-delay-note">{delayNote}</p>}
       </div>
 
       {isMirror ? (
@@ -778,7 +796,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             </h2>
             <p>
               {viewingToday
-                ? "No due date: open items move here at 12:00 AM. With a due date: they stay in tasks until that date passes."
+                ? "No due date: open items move here at 12:00 AM with a delayed label. With a due date: they stay in Today until that date passes."
                 : "Left unfinished when this day ended (or after the due date)."}
             </p>
           </div>

@@ -16,11 +16,46 @@ export function isBeforeToday(dateKey) {
 }
 
 export function daysBetween(fromKey, toKeyValue) {
-  const a = new Date(fromKey);
-  const b = new Date(toKeyValue);
+  const a = new Date(`${fromKey}T12:00:00`);
+  const b = new Date(`${toKeyValue}T12:00:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
   a.setHours(0, 0, 0, 0);
   b.setHours(0, 0, 0, 0);
   return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+/** Deadline day for delay: dueDate if set, else the task’s dateKey (midnight cutoff). */
+export function taskDeadlineKey(task) {
+  if (task?.dueDate) return task.dueDate;
+  return task?.dateKey || null;
+}
+
+/**
+ * How many calendar days past the deadline (0 if still on time).
+ * No due date → late starting the day after dateKey (12:00 AM).
+ * With due date → late only after the due day ends.
+ */
+export function taskDelayDays(task, asOf = null) {
+  const deadline = taskDeadlineKey(task);
+  if (!deadline) return 0;
+  const end =
+    asOf ||
+    (task?.done && task.completedAt ? toKey(task.completedAt) : todayKey());
+  if (end <= deadline) return 0;
+  return daysBetween(deadline, end);
+}
+
+export function formatDelayDays(days) {
+  const n = Math.max(0, Number(days) || 0);
+  if (n <= 0) return "";
+  return n === 1 ? "1 day" : `${n} days`;
+}
+
+/** Copy when a task is finished after its midnight / due deadline. */
+export function delayedCompletionMessage(days) {
+  const label = formatDelayDays(days);
+  if (!label) return "";
+  return `You completed this task very delayed — around ${label} late.`;
 }
 
 export function formatFriendly(dateKey) {

@@ -5,7 +5,83 @@ import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { flowColorInk, flowProgress, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
-import { formatFriendly, todayKey } from "../lib/date";
+import { formatFriendly, todayKey, toKey } from "../lib/date";
+
+function EverydayMiniCalendar({ flow }) {
+  const today = todayKey();
+  const live = flowProgress(flow, today);
+  const byKey = useMemo(() => {
+    const map = {};
+    (flow.reports || []).forEach((r) => {
+      if (r?.dateKey) map[r.dateKey] = r;
+    });
+    return map;
+  }, [flow.reports]);
+
+  const cells = useMemo(() => {
+    const list = [];
+    const created = flow.createdAt ? toKey(flow.createdAt) : null;
+    for (let i = 13; i >= 0; i -= 1) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = toKey(d);
+      const beforeStart = created && key < created;
+      const afterEnd = flow.endDate && key > flow.endDate;
+      let pct = null;
+      let grade = null;
+      if (!beforeStart && !afterEnd) {
+        if (key === today) {
+          const hasActive = (flow.steps || []).some((s) => isFlowStepActiveOnDay(s, today));
+          pct = hasActive || live.total > 0 ? live.pct : null;
+        } else if (byKey[key]) {
+          pct = byKey[key].pct;
+          grade = byKey[key].grade;
+        }
+      }
+      list.push({
+        key,
+        day: d.getDate(),
+        wd: d.toLocaleDateString(undefined, { weekday: "narrow" }),
+        pct,
+        grade,
+        isToday: key === today,
+        empty: pct === null,
+      });
+    }
+    return list;
+  }, [byKey, flow.createdAt, flow.endDate, flow.steps, live.pct, live.total, today]);
+
+  return (
+    <section className="flow-mini-cal" aria-label="Daily completion calendar">
+      <div className="flow-mini-cal-head">
+        <h2>Daily pulse</h2>
+        <p>Last 14 days — % of that day’s active steps done</p>
+      </div>
+      <div className="flow-mini-cal-grid" role="list">
+        {cells.map((cell) => {
+          const tone =
+            cell.empty ? "empty" : cell.pct >= 90 ? "high" : cell.pct >= 60 ? "mid" : "low";
+          return (
+            <div
+              key={cell.key}
+              role="listitem"
+              className={`flow-mini-cal-cell is-${tone}${cell.isToday ? " is-today" : ""}`}
+              title={
+                cell.empty
+                  ? formatFriendly(cell.key)
+                  : `${formatFriendly(cell.key)} · ${cell.pct}%${cell.grade ? ` · ${cell.grade}` : ""}`
+              }
+            >
+              <span className="flow-mini-cal-wd">{cell.wd}</span>
+              <strong className="flow-mini-cal-day">{cell.day}</strong>
+              <em className="flow-mini-cal-pct">{cell.empty ? "—" : `${cell.pct}%`}</em>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 export default function FlowPage() {
   const { flowId } = useParams();
@@ -591,6 +667,8 @@ export default function FlowPage() {
           </div>
         )}
       </div>
+
+      {isEveryday && <EverydayMiniCalendar flow={flow} />}
 
       <OnePasswordGate
         open={Boolean(gate)}

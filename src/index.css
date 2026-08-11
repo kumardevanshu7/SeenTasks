@@ -565,6 +565,71 @@ p, h1, h2, h3, h4 { margin: 0; }
 }
 .flow-add-dates .text-input { font-size: 13px; }
 
+.flow-mini-cal {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid #e8e1d6;
+}
+.flow-mini-cal-head h2 {
+  margin: 0;
+  font-family: "Cormorant Garamond", Garamond, serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+.flow-mini-cal-head p {
+  margin: 4px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.flow-mini-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.flow-mini-cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 64px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: #f3eee6;
+  color: var(--ink);
+}
+.flow-mini-cal-cell.is-today {
+  box-shadow: inset 0 0 0 1.5px var(--flow-ink, var(--primary));
+}
+.flow-mini-cal-cell.is-high { background: color-mix(in srgb, var(--flow-bg, #d8f3e4) 70%, white); }
+.flow-mini-cal-cell.is-mid { background: #f3e6d2; }
+.flow-mini-cal-cell.is-low { background: #f5dfd9; }
+.flow-mini-cal-cell.is-empty { opacity: .55; }
+.flow-mini-cal-wd { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+.flow-mini-cal-day { font-size: 14px; font-weight: 700; line-height: 1.1; }
+.flow-mini-cal-pct { font-size: 11px; font-style: normal; font-weight: 650; opacity: .85; }
+
+.quick-task-delay-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  color: #8a3d38;
+  background: #f5dfd9;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.quick-task-delay-note {
+  margin: 6px 0 0;
+  color: #8a3d38;
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 36ch;
+}
+
 .workspace-create-body { display: flex; flex-direction: column; gap: 16px; }
 .workspace-create-body label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }
 .workspace-color-field { display: flex; flex-direction: column; gap: 8px; }
