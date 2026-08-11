@@ -106,7 +106,12 @@ function buildAssistantTaskContext(context = {}) {
     dueDate: t.dueDate || null,
     started: t.createdAt || null,
     ended: t.completedAt || null,
-    label: t.labelId && labels[t.labelId] ? labels[t.labelId].name : null,
+    label:
+      Array.isArray(t.labelIds) && t.labelIds.length
+        ? t.labelIds.map((id) => (labels[id] ? labels[id].name : null)).filter(Boolean).join(", ")
+        : t.labelId && labels[t.labelId]
+          ? labels[t.labelId].name
+          : null,
     workspace: workspaces[t.workspaceId || "personal"]?.name || t.workspaceId || "Personal",
   }));
 

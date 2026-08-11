@@ -5,7 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
-import { clearAllFollowFlowDocs, FLOW_COLORS, flowColorValue, removeFollowFlowDoc, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, FLOW_COLORS, flowColorValue, removeFollowFlowDoc, rollEverydayFlow, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -120,7 +120,7 @@ export const useTaskStore = create(
   persist(
     (set, get) => ({
       tasks: [],
-      quickTasks: [], // { id, title, done, dateKey, workspaceId, dueDate, labelId, createdAt, completedAt }
+      quickTasks: [], // { id, title, done, dateKey, workspaceId, dueDate, labelIds[], labelId, createdAt, completedAt }
       quickWorkspaces: [makeDefaultWorkspace()],
       quickLabels: [], // { id, name, color, createdAt }
       followFlows: [], // { id, name, color, steps[], createdAt }
@@ -171,12 +171,17 @@ export const useTaskStore = create(
         });
       },
 
-      addQuickTask: ({ title, dateKey, workspaceId, dueDate, labelId }) => {
+      addQuickTask: ({ title, dateKey, workspaceId, dueDate, labelId, labelIds }) => {
         const clean = title?.trim();
         if (!clean) return null;
         const ws = workspaceId || get().activeWorkspaceId || DEFAULT_WORKSPACE_ID;
         const due = dueDate && String(dueDate).trim() ? String(dueDate).trim() : null;
-        const label = labelId && String(labelId).trim() ? String(labelId).trim() : null;
+        const normalizedLabelIds = Array.isArray(labelIds)
+          ? labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
+          : labelId && String(labelId).trim()
+            ? [String(labelId).trim()]
+            : [];
+        const label = normalizedLabelIds[0] || null;
         const item = {
           id: uuid(),
           title: clean,
@@ -184,6 +189,7 @@ export const useTaskStore = create(
           dateKey: dateKey || todayKey(),
           workspaceId: ws,
           dueDate: due,
+          labelIds: normalizedLabelIds,
           labelId: label,
           createdAt: new Date().toISOString(),
           completedAt: null,
@@ -209,15 +215,49 @@ export const useTaskStore = create(
         if (next) syncQuickUpsert(next);
       },
 
-      setQuickTaskLabel: (taskId, labelId) => {
-        if (!taskId) return;
-        const nextLabel = labelId && String(labelId).trim() ? String(labelId).trim() : null;
+      addQuickTaskLabel: (taskId, labelId) => {
+        if (!taskId || !labelId) return;
+        const nextLabel = String(labelId).trim();
+        if (!nextLabel) return;
         let next = null;
         set((s) => ({
           quickTasks: s.quickTasks.map((t) => {
             if (t.id !== taskId) return t;
-            if ((t.labelId || null) === nextLabel) return t;
-            next = { ...t, labelId: nextLabel };
+            const cur = Array.isArray(t.labelIds) ? t.labelIds : t.labelId ? [t.labelId] : [];
+            if (cur.includes(nextLabel)) return t;
+            const labelIds2 = [...cur, nextLabel];
+            next = { ...t, labelIds: labelIds2, labelId: labelIds2[0] || null };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      removeQuickTaskLabel: (taskId, labelId) => {
+        if (!taskId || !labelId) return;
+        const target = String(labelId).trim();
+        if (!target) return;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const cur = Array.isArray(t.labelIds) ? t.labelIds : t.labelId ? [t.labelId] : [];
+            if (!cur.includes(target)) return t;
+            const labelIds2 = cur.filter((x) => x !== target);
+            next = { ...t, labelIds: labelIds2, labelId: labelIds2[0] || null };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      clearQuickTaskLabels: (taskId) => {
+        if (!taskId) return;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== taskId) return t;
+            next = { ...t, labelIds: [], labelId: null };
             return next;
           }),
         }));
@@ -305,8 +345,10 @@ export const useTaskStore = create(
         const touched = [];
         set((s) => {
           const quickTasks = s.quickTasks.map((t) => {
-            if (t.labelId !== id) return t;
-            const next = { ...t, labelId: null };
+            const cur = Array.isArray(t.labelIds) ? t.labelIds : t.labelId ? [t.labelId] : [];
+            if (!cur.includes(id)) return t;
+            const labelIds2 = cur.filter((x) => x !== id);
+            const next = { ...t, labelIds: labelIds2, labelId: labelIds2[0] || null };
             touched.push(next);
             return next;
           });
@@ -319,20 +361,39 @@ export const useTaskStore = create(
         syncLabelRemove(id);
       },
 
-      addFollowFlow: ({ name, color }) => {
+      addFollowFlow: ({ name, color, repeat }) => {
         const clean = name?.trim();
         if (!clean) return null;
         const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+        const isDaily = repeat === "daily";
         const item = {
           id: uuid(),
           name: clean.slice(0, 48),
           color: flowColorValue(picked?.value || color || FLOW_COLORS[0].value),
           steps: [],
+          repeat: isDaily ? "daily" : null,
+          dayKey: isDaily ? todayKey() : null,
+          reports: [],
           createdAt: new Date().toISOString(),
         };
         set((s) => ({ followFlows: [item, ...(s.followFlows || [])] }));
         syncFlowUpsert(item);
         return item;
+      },
+
+      /** Archive yesterday + reset Everyday flows when the calendar day changes. */
+      rollEverydayFlows: () => {
+        const day = todayKey();
+        const changed = [];
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            const result = rollEverydayFlow(f, day);
+            if (result.changed) changed.push(result.flow);
+            return result.flow;
+          }),
+        }));
+        changed.forEach((f) => syncFlowUpsert(f));
+        return changed.length;
       },
 
       deleteFollowFlow: (id) => {

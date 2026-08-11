@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GitBranch, Plus } from "lucide-react";
+import { GitBranch, Plus, RefreshCw, Sparkles } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { flowColorInk, flowProgress } from "../lib/flowService";
-import { formatFriendly } from "../lib/date";
+import { formatFriendly, toKey } from "../lib/date";
 
 function flowStartedLabel(createdAt) {
   if (!createdAt) return null;
@@ -15,14 +15,60 @@ function flowStartedLabel(createdAt) {
   }
 }
 
+function yesterdayKey() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toKey(d);
+}
+
 export default function FlowsPage() {
   const navigate = useNavigate();
   const followFlows = useTaskStore((s) => s.followFlows) || [];
   const addFollowFlow = useTaskStore((s) => s.addFollowFlow);
+  const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createEveryday, setCreateEveryday] = useState(false);
 
-  function handleCreate({ name, color }) {
-    const created = addFollowFlow({ name, color });
+  useEffect(() => {
+    rollEverydayFlows();
+    const id = window.setInterval(() => rollEverydayFlows(), 30_000);
+    const onFocus = () => rollEverydayFlows();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [rollEverydayFlows]);
+
+  const everydayFlows = useMemo(
+    () => followFlows.filter((f) => f.repeat === "daily"),
+    [followFlows]
+  );
+  const oneShotFlows = useMemo(
+    () => followFlows.filter((f) => f.repeat !== "daily"),
+    [followFlows]
+  );
+
+  const yKey = yesterdayKey();
+  const yesterdayReports = useMemo(() => {
+    return everydayFlows
+      .map((f) => {
+        const report = (f.reports || []).find((r) => r.dateKey === yKey);
+        if (!report) return null;
+        return { flow: f, report };
+      })
+      .filter(Boolean);
+  }, [everydayFlows, yKey]);
+
+  function openCreate(everyday = false) {
+    setCreateEveryday(everyday);
+    setCreateOpen(true);
+  }
+
+  function handleCreate({ name, color, repeat }) {
+    const created = addFollowFlow({ name, color, repeat });
     setCreateOpen(false);
     if (created?.id) navigate(`/app/flows/${created.id}`);
   }
@@ -32,61 +78,172 @@ export default function FlowsPage() {
       <section className="simple-hero simple-hero-compact">
         <p className="eyebrow">Follow Flow Tasks</p>
         <h1>Flows</h1>
-        <p>No calendar — just a sequence. Complete a step to unlock the next.</p>
+        <p>Sequences that unlock step by step. Everyday flows reset at midnight.</p>
       </section>
 
       {followFlows.length === 0 ? (
         <div className="flow-empty-stage">
           <GitBranch size={28} />
           <h2>Create flow</h2>
-          <p>Name your path, pick a light theme color, then add steps one by one.</p>
-          <button type="button" className="button button-primary" onClick={() => setCreateOpen(true)}>
-            <Plus size={16} /> Create flow
-          </button>
+          <p>One-time path, or Everyday that repeats and grades you each night.</p>
+          <div className="flow-empty-actions">
+            <button type="button" className="button button-primary" onClick={() => openCreate(false)}>
+              <Plus size={16} /> Create flow
+            </button>
+            <button type="button" className="button button-secondary" onClick={() => openCreate(true)}>
+              <RefreshCw size={16} /> Everyday flow
+            </button>
+          </div>
         </div>
       ) : (
         <>
-          <div className="flow-list-head">
-            <h2>Your flows</h2>
-            <button type="button" className="button button-secondary" onClick={() => setCreateOpen(true)}>
-              <Plus size={15} /> Create flow
-            </button>
-          </div>
-          <div className="flow-list">
-            {followFlows.map((flow) => {
-              const prog = flowProgress(flow);
-              const started = flowStartedLabel(flow.createdAt);
-              return (
-                <Link
-                  key={flow.id}
-                  to={`/app/flows/${flow.id}`}
-                  className="flow-list-card"
-                  style={{
-                    "--flow-bg": flow.color,
-                    "--flow-ink": flowColorInk(flow.color),
-                  }}
-                >
-                  <div>
-                    <strong>{flow.name}</strong>
-                    <span>
-                      {prog.total === 0
-                        ? "Add your first step"
-                        : prog.complete
-                          ? "All steps complete"
-                          : `Step ${Math.min(prog.activeIndex + 1, prog.total)} of ${prog.total}`}
-                      {started ? ` · Started ${started}` : ""}
-                    </span>
-                  </div>
-                  <em>{prog.pct}%</em>
-                </Link>
-              );
-            })}
-          </div>
+          <section className="flow-section" aria-label="Everyday">
+            <div className="flow-list-head">
+              <div>
+                <h2>Everyday</h2>
+                <p className="flow-section-sub">Repeat daily · resets at 12:00 AM</p>
+              </div>
+              <button type="button" className="button button-secondary" onClick={() => openCreate(true)}>
+                <Plus size={15} /> Create everyday
+              </button>
+            </div>
+
+            {everydayFlows.length === 0 ? (
+              <p className="flow-section-empty">No everyday flows yet — build a daily sequence.</p>
+            ) : (
+              <div className="flow-list">
+                {everydayFlows.map((flow) => {
+                  const prog = flowProgress(flow);
+                  return (
+                    <Link
+                      key={flow.id}
+                      to={`/app/flows/${flow.id}`}
+                      className="flow-list-card"
+                      style={{
+                        "--flow-bg": flow.color,
+                        "--flow-ink": flowColorInk(flow.color),
+                      }}
+                    >
+                      <div>
+                        <strong>
+                          {flow.name}
+                          <em className="flow-everyday-badge">Everyday</em>
+                        </strong>
+                        <span>
+                          {prog.total === 0
+                            ? "Add your first step"
+                            : prog.complete
+                              ? "All steps done today"
+                              : `Step ${Math.min(prog.activeIndex + 1, prog.total)} of ${prog.total} today`}
+                        </span>
+                      </div>
+                      <em>{prog.pct}%</em>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {(yesterdayReports.length > 0 || everydayFlows.length > 0) && (
+            <section className="flow-section flow-yesterday" aria-label="Yesterday report cards">
+              <div className="flow-list-head">
+                <div>
+                  <h2>Yesterday</h2>
+                  <p className="flow-section-sub">
+                    Report cards for {formatFriendly(yKey)}
+                  </p>
+                </div>
+              </div>
+
+              {yesterdayReports.length === 0 ? (
+                <p className="flow-section-empty">
+                  No report yet — finish today and check back after midnight.
+                </p>
+              ) : (
+                <div className="everyday-report-grid">
+                  {yesterdayReports.map(({ flow, report }) => (
+                    <article
+                      key={`${flow.id}-${report.dateKey}`}
+                      className="everyday-report-card"
+                      style={{
+                        "--flow-bg": flow.color,
+                        "--flow-ink": flowColorInk(flow.color),
+                      }}
+                    >
+                      <header>
+                        <span className="everyday-report-name">{flow.name}</span>
+                        <span className={`everyday-grade grade-${report.grade.replace("+", "p")}`}>
+                          {report.grade}
+                        </span>
+                      </header>
+                      <div className="everyday-report-pct">{report.pct}%</div>
+                      <p className="everyday-report-meta">
+                        {report.done}/{report.total || 0} steps
+                      </p>
+                      <p className="everyday-report-feedback">
+                        <Sparkles size={13} aria-hidden="true" />
+                        {report.feedback}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className="flow-section" aria-label="Your flows">
+            <div className="flow-list-head">
+              <div>
+                <h2>Your flows</h2>
+                <p className="flow-section-sub">One-time sequences — no midnight reset</p>
+              </div>
+              <button type="button" className="button button-secondary" onClick={() => openCreate(false)}>
+                <Plus size={15} /> Create flow
+              </button>
+            </div>
+
+            {oneShotFlows.length === 0 ? (
+              <p className="flow-section-empty">No one-time flows yet.</p>
+            ) : (
+              <div className="flow-list">
+                {oneShotFlows.map((flow) => {
+                  const prog = flowProgress(flow);
+                  const started = flowStartedLabel(flow.createdAt);
+                  return (
+                    <Link
+                      key={flow.id}
+                      to={`/app/flows/${flow.id}`}
+                      className="flow-list-card"
+                      style={{
+                        "--flow-bg": flow.color,
+                        "--flow-ink": flowColorInk(flow.color),
+                      }}
+                    >
+                      <div>
+                        <strong>{flow.name}</strong>
+                        <span>
+                          {prog.total === 0
+                            ? "Add your first step"
+                            : prog.complete
+                              ? "All steps complete"
+                              : `Step ${Math.min(prog.activeIndex + 1, prog.total)} of ${prog.total}`}
+                          {started ? ` · Started ${started}` : ""}
+                        </span>
+                      </div>
+                      <em>{prog.pct}%</em>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </>
       )}
 
       <CreateFlowModal
         open={createOpen}
+        defaultEveryday={createEveryday}
         onClose={() => setCreateOpen(false)}
         onCreate={handleCreate}
       />

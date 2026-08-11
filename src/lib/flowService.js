@@ -9,6 +9,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { todayKey } from "./date";
 
 /** 10 light theme colors for Follow Flow (distinct from workspace/label palettes) */
 export const FLOW_COLORS = [
@@ -53,11 +54,28 @@ export function normalizeFollowFlow(id, data = {}) {
   const steps = Array.isArray(data.steps)
     ? data.steps.map((s, i) => normalizeFlowStep(s, i))
     : [];
+  const reports = Array.isArray(data.reports)
+    ? data.reports
+        .map((r) => ({
+          dateKey: r.dateKey || "",
+          pct: Number(r.pct) || 0,
+          grade: r.grade || gradeFromPct(Number(r.pct) || 0),
+          feedback: r.feedback || feedbackForGrade(r.grade || gradeFromPct(Number(r.pct) || 0)),
+          done: Number(r.done) || 0,
+          total: Number(r.total) || 0,
+        }))
+        .filter((r) => r.dateKey)
+        .slice(0, 30)
+    : [];
+  const repeat = data.repeat === "daily" ? "daily" : null;
   return {
     id,
     name: (data.name || "Flow").trim() || "Flow",
     color: flowColorValue(data.color),
     steps,
+    repeat,
+    dayKey: data.dayKey || null,
+    reports,
     createdAt: data.createdAt || new Date().toISOString(),
   };
 }
@@ -73,6 +91,85 @@ export function flowProgress(flow) {
     pct: total === 0 ? 0 : Math.round((done / total) * 100),
     activeIndex: activeIndex === -1 ? (total === 0 ? -1 : total) : activeIndex,
     complete: total > 0 && done === total,
+  };
+}
+
+/** School-style grades from completion percent. */
+export function gradeFromPct(pct) {
+  const n = Math.max(0, Math.min(100, Number(pct) || 0));
+  if (n >= 97) return "A+";
+  if (n >= 90) return "A";
+  if (n >= 87) return "B+";
+  if (n >= 80) return "B";
+  if (n >= 77) return "C+";
+  if (n >= 70) return "C";
+  if (n >= 67) return "D+";
+  if (n >= 60) return "D";
+  if (n >= 50) return "E";
+  return "F";
+}
+
+export function feedbackForGrade(grade) {
+  switch (grade) {
+    case "A+":
+      return "Outstanding day — you finished every step.";
+    case "A":
+      return "Excellent work — almost a perfect day.";
+    case "B+":
+      return "Strong day — this rhythm is solid.";
+    case "B":
+      return "Good progress — a little more and you’re golden.";
+    case "C+":
+      return "Decent effort — keep pushing the sequence.";
+    case "C":
+      return "Halfway there — tomorrow can climb.";
+    case "D+":
+      return "A start — lock in a few more steps next time.";
+    case "D":
+      return "Light day — show up again tomorrow.";
+    case "E":
+      return "Barely scratched it — reset and try again.";
+    default:
+      return "Missed day — fresh slate starts now.";
+  }
+}
+
+export function buildEverydayReport(flow, dateKey) {
+  const prog = flowProgress(flow);
+  const grade = gradeFromPct(prog.pct);
+  return {
+    dateKey,
+    pct: prog.pct,
+    grade,
+    feedback: feedbackForGrade(grade),
+    done: prog.done,
+    total: prog.total,
+  };
+}
+
+/** If an Everyday flow’s dayKey is before today, archive a report and reset steps. */
+export function rollEverydayFlow(flow, today = null) {
+  if (!flow || flow.repeat !== "daily") return { flow, changed: false, report: null };
+  const day = today || todayKey();
+  const dayKey = flow.dayKey || day;
+  if (dayKey >= day) {
+    if (flow.dayKey) return { flow, changed: false, report: null };
+    return { flow: { ...flow, dayKey: day }, changed: true, report: null };
+  }
+
+  const report = buildEverydayReport(flow, dayKey);
+  const reports = [report, ...(flow.reports || [])]
+    .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
+    .slice(0, 30);
+  const resetSteps = (flow.steps || []).map((s) => ({
+    ...s,
+    done: false,
+    completedAt: null,
+  }));
+  return {
+    flow: { ...flow, steps: resetSteps, dayKey: day, reports },
+    changed: true,
+    report,
   };
 }
 
@@ -111,6 +208,18 @@ export async function upsertFollowFlow(uid, flow) {
         done: Boolean(s.done),
         completedAt: s.completedAt || null,
       })),
+      repeat: flow.repeat === "daily" ? "daily" : null,
+      dayKey: flow.dayKey || null,
+      reports: Array.isArray(flow.reports)
+        ? flow.reports.slice(0, 30).map((r) => ({
+            dateKey: r.dateKey || "",
+            pct: Number(r.pct) || 0,
+            grade: r.grade || "F",
+            feedback: r.feedback || "",
+            done: Number(r.done) || 0,
+            total: Number(r.total) || 0,
+          }))
+        : [],
       createdAt: flow.createdAt || new Date().toISOString(),
       updatedAt: serverTimestamp(),
     },

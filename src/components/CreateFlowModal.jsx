@@ -3,22 +3,26 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { FLOW_COLORS } from "../lib/flowService";
 
-export default function CreateFlowModal({ open, onClose, onCreate }) {
+export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryday = false }) {
   const [name, setName] = useState("");
   const [colorId, setColorId] = useState(FLOW_COLORS[0].id);
+  const [everyday, setEveryday] = useState(defaultEveryday);
 
   useEffect(() => {
     if (!open) {
       setName("");
       setColorId(FLOW_COLORS[0].id);
+      setEveryday(defaultEveryday);
+    } else {
+      setEveryday(defaultEveryday);
     }
-  }, [open]);
+  }, [open, defaultEveryday]);
 
   function submit(e) {
     e.preventDefault();
     const clean = name.trim();
     if (!clean) return;
-    onCreate?.({ name: clean, color: colorId });
+    onCreate?.({ name: clean, color: colorId, repeat: everyday ? "daily" : null });
   }
 
   return (
@@ -41,8 +45,8 @@ export default function CreateFlowModal({ open, onClose, onCreate }) {
           >
             <div className="quick-delete-head">
               <div>
-                <p className="eyebrow">Follow Flow</p>
-                <h2>Create flow</h2>
+                <p className="eyebrow">{everyday ? "Everyday" : "Follow Flow"}</p>
+                <h2>{everyday ? "Create everyday flow" : "Create flow"}</h2>
               </div>
               <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
                 <X size={16} />
@@ -56,11 +60,27 @@ export default function CreateFlowModal({ open, onClose, onCreate }) {
                   className="text-input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Launch checklist, Client onboarding"
+                  placeholder={
+                    everyday
+                      ? "e.g. Morning habits, Phone detox"
+                      : "e.g. Launch checklist, Client onboarding"
+                  }
                   maxLength={48}
                   autoFocus
                   required
                 />
+              </label>
+
+              <label className="flow-everyday-toggle">
+                <input
+                  type="checkbox"
+                  checked={everyday}
+                  onChange={(e) => setEveryday(e.target.checked)}
+                />
+                <span>
+                  <strong>Everyday — repeat daily</strong>
+                  <small>Resets at 12:00 AM. Yesterday becomes a report card.</small>
+                </span>
               </label>
 
               <div className="workspace-color-field">
@@ -90,7 +110,7 @@ export default function CreateFlowModal({ open, onClose, onCreate }) {
                 Cancel
               </button>
               <button type="submit" className="button button-primary" disabled={!name.trim()}>
-                Create flow
+                {everyday ? "Create everyday" : "Create flow"}
               </button>
             </div>
           </motion.form>

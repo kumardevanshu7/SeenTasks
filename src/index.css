@@ -223,6 +223,10 @@ p, h1, h2, h3, h4 { margin: 0; }
 }
 .flow-empty-stage h2 { margin: 4px 0 0; font-family: "Cormorant Garamond", Garamond, serif; font-size: 28px; font-weight: 500; }
 .flow-empty-stage p { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.flow-empty-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.flow-section { margin-bottom: 36px; }
+.flow-section-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.flow-section-empty { margin: 0; padding: 16px 4px; color: var(--muted-soft); font-size: 13px; }
 .flow-list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 14px; }
 .flow-list-head h2 { margin: 0; font-family: "Cormorant Garamond", Garamond, serif; font-size: 22px; font-weight: 500; }
 .flow-list { display: flex; flex-direction: column; gap: 10px; }
@@ -237,9 +241,87 @@ p, h1, h2, h3, h4 { margin: 0; }
   border-radius: 14px;
   text-decoration: none;
 }
-.flow-list-card strong { display: block; font-size: 16px; font-weight: 650; }
+.flow-list-card strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 16px; font-weight: 650; }
 .flow-list-card span { display: block; margin-top: 4px; font-size: 12px; opacity: .82; }
-.flow-list-card em { flex: 0 0 auto; font-size: 18px; font-style: normal; font-weight: 700; }
+.flow-list-card > em { flex: 0 0 auto; font-size: 18px; font-style: normal; font-weight: 700; }
+.flow-everyday-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  color: var(--flow-ink, var(--primary));
+  background: color-mix(in srgb, white 55%, var(--flow-bg, #e8e1d6));
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.flow-page-head h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.flow-everyday-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid #e0d7cb;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.flow-everyday-toggle input { margin-top: 3px; }
+.flow-everyday-toggle span { display: flex; flex-direction: column; gap: 2px; }
+.flow-everyday-toggle strong { font-size: 13px; font-weight: 600; }
+.flow-everyday-toggle small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.everyday-report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.everyday-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  color: var(--flow-ink, var(--ink));
+  background: color-mix(in srgb, white 35%, var(--flow-bg, #e8e1d6));
+  border-radius: 14px;
+}
+.everyday-report-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.everyday-report-name { font-size: 14px; font-weight: 650; line-height: 1.3; }
+.everyday-grade {
+  flex: 0 0 auto;
+  min-width: 36px;
+  padding: 4px 8px;
+  color: white;
+  background: var(--ink);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+.everyday-grade.grade-Ap, .everyday-grade.grade-A { background: #2f6b4a; }
+.everyday-grade.grade-Bp, .everyday-grade.grade-B { background: #3d6e8a; }
+.everyday-grade.grade-Cp, .everyday-grade.grade-C { background: #8a6b2f; }
+.everyday-grade.grade-Dp, .everyday-grade.grade-D { background: #8a5538; }
+.everyday-grade.grade-E, .everyday-grade.grade-F { background: #8a3d38; }
+.everyday-report-pct { font-size: 28px; font-weight: 700; letter-spacing: -.5px; line-height: 1.1; }
+.everyday-report-meta { margin: 0; font-size: 12px; opacity: .8; }
+.everyday-report-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: .9;
+}
+.everyday-report-feedback svg { flex: 0 0 auto; margin-top: 2px; }
 
 .flow-page-head {
   display: flex;

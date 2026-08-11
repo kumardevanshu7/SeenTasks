@@ -96,6 +96,13 @@ export function normalizeQuickLabel(id, data = {}) {
 }
 
 export function normalizeQuickTask(id, data = {}) {
+  const rawLabelIds = Array.isArray(data.labelIds) ? data.labelIds : null;
+  const labelIds = rawLabelIds
+    ? rawLabelIds.filter(Boolean).map((x) => String(x))
+    : data.labelId
+      ? [String(data.labelId)]
+      : [];
+
   return {
     id,
     title: data.title || "",
@@ -103,7 +110,10 @@ export function normalizeQuickTask(id, data = {}) {
     dateKey: data.dateKey || "",
     workspaceId: data.workspaceId || DEFAULT_WORKSPACE_ID,
     dueDate: data.dueDate || null,
-    labelId: data.labelId || null,
+    // New: supports multiple labels
+    labelIds,
+    // Back-compat: keep old single field too (first label only)
+    labelId: data.labelId || labelIds[0] || null,
     createdAt: data.createdAt || new Date().toISOString(),
     completedAt: data.completedAt || null,
   };
@@ -207,6 +217,15 @@ export async function removeQuickLabelDoc(uid, labelId) {
 
 export async function upsertQuickTask(uid, task) {
   if (!uid || !task?.id) return;
+
+  const labelIds = Array.isArray(task.labelIds)
+    ? task.labelIds.filter(Boolean).map((x) => String(x))
+    : task.labelId
+      ? [String(task.labelId)]
+      : [];
+
+  const labelId = task.labelId || labelIds[0] || null;
+
   await setDoc(
     doc(db, "users", uid, "quickTasks", task.id),
     {
@@ -215,7 +234,8 @@ export async function upsertQuickTask(uid, task) {
       dateKey: task.dateKey || "",
       workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
       dueDate: task.dueDate || null,
-      labelId: task.labelId || null,
+      labelIds,
+      labelId,
       createdAt: task.createdAt || new Date().toISOString(),
       completedAt: task.completedAt || null,
       updatedAt: serverTimestamp(),
@@ -291,6 +311,11 @@ export async function migrateLocalQuickTasks(uid, localItems, clearedAt = 0) {
         dateKey: task.dateKey || "",
         workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
         dueDate: task.dueDate || null,
+        labelIds: Array.isArray(task.labelIds)
+          ? task.labelIds.filter(Boolean).map((x) => String(x))
+          : task.labelId
+            ? [String(task.labelId)]
+            : [],
         labelId: task.labelId || null,
         createdAt: task.createdAt || new Date().toISOString(),
         completedAt: task.completedAt || null,

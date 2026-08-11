@@ -15,6 +15,7 @@ export default function FlowPage() {
   const reorderFlowSteps = useTaskStore((s) => s.reorderFlowSteps);
   const renameFollowFlow = useTaskStore((s) => s.renameFollowFlow);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
+  const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -29,6 +30,12 @@ export default function FlowPage() {
   );
 
   const flowList = useMemo(() => followFlows || [], [followFlows]);
+
+  useEffect(() => {
+    rollEverydayFlows();
+    const id = window.setInterval(() => rollEverydayFlows(), 30_000);
+    return () => window.clearInterval(id);
+  }, [rollEverydayFlows]);
 
   useEffect(() => {
     if (!switchOpen) return undefined;
@@ -183,7 +190,7 @@ export default function FlowPage() {
 
       <header className="flow-page-head">
         <div>
-          <p className="eyebrow">Follow Flow</p>
+          <p className="eyebrow">{flow.repeat === "daily" ? "Everyday" : "Follow Flow"}</p>
           {editing ? (
             <input
               className="flow-title-input"
@@ -205,14 +212,23 @@ export default function FlowPage() {
               autoFocus
             />
           ) : (
-            <h1>{flow.name}</h1>
+            <h1>
+              {flow.name}
+              {flow.repeat === "daily" && <em className="flow-everyday-badge">Everyday</em>}
+            </h1>
           )}
           <p>
-            {steps.length === 0
-              ? "Add steps below. No dates — just the path."
-              : prog.complete
-                ? "All steps complete."
-                : `${prog.done} of ${prog.total} complete · next unlocks after the current step.`}
+            {flow.repeat === "daily"
+              ? steps.length === 0
+                ? "Add today’s steps. Progress resets at 12:00 AM."
+                : prog.complete
+                  ? "All steps done for today — report card lands after midnight."
+                  : `${prog.done} of ${prog.total} today · resets at midnight.`
+              : steps.length === 0
+                ? "Add steps below. No dates — just the path."
+                : prog.complete
+                  ? "All steps complete."
+                  : `${prog.done} of ${prog.total} complete · next unlocks after the current step.`}
           </p>
         </div>
         <div className="flow-page-actions">

@@ -86,7 +86,7 @@ function filterNotCompleted(tasks, { viewingToday, dayHasEnded, activeDate }) {
 
 function QuickTaskRow({
   item,
-  label,
+  labels = [],
   workspaceRef = null,
   missed = false,
   dropReady = false,
@@ -179,31 +179,41 @@ function QuickTaskRow({
               {workspaceRef.name}
             </span>
           )}
-          {label && !isMirror && (
-            <button
-              type="button"
-              className="quick-task-label-chip"
-              style={{
-                "--label-bg": label.color,
-                "--label-ink": labelColorInk(label.color),
-              }}
-              onClick={() => onClearLabel?.(item.id)}
-              title="Click to remove label"
-            >
-              {label.name}
-              <X size={10} aria-hidden="true" />
-            </button>
+          {labels.length > 0 && !isMirror && (
+            <>
+              {labels.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  className="quick-task-label-chip"
+                  style={{
+                    "--label-bg": l.color,
+                    "--label-ink": labelColorInk(l.color),
+                  }}
+                  onClick={() => onClearLabel?.(item.id, l.id)}
+                  title="Click to remove label"
+                >
+                  {l.name}
+                  <X size={10} aria-hidden="true" />
+                </button>
+              ))}
+            </>
           )}
-          {label && isMirror && (
-            <span
-              className="quick-task-label-chip is-static"
-              style={{
-                "--label-bg": label.color,
-                "--label-ink": labelColorInk(label.color),
-              }}
-            >
-              {label.name}
-            </span>
+          {labels.length > 0 && isMirror && (
+            <>
+              {labels.map((l) => (
+                <span
+                  key={l.id}
+                  className="quick-task-label-chip is-static"
+                  style={{
+                    "--label-bg": l.color,
+                    "--label-ink": labelColorInk(l.color),
+                  }}
+                >
+                  {l.name}
+                </span>
+              ))}
+            </>
           )}
           <span className="quick-task-title">{item.title}</span>
           {item.dueDate && (
@@ -278,7 +288,9 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const addQuickLabel = useTaskStore((s) => s.addQuickLabel);
   const deleteQuickLabel = useTaskStore((s) => s.deleteQuickLabel);
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
-  const setQuickTaskLabel = useTaskStore((s) => s.setQuickTaskLabel);
+  const addQuickTaskLabel = useTaskStore((s) => s.addQuickTaskLabel);
+  const removeQuickTaskLabel = useTaskStore((s) => s.removeQuickTaskLabel);
+  const clearQuickTaskLabels = useTaskStore((s) => s.clearQuickTaskLabels);
   const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
   const spaceId = workspaceId || DEFAULT_WORKSPACE_ID;
   const isWorkspace = spaceId !== DEFAULT_WORKSPACE_ID;
@@ -413,20 +425,31 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     } else if (request.type === "label" && request.id) {
       deleteQuickLabel(request.id);
     } else if (request.type === "clear-label" && request.taskId) {
-      setQuickTaskLabel(request.taskId, null);
+      if (request.labelId) removeQuickTaskLabel(request.taskId, request.labelId);
+      else clearQuickTaskLabels(request.taskId);
     } else if (request.id) {
       deleteQuickTask(request.id);
     }
     setDeleteRequest(null);
   }
 
-  function requestClearTaskLabel(taskId) {
+  function requestRemoveLabelFromTask(taskId, labelId) {
     const task = quickTasks.find((t) => t.id === taskId);
-    const label = task?.labelId ? labelsById[task.labelId] : null;
+    const label = labelsById[labelId];
     setDeleteRequest({
       type: "clear-label",
       taskId,
+      labelId,
       title: label?.name || task?.title || "label",
+    });
+  }
+
+  function requestClearTaskLabels(taskId) {
+    const task = quickTasks.find((t) => t.id === taskId);
+    setDeleteRequest({
+      type: "clear-label",
+      taskId,
+      title: task?.title || "task",
     });
   }
 
@@ -476,10 +499,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     setDraggingLabel(false);
     setDropTargetId(null);
     if (!labelId || labelId === "__none__") {
-      if (labelId === "__none__") requestClearTaskLabel(taskId);
+      if (labelId === "__none__") requestClearTaskLabels(taskId);
       return;
     }
-    setQuickTaskLabel(taskId, labelId);
+    addQuickTaskLabel(taskId, labelId);
   }
 
   function handleToggle(id) {
@@ -494,7 +517,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
         onDragOverRow,
         onDragLeaveRow,
         onDropLabel,
-        onClearLabel: requestClearTaskLabel,
+        onClearLabel: requestRemoveLabelFromTask,
       }
     : {};
 
@@ -628,11 +651,17 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             <ul className="quick-tasks-list">
               {displayList.map((item) => {
                 const workspaceRef = workspaceRefFor(item);
+                const labelIds = Array.isArray(item.labelIds)
+                  ? item.labelIds
+                  : item.labelId
+                    ? [item.labelId]
+                    : [];
+                const labels = labelIds.map((id) => labelsById[id]).filter(Boolean);
                 return (
                   <QuickTaskRow
                     key={item.id}
                     item={item}
-                    label={item.labelId ? labelsById[item.labelId] : null}
+                    labels={labels}
                     workspaceRef={workspaceRef}
                     isDropTarget={!workspaceRef && dropTargetId === item.id}
                     onToggle={handleToggle}
@@ -690,7 +719,16 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     <QuickTaskRow
                       key={item.id}
                       item={item}
-                      label={item.labelId ? labelsById[item.labelId] : null}
+                      labels={
+                        (Array.isArray(item.labelIds)
+                          ? item.labelIds
+                          : item.labelId
+                            ? [item.labelId]
+                            : []
+                        )
+                          .map((id) => labelsById[id])
+                          .filter(Boolean)
+                      }
                       workspaceRef={workspaceRef}
                       missed
                       isDropTarget={!workspaceRef && dropTargetId === item.id}
