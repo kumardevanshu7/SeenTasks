@@ -8,9 +8,10 @@ import { todayKey } from "../lib/date";
 import { DEFAULT_WORKSPACE_ID } from "../lib/quickTaskService";
 
 const STARTERS = [
-  "What tasks do I have today? Show details.",
-  "Which tasks are still open?",
-  "Help me plan a calm but productive day.",
+  "Aaj kya pending hai? 👀",
+  "Mera Everyday flow ka scene kya hai?",
+  "CodebyTushu kya hai btw?",
+  "Be honest — am I slacking today? 😅",
 ];
 
 export default function AssistantPage() {
@@ -18,7 +19,7 @@ export default function AssistantPage() {
     {
       role: "assistant",
       content:
-        "Hi, I'm your SeenTasks companion. Ask me about your tasks for any day — I can fetch them and show the details here.",
+        "Yo! 👋 Main tera SeenTasks buddy hoon — tasks, flows, report cards, sab puchh. Casual hi baat karte hain, aur agar tu procrastinate kar raha hai toh bol dunga 😤",
     },
   ]);
   const [input, setInput] = useState("");
@@ -86,10 +87,10 @@ export default function AssistantPage() {
   return (
     <div className="page narrow-page assistant-page">
       <section className="simple-hero">
-        <p className="eyebrow">Think out loud</p>
+        <p className="eyebrow">Your buddy</p>
         <h1>Talk it through</h1>
         <p>
-          Ask about any day&apos;s tasks — I can pull your SeenTasks list into this chat with details.
+          Casual chat about your tasks, flows, and reports — emojis, honesty, and the occasional roast included.
         </p>
       </section>
 
@@ -151,7 +152,7 @@ export default function AssistantPage() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about today’s tasks, a past day, or your plan…"
+            placeholder="Kuch bhi puchh — tasks, flows, ya bas baatein…"
             disabled={busy}
           />
           <button

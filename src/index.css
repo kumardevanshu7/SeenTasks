@@ -74,6 +74,18 @@ p, h1, h2, h3, h4 { margin: 0; }
 .side-link-active { color: var(--ink); background: var(--surface-card); }
 .side-link-active svg { color: var(--primary); }
 .sidebar-label { margin: 32px 12px 12px; color: var(--muted-soft); font-size: 11px; font-weight: 600; letter-spacing: 1.35px; text-transform: uppercase; }
+.sidebar-about {
+  margin: 0 4px 16px;
+  padding: 14px;
+  color: var(--muted);
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.sidebar-about p { margin: 0; }
+.sidebar-about strong { color: var(--ink); font-weight: 600; }
 .focus-note { display: flex; gap: 11px; padding: 14px; color: var(--surface-card); background: var(--surface-dark); border-radius: 12px; }
 .focus-note > svg { flex: 0 0 auto; margin-top: 2px; color: var(--primary); }
 .focus-note strong { color: var(--canvas); font-size: 12px; font-weight: 500; }
@@ -1518,6 +1530,33 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 .landing-footer .landing-brand { color: var(--canvas); }
 .landing-footer > p { text-align: center; }
 .landing-footer > div { display: flex; justify-content: flex-end; gap: 22px; }
+
+.landing-feature-grid article svg { color: var(--primary); margin-bottom: 4px; }
+.landing-about-panel { display: flex; flex-direction: column; gap: 0; }
+.landing-about-block {
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.landing-about-block:last-child { border-bottom: 0; }
+.landing-about-block strong { display: block; margin-bottom: 6px; font-size: 15px; }
+.landing-about-block p { margin: 0; color: rgba(255, 255, 255, .72); font-size: 13px; line-height: 1.5; }
+.landing-faq { padding-top: 72px; padding-bottom: 72px; }
+.landing-faq-list { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.landing-faq-item {
+  padding: 16px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+}
+.landing-faq-item summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+  list-style: none;
+}
+.landing-faq-item summary::-webkit-details-marker { display: none; }
+.landing-faq-item p { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
 
 @media (max-width: 960px) {
   .landing-nav { grid-template-columns: 1fr auto; }

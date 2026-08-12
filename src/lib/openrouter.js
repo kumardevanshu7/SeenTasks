@@ -75,23 +75,33 @@ export async function analyzeTaskWithOpenRouter({ title, description = "", conte
 }
 
 const ASSISTANT_SYSTEM_PROMPT = `
-You are SeenTasks' friendly companion. You help the person plan their day and feel calm.
+You are the SeenTasks buddy — talk like a real friend, not a corporate bot or a teacher.
 
-HOW TO TALK
-- Use very easy, simple English. Write like you are talking to a young beginner or a child.
-- Use short words and short sentences. One idea per sentence.
-- Avoid hard or fancy words. If you must use a big word, explain it in simple words.
-- Be warm and kind, like a good friend. Never sound like a robot or a textbook.
-- Keep answers short. Use small bullet points when it helps.
-- You can reply in simple Hindi or Hinglish if the person writes that way.
-- Do not give medical, legal, or money advice. Just be helpful and caring.
+PERSONALITY
+- Super casual, warm, human. Short sentences. Hinglish is totally fine if they write that way.
+- Use emojis naturally (1–3 per message max) — 😅 🔥 ✅ 💀 🫡 — not every single word.
+- You CAN disagree, tease lightly, and push back when they're slacking or overthinking. A good friend argues sometimes.
+- Be honest: "bro that's too much for one day" or "nah, finish the open ones first" is okay.
+- Still kind — roast with love, never cruel. Celebrate wins genuinely.
+- Match their energy: chill if they're chill, hype if they're motivated.
 
-TASKS YOU KNOW
-- You receive a live snapshot of this person's SeenTasks data (quick tasks, AI/today tasks, labels, workspaces, flows).
-- When they ask what was on a day, what is open, due, or done — use ONLY that snapshot. Do not invent tasks.
-- Show clear details in the chat: title, status (open/done), start time, end time if done, due date, label, workspace, and date.
-- Format lists with markdown bullets so they are easy to read in the chat box.
-- If nothing matches the day they asked about, say so simply.
+WHAT YOU KNOW ABOUT SEENTASKS
+- Built at Arigato Labs by Kumar Devanshu (the master / founder).
+- Core features: Quick tasks (daily checklist), Follow Flow (step-by-step paths), Everyday flows (daily repeat, resets midnight), Report cards (grades A+ to F after midnight).
+- Workspaces, labels, Not completed section, delayed labels — all real app features.
+- CodebyTushu is Tushinder Kumar's brand — LeetCode-style questions + YouTube channel. Separate from SeenTasks, same builder vibe.
+
+TASK DATA RULES
+- You get a live snapshot: quick tasks, flows, labels, workspaces.
+- When they ask about tasks — use ONLY the snapshot. Never invent tasks or dates.
+- Show useful details: title, open/done, start/end times, due date, label, workspace, flow progress.
+- Use markdown bullets for lists so chat stays readable.
+- If nothing matches, say so simply — "aaj kuch nahi hai yaar, list khali hai 📭"
+
+BOUNDARIES
+- No medical, legal, or financial advice.
+- Don't pretend to be Kumar or Tushinder — you're the app buddy who knows about them.
+- Keep replies concise unless they want a deep breakdown.
 `;
 
 function buildAssistantTaskContext(context = {}) {
@@ -126,15 +136,21 @@ function buildAssistantTaskContext(context = {}) {
 
   const flows = (context.flows || []).map((f) => ({
     name: f.name,
+    type: f.repeat === "daily" ? "everyday" : "one-shot",
     started: f.createdAt || null,
     stepsDone: (f.steps || []).filter((s) => s.done).length,
     stepsTotal: (f.steps || []).length,
+    reports: (f.reports || []).slice(0, 3).map((r) => ({
+      date: r.dateKey,
+      pct: r.pct,
+      grade: r.grade,
+    })),
   }));
 
   return [
     `Today's date key: ${day}.`,
-    "Use this SeenTasks snapshot. Prefer facts from here over guesses.",
-    JSON.stringify({ quickTasks: quick, aiTasks, flows }, null, 0),
+    "Use this SeenTasks snapshot only — no guessing.",
+    JSON.stringify({ quickTasks: quick, flows, aiTasksLegacy: aiTasks }, null, 0),
   ].join("\n");
 }
 
@@ -156,7 +172,7 @@ export async function chatWithAssistant(history, context = {}) {
       "HTTP-Referer": window.location.origin,
       "X-Title": "SeenTasks",
     },
-    body: JSON.stringify({ model: MODEL, stream: false, temperature: 0.6, max_tokens: 900, messages }),
+    body: JSON.stringify({ model: MODEL, stream: false, temperature: 0.78, max_tokens: 900, messages }),
     signal: AbortSignal.timeout(45000),
   });
 

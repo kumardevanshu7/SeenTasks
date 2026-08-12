@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, CalendarDays, CircleAlert, Plus, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
@@ -355,6 +355,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
+  const inputRef = useRef(null);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const quickLabels = useTaskStore((s) => s.quickLabels);
   const quickWorkspaces = useTaskStore((s) => s.quickWorkspaces);
@@ -388,6 +389,14 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     });
     return map;
   }, [quickWorkspaces]);
+
+  useEffect(() => {
+    function onFocusInput() {
+      inputRef.current?.focus();
+    }
+    window.addEventListener("focus-quick-task-input", onFocusInput);
+    return () => window.removeEventListener("focus-quick-task-input", onFocusInput);
+  }, []);
 
   useEffect(() => {
     const tick = () => {
@@ -626,6 +635,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
               <div className="quick-tasks-input-row">
                 <span className="quick-tasks-input-mark" aria-hidden="true" />
                 <input
+                  ref={inputRef}
                   className="quick-tasks-input"
                   type="text"
                   value={draft}

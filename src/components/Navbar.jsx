@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, CalendarRange, CheckSquare, ClipboardList, GitBranch, LogOut, MessageCircle, Menu, Plus, Settings, Sparkles, Trash2, UserCircle, Users, X } from "lucide-react";
+import { CheckSquare, ClipboardList, GitBranch, LogOut, Menu, MessageCircle, Plus, Settings, Trash2, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -41,10 +41,10 @@ export default function Navbar() {
   });
 
   function openComposer() {
-    warm("/app/today");
-    navigate("/app/today");
+    warm("/app");
+    navigate("/app");
     setOpen(false);
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent("open-task-composer")), 0);
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("focus-quick-task-input")), 0);
   }
 
   async function handleSignOut() {
@@ -78,9 +78,6 @@ export default function Navbar() {
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app")}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
           <NavLink to="/app/flows" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/flows")}><GitBranch size={17} /><span>Follow Flow</span>{flowActiveCount > 0 && <em>{flowActiveCount}</em>}</NavLink>
           <NavLink to="/app/reports" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/reports")}><ClipboardList size={17} /><span>Report</span></NavLink>
-          <NavLink to="/app/today" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/today")}><CalendarDays size={17} /><span>Today</span></NavLink>
-          <NavLink to="/app/calendar" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/calendar")}><CalendarRange size={17} /><span>Calendar</span></NavLink>
-          <NavLink to="/app/persona" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/persona")}><UserCircle size={17} /><span>Your persona</span></NavLink>
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/assistant")}><MessageCircle size={17} /><span>Assistant</span></NavLink>
           <NavLink to="/app/bin" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/bin")}><Trash2 size={17} /><span>Abort bin</span>{binCount > 0 && <em>{binCount}</em>}</NavLink>
           <NavLink to="/app/team" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/team")}><Users size={17} /><span>Organization</span>{requestCount > 0 ? <em className="em-alert">{requestCount}</em> : connectionCount > 0 && <em>{connectionCount}</em>}</NavLink>
@@ -90,8 +87,13 @@ export default function Navbar() {
           </NavLink>
         </nav>
 
-        <div className="sidebar-label">Your system</div>
-        <div className="focus-note"><Sparkles size={17} /><div><strong>AI priority guide</strong><p>Tasks are sorted with urgency and your well-being in mind.</p></div></div>
+        <div className="sidebar-label">SeenTasks</div>
+        <div className="sidebar-about">
+          <p>
+            Quick tasks, Follow Flow, and daily report cards — built at{" "}
+            <strong>Arigato Labs</strong> by <strong>Kumar Devanshu</strong>.
+          </p>
+        </div>
 
         <div className="sidebar-footer firebase-footer">
           <div className="firebase-status"><span className="status-dot" /><span><strong>Google secured</strong><small>Firebase authentication active</small></span></div>
