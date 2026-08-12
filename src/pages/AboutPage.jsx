@@ -17,12 +17,7 @@ export default function AboutPage() {
         <p>
           We build sleek, modern, high-performance tools that help people get things done with
           clarity and calm. SeenTasks focuses on Quick tasks, Follow Flow, Everyday repeats, and
-          report cards — no AI required.
-        </p>
-        <p>
-          <strong>CodebyTushu</strong> (Tushinder Kumar) is a related coding-education brand —
-          LeetCode-style questions and a YouTube channel for interview prep. It is separate from
-          SeenTasks but part of the same builder ecosystem.
+          report cards.
         </p>
         <p>
           <Link className="text-link" to="/contact">

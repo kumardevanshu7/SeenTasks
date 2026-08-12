@@ -70,10 +70,6 @@ const FAQ = [
     a: "Build a daily sequence. It resets at midnight. Yesterday’s completion % becomes a school-style grade with feedback on the Report page.",
   },
   {
-    q: "What is CodebyTushu?",
-    a: "CodebyTushu is owned by Tushinder Kumar — LeetCode-style coding content and a YouTube channel for interview prep. It’s separate from SeenTasks, but part of the same builder ecosystem around Arigato Labs.",
-  },
-  {
     q: "Do I need AI to use SeenTasks?",
     a: "No. The core app is Quick tasks + Follow Flow + Report. Sign in, add tasks, and go.",
   },
@@ -266,13 +262,6 @@ export default function LandingPage() {
             <div className="landing-about-block">
               <strong>SeenTasks</strong>
               <p>Quick tasks, one-time flows, Everyday repeats, workspaces, labels, and report cards.</p>
-            </div>
-            <div className="landing-about-block">
-              <strong>CodebyTushu</strong>
-              <p>
-                Tushinder Kumar’s LeetCode-focused brand — coding questions and a YouTube channel
-                for interview prep. Separate product, same maker spirit.
-              </p>
             </div>
           </div>
         </section>
