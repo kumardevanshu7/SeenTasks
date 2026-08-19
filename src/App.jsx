@@ -12,6 +12,8 @@ import WorkspacePage from "./pages/WorkspacePage";
 import FlowsPage from "./pages/FlowsPage";
 import FlowPage from "./pages/FlowPage";
 import ReportPage from "./pages/ReportPage";
+import FlowReportPage from "./pages/FlowReportPage";
+import AchievementsPage from "./pages/AchievementsPage";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const TodayPage = lazy(() => import("./pages/TodayPage"));
@@ -68,6 +70,8 @@ export default function App() {
             <Route path="flows" element={<FlowsPage />} />
             <Route path="flows/:flowId" element={<FlowPage />} />
             <Route path="reports" element={<ReportPage />} />
+            <Route path="reports/:flowId" element={<FlowReportPage />} />
+            <Route path="achievements" element={<AchievementsPage />} />
             <Route path="about" element={<Navigate to="/about" replace />} />
             <Route path="privacy" element={<Navigate to="/privacy" replace />} />
             <Route path="terms" element={<Navigate to="/terms" replace />} />

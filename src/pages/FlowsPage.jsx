@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, GitBranch, Medal, Plus, RefreshCw, Trophy } from "lucide-react";
+import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Trophy } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_ACHIEVEMENTS, evaluateUnlockedIds } from "../lib/flowAchievements";
@@ -183,9 +183,14 @@ export default function FlowsPage() {
                 <h2>Everyday</h2>
                 <p className="flow-section-sub">Repeat daily · resets at 12:00 AM</p>
               </div>
-              <button type="button" className="button button-secondary" onClick={() => openCreate(true)}>
-                <Plus size={15} /> Create everyday
-              </button>
+              <div className="flow-list-head-actions">
+                <Link to="/app/achievements" className="button button-secondary">
+                  <Trophy size={15} /> Achievements
+                </Link>
+                <button type="button" className="button button-secondary" onClick={() => openCreate(true)}>
+                  <Plus size={15} /> Create everyday
+                </button>
+              </div>
             </div>
 
             {everydayFlows.length === 0 ? (
@@ -199,36 +204,18 @@ export default function FlowsPage() {
             )}
           </section>
 
-          <section className="flow-section" aria-label="Achievements">
-            <div className="flow-list-head">
-              <div>
-                <h2>Achievements</h2>
-                <p className="flow-section-sub">
-                  {earnedCount}/50 unlocked — finish a tab today for a winner badge
-                </p>
-              </div>
-              <span className="flow-achieve-count">
-                <Medal size={15} aria-hidden="true" />
-                {earnedCount}
+          <Link to="/app/achievements" className="report-teaser achieve-teaser">
+            <div className="report-teaser-copy">
+              <strong>Achievements</strong>
+              <span>
+                {earnedCount}/{FLOW_ACHIEVEMENTS.length} unlocked — winner badges, streaks, and grades
               </span>
             </div>
-            <div className="flow-achieve-grid">
-              {FLOW_ACHIEVEMENTS.map((a) => {
-                const earned = unlocked.has(a.id);
-                return (
-                  <article
-                    key={a.id}
-                    className={`flow-achieve-card${earned ? " is-earned" : ""}`}
-                    title={a.hint}
-                  >
-                    <Trophy size={16} aria-hidden="true" />
-                    <strong>{a.title}</strong>
-                    <span>{earned ? a.hint : a.hint}</span>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+            <span className="report-teaser-go">
+              Open
+              <ArrowUpRight size={14} aria-hidden="true" />
+            </span>
+          </Link>
 
           {(yesterdayReports.length > 0 || everydayFlows.length > 0) && (
             <section className="flow-section flow-yesterday" aria-label="Yesterday reports">

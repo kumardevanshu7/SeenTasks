@@ -1,18 +1,15 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, Sparkles, Trophy, TriangleAlert } from "lucide-react";
+import { ClipboardList, Trophy } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
+import { EverydayReportCard } from "../components/EverydayReportCard";
 import { mostReliableCategory } from "../lib/flowAchievements";
 import {
   buildEverydayReport,
-  feedbackForGrade,
-  flowCategories,
   flowColorInk,
   flowColorValue,
-  gradeFromPct,
   isEverydayActive,
   periodReportForFlow,
-  periodReportsForCategories,
   REPORT_PERIODS,
 } from "../lib/flowService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
@@ -21,186 +18,6 @@ function yesterdayKey() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return toKey(d);
-}
-
-function gradeTone(grade) {
-  const g = String(grade || "F").replace("+", "p");
-  if (g === "Ap" || g === "A") return "high";
-  if (g === "Bp" || g === "B") return "good";
-  if (g === "Cp" || g === "C") return "mid";
-  return "low";
-}
-
-function ProgressRing({ pct, ink }) {
-  const size = 148;
-  const stroke = 12;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
-  const offset = c - (clamped / 100) * c;
-  return (
-    <div className="report-ring" style={{ "--ring-ink": ink }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-        <circle
-          className="report-ring-track"
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          strokeWidth={stroke}
-        />
-        <circle
-          className="report-ring-value"
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          strokeWidth={stroke}
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
-      <div className="report-ring-label">
-        <strong>{clamped}%</strong>
-        <span>of steps done</span>
-      </div>
-    </div>
-  );
-}
-
-function ReportCard({
-  flow,
-  report,
-  live = false,
-  accent,
-  title,
-  eyebrow,
-}) {
-  const color = accent ? flowColorValue(accent) : flow.color;
-  const ink = flowColorInk(accent || flow.color);
-  const tone = gradeTone(report.grade);
-  const remaining = Math.max(0, (report.total || 0) - (report.done || 0));
-  const periodDays = Number(report.periodDays) || 0;
-  const daysLogged = Number(report.daysLogged) || 0;
-  const status =
-    report.pct >= 97
-      ? "Perfect stretch"
-      : report.pct >= 80
-        ? "Strong finish"
-        : report.pct >= 50
-          ? "Room to climb"
-          : "Needs a reset";
-
-  return (
-    <article
-      className={`report-pro-card tone-${tone}`}
-      style={{
-        "--flow-bg": color,
-        "--flow-ink": ink,
-      }}
-    >
-      <header className="report-pro-head">
-        <div>
-          <p className="report-pro-eyebrow">
-            {eyebrow || (live ? "Today · live" : "Report card")}
-          </p>
-          <h2>{title || flow.name}</h2>
-        </div>
-        <span className={`report-pro-grade grade-${String(report.grade || "F").replace("+", "p")}`}>
-          {report.grade}
-          <em>Grade</em>
-        </span>
-      </header>
-
-      <ProgressRing pct={report.pct} ink={ink} />
-
-      <div className={`report-pro-alert tone-${tone}`}>
-        {report.pct >= 80 ? (
-          <Sparkles size={14} aria-hidden="true" />
-        ) : (
-          <TriangleAlert size={14} aria-hidden="true" />
-        )}
-        <span>{report.feedback || status}</span>
-      </div>
-
-      <div className="report-pro-stats">
-        <div>
-          <span>Steps</span>
-          <strong>
-            {report.done}/{report.total || 0}
-          </strong>
-        </div>
-        <div>
-          <span>Remaining</span>
-          <strong>
-            {remaining} ({report.pct}% done)
-          </strong>
-        </div>
-        <div>
-          <span>{periodDays > 1 ? "Days logged" : live ? "As of" : "Day"}</span>
-          <strong>
-            {periodDays > 1
-              ? `${daysLogged}/${periodDays}`
-              : formatFriendly(report.dateKey)}
-          </strong>
-        </div>
-      </div>
-
-      <p className="report-pro-foot">
-        {live
-          ? "Grade preview — daily card locks after midnight"
-          : periodDays > 1
-            ? accent
-              ? `${periodDays}-day completion on this tab`
-              : `${periodDays}-day completion across all tabs`
-            : status}
-      </p>
-
-      <div className="report-pro-actions">
-        <Link to={`/app/flows/${flow.id}`} className="button button-secondary">
-          Open flow
-        </Link>
-        <Link to={`/app/flows/${flow.id}`} className="button button-primary">
-          Review steps
-          <ArrowUpRight size={14} aria-hidden="true" />
-        </Link>
-      </div>
-    </article>
-  );
-}
-
-function CategoryCards({ flow, report, live, periodLabel }) {
-  const cats = Array.isArray(report.categories) && report.categories.length
-    ? report.categories
-    : flowCategories(flow)
-        .map((c) => {
-          const row = (report.categories || []).find((x) => x.id === c.id);
-          return row ? { ...c, ...row } : null;
-        })
-        .filter(Boolean);
-  if (!cats.length) return null;
-  return cats.map((cat) => (
-    <ReportCard
-      key={`${flow.id}-${cat.id}-${report.dateKey}-${periodLabel || "day"}`}
-      flow={flow}
-      report={{
-        ...report,
-        pct: cat.pct,
-        grade: cat.grade || gradeFromPct(cat.pct),
-        feedback: cat.feedback || feedbackForGrade(cat.grade || gradeFromPct(cat.pct)),
-        done: cat.done,
-        total: cat.total,
-        periodDays: report.periodDays,
-        daysLogged: report.daysLogged,
-      }}
-      live={live}
-      accent={cat.color}
-      title={cat.name}
-      eyebrow={periodLabel ? `${flow.name} · ${periodLabel}` : live ? `${flow.name} · today` : `${flow.name} · daily`}
-    />
-  ));
 }
 
 export default function ReportPage() {
@@ -283,9 +100,8 @@ export default function ReportPage() {
     return everydayFlows
       .map((flow) => {
         const overall = periodReportForFlow(flow, period.days, day);
-        const categories = periodReportsForCategories(flow, period.days, day);
-        if (!overall && !categories.length) return null;
-        return { flow, overall, categories };
+        if (!overall) return null;
+        return { flow, overall };
       })
       .filter(Boolean);
   }, [everydayFlows, period.days]);
@@ -303,7 +119,7 @@ export default function ReportPage() {
       <section className="simple-hero simple-hero-compact">
         <p className="eyebrow">Everyday</p>
         <h1>Report</h1>
-        <p>Daily grades plus 7-day, 2-week, and 1-month completion — per flow and per tab.</p>
+        <p>One overall card per flow. Tap it to open each category’s performance.</p>
       </section>
 
       {everydayFlows.length === 0 ? (
@@ -334,7 +150,7 @@ export default function ReportPage() {
                   return (
                     <Link
                       key={`${flow.id}-${cat.id}`}
-                      to={`/app/flows/${flow.id}`}
+                      to={`/app/reports/${flow.id}`}
                       className="report-reliable-card"
                       style={{
                         "--cat-bg": flowColorValue(cat.color),
@@ -361,15 +177,18 @@ export default function ReportPage() {
               <div className="flow-list-head">
                 <div>
                   <h2>Today</h2>
-                  <p className="flow-section-sub">Live progress — grade locks in after 12:00 AM</p>
+                  <p className="flow-section-sub">Live progress — tap a card to see each category</p>
                 </div>
               </div>
               <div className="report-pro-grid">
                 {liveToday.map(({ flow, report }) => (
-                  <Fragment key={`live-${flow.id}`}>
-                    <ReportCard flow={flow} report={report} live />
-                    <CategoryCards flow={flow} report={report} live />
-                  </Fragment>
+                  <EverydayReportCard
+                    key={`live-${flow.id}`}
+                    flow={flow}
+                    report={report}
+                    live
+                    to={`/app/reports/${flow.id}`}
+                  />
                 ))}
               </div>
             </section>
@@ -379,9 +198,7 @@ export default function ReportPage() {
             <div className="flow-list-head">
               <div>
                 <h2>Progress windows</h2>
-                <p className="flow-section-sub">
-                  Completion across the last {period.label} — overall and each tab
-                </p>
+                <p className="flow-section-sub">Last {period.label} — overall only</p>
               </div>
             </div>
             <div className="report-day-strip" role="tablist" aria-label="Progress window">
@@ -404,27 +221,15 @@ export default function ReportPage() {
               </p>
             ) : (
               <div className="report-pro-grid">
-                {periodBlocks.map(({ flow, overall, categories }) => (
-                  <Fragment key={`period-${flow.id}-${period.id}`}>
-                    {overall && (
-                      <ReportCard
-                        flow={flow}
-                        report={overall}
-                        eyebrow={`${flow.name} · ${period.label}`}
-                        title={flow.name}
-                      />
-                    )}
-                    {categories.map(({ category, report }) => (
-                      <ReportCard
-                        key={`${flow.id}-${category.id}-${period.id}`}
-                        flow={flow}
-                        report={report}
-                        accent={category.color}
-                        title={category.name}
-                        eyebrow={`${flow.name} · ${period.label}`}
-                      />
-                    ))}
-                  </Fragment>
+                {periodBlocks.map(({ flow, overall }) => (
+                  <EverydayReportCard
+                    key={`period-${flow.id}-${period.id}`}
+                    flow={flow}
+                    report={overall}
+                    eyebrow={`${flow.name} · ${period.label}`}
+                    title={flow.name}
+                    to={`/app/reports/${flow.id}`}
+                  />
                 ))}
               </div>
             )}
@@ -435,7 +240,7 @@ export default function ReportPage() {
               <div>
                 <h2>{selectedDay === yesterdayKey() ? "Yesterday" : "Past day"}</h2>
                 <p className="flow-section-sub">
-                  Report cards for {formatFriendly(selectedDay)}
+                  Overall cards for {formatFriendly(selectedDay)}
                 </p>
               </div>
             </div>
@@ -464,10 +269,12 @@ export default function ReportPage() {
             ) : (
               <div className="report-pro-grid">
                 {dayReports.map(({ flow, report }) => (
-                  <Fragment key={`${flow.id}-${report.dateKey}`}>
-                    <ReportCard flow={flow} report={report} />
-                    <CategoryCards flow={flow} report={report} />
-                  </Fragment>
+                  <EverydayReportCard
+                    key={`${flow.id}-${report.dateKey}`}
+                    flow={flow}
+                    report={report}
+                    to={`/app/reports/${flow.id}`}
+                  />
                 ))}
               </div>
             )}

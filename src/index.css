@@ -239,40 +239,67 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-section { margin-bottom: 36px; }
 .flow-section-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .flow-section-empty { margin: 0; padding: 16px 4px; color: var(--muted-soft); font-size: 13px; }
-.flow-achieve-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 700;
+.achieve-teaser {
+  margin: 0 0 36px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff0bf 55%, white) 0%, #fff 70%);
 }
-.flow-achieve-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 8px;
-}
-.flow-achieve-card {
+.achieve-hero {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-height: 96px;
-  padding: 12px;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 36px;
+}
+.achieve-hero h1 {
+  margin: 0;
+  font-family: "Cormorant Garamond", Garamond, serif;
+  font-size: clamp(2rem, 5vw, 2.6rem);
+  font-weight: 500;
+}
+.achieve-hero > p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 440px;
+}
+.achieve-hero-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-top: 8px;
+  --ring-ink: #7a620e;
+}
+.achieve-page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.achieve-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 132px;
+  padding: 16px 16px 14px;
   color: var(--muted-soft);
   background: #f3eee6;
-  border-radius: 12px;
-  opacity: .55;
+  border-radius: 16px;
+  opacity: .58;
 }
-.flow-achieve-card svg { opacity: .45; }
-.flow-achieve-card.is-earned {
+.achieve-page-card svg { opacity: .4; }
+.achieve-page-card.is-earned {
   color: var(--ink);
-  background: color-mix(in srgb, #fff0bf 70%, white);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff0bf 75%, white) 0%, #fff 80%);
   opacity: 1;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #7a620e 18%, transparent);
+  box-shadow:
+    0 10px 24px rgba(60, 48, 36, .06),
+    inset 0 0 0 1px color-mix(in srgb, #7a620e 16%, transparent);
 }
-.flow-achieve-card.is-earned svg { opacity: 1; color: #7a620e; }
-.flow-achieve-card strong { font-size: 13px; font-weight: 700; line-height: 1.25; }
-.flow-achieve-card span { font-size: 11px; line-height: 1.35; color: var(--muted); }
+.achieve-page-card.is-earned svg { opacity: 1; color: #7a620e; }
+.achieve-page-card strong { font-size: 15px; font-weight: 700; line-height: 1.25; }
+.achieve-page-card span { font-size: 12px; line-height: 1.4; color: var(--muted); }
 .report-reliable {
   display: flex;
   flex-wrap: wrap;
@@ -294,6 +321,7 @@ p, h1, h2, h3, h4 { margin: 0; }
 .report-reliable-card span { display: block; font-size: 11px; opacity: .85; }
 .flow-list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 14px; }
 .flow-list-head h2 { margin: 0; font-family: "Cormorant Garamond", Garamond, serif; font-size: 22px; font-weight: 500; }
+.flow-list-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .flow-list { display: flex; flex-direction: column; gap: 10px; }
 .flow-list-card {
   display: flex;
@@ -491,6 +519,18 @@ p, h1, h2, h3, h4 { margin: 0; }
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 18px;
 }
+.report-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.report-card-link:hover .report-pro-card,
+.report-pro-card.is-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 22px 44px rgba(60, 48, 36, .1),
+    inset 0 1px 0 rgba(255, 255, 255, .75);
+}
 .report-pro-card {
   display: flex;
   flex-direction: column;
@@ -505,6 +545,7 @@ p, h1, h2, h3, h4 { margin: 0; }
   box-shadow:
     0 18px 40px rgba(60, 48, 36, .08),
     inset 0 1px 0 rgba(255, 255, 255, .75);
+  transition: transform .16s ease, box-shadow .16s ease;
 }
 .report-pro-head {
   display: flex;
