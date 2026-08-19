@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, ClipboardList, Sparkles, TriangleAlert } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import {
+  buildEverydayReport,
   feedbackForGrade,
+  flowCategories,
   flowColorInk,
-  flowProgress,
+  flowColorValue,
   gradeFromPct,
   isEverydayActive,
+  periodReportForFlow,
+  periodReportsForCategories,
+  REPORT_PERIODS,
 } from "../lib/flowService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
 
@@ -64,13 +69,23 @@ function ProgressRing({ pct, ink }) {
   );
 }
 
-function ReportCard({ flow, report, live = false }) {
-  const ink = flowColorInk(flow.color);
+function ReportCard({
+  flow,
+  report,
+  live = false,
+  accent,
+  title,
+  eyebrow,
+}) {
+  const color = accent ? flowColorValue(accent) : flow.color;
+  const ink = flowColorInk(accent || flow.color);
   const tone = gradeTone(report.grade);
   const remaining = Math.max(0, (report.total || 0) - (report.done || 0));
+  const periodDays = Number(report.periodDays) || 0;
+  const daysLogged = Number(report.daysLogged) || 0;
   const status =
     report.pct >= 97
-      ? "Perfect day"
+      ? "Perfect stretch"
       : report.pct >= 80
         ? "Strong finish"
         : report.pct >= 50
@@ -81,14 +96,16 @@ function ReportCard({ flow, report, live = false }) {
     <article
       className={`report-pro-card tone-${tone}`}
       style={{
-        "--flow-bg": flow.color,
+        "--flow-bg": color,
         "--flow-ink": ink,
       }}
     >
       <header className="report-pro-head">
         <div>
-          <p className="report-pro-eyebrow">{live ? "Today · live" : "Report card"}</p>
-          <h2>{flow.name}</h2>
+          <p className="report-pro-eyebrow">
+            {eyebrow || (live ? "Today · live" : "Report card")}
+          </p>
+          <h2>{title || flow.name}</h2>
         </div>
         <span className={`report-pro-grade grade-${String(report.grade || "F").replace("+", "p")}`}>
           {report.grade}
@@ -121,12 +138,24 @@ function ReportCard({ flow, report, live = false }) {
           </strong>
         </div>
         <div>
-          <span>{live ? "As of" : "Day"}</span>
-          <strong>{formatFriendly(report.dateKey)}</strong>
+          <span>{periodDays > 1 ? "Days logged" : live ? "As of" : "Day"}</span>
+          <strong>
+            {periodDays > 1
+              ? `${daysLogged}/${periodDays}`
+              : formatFriendly(report.dateKey)}
+          </strong>
         </div>
       </div>
 
-      <p className="report-pro-foot">{live ? "Grade preview — locks after midnight" : status}</p>
+      <p className="report-pro-foot">
+        {live
+          ? "Grade preview — daily card locks after midnight"
+          : periodDays > 1
+            ? accent
+              ? `${periodDays}-day completion on this tab`
+              : `${periodDays}-day completion across all tabs`
+            : status}
+      </p>
 
       <div className="report-pro-actions">
         <Link to={`/app/flows/${flow.id}`} className="button button-secondary">
@@ -141,10 +170,43 @@ function ReportCard({ flow, report, live = false }) {
   );
 }
 
+function CategoryCards({ flow, report, live, periodLabel }) {
+  const cats = Array.isArray(report.categories) && report.categories.length
+    ? report.categories
+    : flowCategories(flow)
+        .map((c) => {
+          const row = (report.categories || []).find((x) => x.id === c.id);
+          return row ? { ...c, ...row } : null;
+        })
+        .filter(Boolean);
+  if (!cats.length) return null;
+  return cats.map((cat) => (
+    <ReportCard
+      key={`${flow.id}-${cat.id}-${report.dateKey}-${periodLabel || "day"}`}
+      flow={flow}
+      report={{
+        ...report,
+        pct: cat.pct,
+        grade: cat.grade || gradeFromPct(cat.pct),
+        feedback: cat.feedback || feedbackForGrade(cat.grade || gradeFromPct(cat.pct)),
+        done: cat.done,
+        total: cat.total,
+        periodDays: report.periodDays,
+        daysLogged: report.daysLogged,
+      }}
+      live={live}
+      accent={cat.color}
+      title={cat.name}
+      eyebrow={periodLabel ? `${flow.name} · ${periodLabel}` : live ? `${flow.name} · today` : `${flow.name} · daily`}
+    />
+  ));
+}
+
 export default function ReportPage() {
   const followFlows = useTaskStore((s) => s.followFlows) || [];
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const [selectedDay, setSelectedDay] = useState(() => yesterdayKey());
+  const [periodId, setPeriodId] = useState("week");
 
   useEffect(() => {
     rollEverydayFlows();
@@ -198,32 +260,41 @@ export default function ReportPage() {
     return everydayFlows
       .filter((f) => isEverydayActive(f, day))
       .map((flow) => {
-        const prog = flowProgress(flow, day);
-        if (prog.total === 0) return null;
-        const grade = gradeFromPct(prog.pct);
+        const report = buildEverydayReport(flow, day);
+        if (report.total === 0) return null;
+        const complete = report.done === report.total;
         return {
           flow,
           report: {
-            dateKey: day,
-            pct: prog.pct,
-            grade,
-            feedback: prog.complete
-              ? feedbackForGrade(grade)
+            ...report,
+            feedback: complete
+              ? report.feedback
               : "Still in progress — keep moving through today’s sequence.",
-            done: prog.done,
-            total: prog.total,
           },
         };
       })
       .filter(Boolean);
   }, [everydayFlows]);
 
+  const period = REPORT_PERIODS.find((p) => p.id === periodId) || REPORT_PERIODS[0];
+  const periodBlocks = useMemo(() => {
+    const day = todayKey();
+    return everydayFlows
+      .map((flow) => {
+        const overall = periodReportForFlow(flow, period.days, day);
+        const categories = periodReportsForCategories(flow, period.days, day);
+        if (!overall && !categories.length) return null;
+        return { flow, overall, categories };
+      })
+      .filter(Boolean);
+  }, [everydayFlows, period.days]);
+
   return (
     <div className="page narrow-page page-reports">
       <section className="simple-hero simple-hero-compact">
         <p className="eyebrow">Everyday</p>
         <h1>Report</h1>
-        <p>Daily grades for your Everyday flows — how complete each day really was.</p>
+        <p>Daily grades plus 7-day, 2-week, and 1-month completion — per flow and per tab.</p>
       </section>
 
       {everydayFlows.length === 0 ? (
@@ -247,11 +318,69 @@ export default function ReportPage() {
               </div>
               <div className="report-pro-grid">
                 {liveToday.map(({ flow, report }) => (
-                  <ReportCard key={`live-${flow.id}`} flow={flow} report={report} live />
+                  <Fragment key={`live-${flow.id}`}>
+                    <ReportCard flow={flow} report={report} live />
+                    <CategoryCards flow={flow} report={report} live />
+                  </Fragment>
                 ))}
               </div>
             </section>
           )}
+
+          <section className="report-section" aria-label="Period progress">
+            <div className="flow-list-head">
+              <div>
+                <h2>Progress windows</h2>
+                <p className="flow-section-sub">
+                  Completion across the last {period.label} — overall and each tab
+                </p>
+              </div>
+            </div>
+            <div className="report-day-strip" role="tablist" aria-label="Progress window">
+              {REPORT_PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={p.id === periodId}
+                  className={`report-day-chip${p.id === periodId ? " is-active" : ""}`}
+                  onClick={() => setPeriodId(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {periodBlocks.length === 0 ? (
+              <p className="flow-section-empty">
+                Tick steps today — this window fills as days lock in after midnight.
+              </p>
+            ) : (
+              <div className="report-pro-grid">
+                {periodBlocks.map(({ flow, overall, categories }) => (
+                  <Fragment key={`period-${flow.id}-${period.id}`}>
+                    {overall && (
+                      <ReportCard
+                        flow={flow}
+                        report={overall}
+                        eyebrow={`${flow.name} · ${period.label}`}
+                        title={flow.name}
+                      />
+                    )}
+                    {categories.map(({ category, report }) => (
+                      <ReportCard
+                        key={`${flow.id}-${category.id}-${period.id}`}
+                        flow={flow}
+                        report={report}
+                        accent={category.color}
+                        title={category.name}
+                        eyebrow={`${flow.name} · ${period.label}`}
+                      />
+                    ))}
+                  </Fragment>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="report-section" aria-label="Past report cards">
             <div className="flow-list-head">
@@ -287,11 +416,10 @@ export default function ReportPage() {
             ) : (
               <div className="report-pro-grid">
                 {dayReports.map(({ flow, report }) => (
-                  <ReportCard
-                    key={`${flow.id}-${report.dateKey}`}
-                    flow={flow}
-                    report={report}
-                  />
+                  <Fragment key={`${flow.id}-${report.dateKey}`}>
+                    <ReportCard flow={flow} report={report} />
+                    <CategoryCards flow={flow} report={report} />
+                  </Fragment>
                 ))}
               </div>
             )}

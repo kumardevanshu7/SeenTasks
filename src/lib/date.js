@@ -24,6 +24,13 @@ export function daysBetween(fromKey, toKeyValue) {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
+export function addDaysToKey(dateKey, days) {
+  const d = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateKey;
+  d.setDate(d.getDate() + (Number(days) || 0));
+  return toKey(d);
+}
+
 /** Deadline day for delay: dueDate if set, else the task’s dateKey (midnight cutoff). */
 export function taskDeadlineKey(task) {
   if (task?.dueDate) return task.dueDate;

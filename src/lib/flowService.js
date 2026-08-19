@@ -9,7 +9,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { todayKey } from "./date";
+import { addDaysToKey, todayKey } from "./date";
 
 /** 10 light theme colors for Follow Flow (distinct from workspace/label palettes) */
 export const FLOW_COLORS = [
@@ -105,9 +105,20 @@ export function normalizeFollowFlow(id, data = {}) {
           feedback: r.feedback || feedbackForGrade(r.grade || gradeFromPct(Number(r.pct) || 0)),
           done: Number(r.done) || 0,
           total: Number(r.total) || 0,
+          categories: Array.isArray(r.categories)
+            ? r.categories.map((c) => ({
+                id: c.id || "",
+                name: (c.name || "Category").slice(0, 32),
+                color: c.color || "",
+                done: Number(c.done) || 0,
+                total: Number(c.total) || 0,
+                pct: Number(c.pct) || 0,
+                grade: c.grade || gradeFromPct(Number(c.pct) || 0),
+              })).filter((c) => c.id)
+            : [],
         }))
         .filter((r) => r.dateKey)
-        .slice(0, 30)
+        .slice(0, 31)
     : [];
   const repeat = data.repeat === "daily" ? "daily" : null;
   const labelIds = Array.isArray(data.labelIds)
@@ -184,6 +195,142 @@ export function flowProgress(flow, day = null) {
   };
 }
 
+export function flowProgressInCategory(flow, categoryId, day = null) {
+  const d =
+    day ||
+    (flow?.repeat === "daily" ? flow.dayKey || todayKey() : null) ||
+    todayKey();
+  const steps = activeFlowSteps(flow, d).filter(
+    (s) => stepCategoryId(s, flow) === categoryId
+  );
+  const total = steps.length;
+  const done = steps.filter((s) => s.done).length;
+  return {
+    total,
+    done,
+    pct: total === 0 ? 0 : Math.round((done / total) * 100),
+    complete: total > 0 && done === total,
+  };
+}
+
+function categoryReportSlice(flow, dateKey) {
+  return flowCategories(flow)
+    .map((c) => {
+      const p = flowProgressInCategory(flow, c.id, dateKey);
+      if (p.total === 0) return null;
+      const grade = gradeFromPct(p.pct);
+      return {
+        id: c.id,
+        name: c.name,
+        color: c.color,
+        done: p.done,
+        total: p.total,
+        pct: p.pct,
+        grade,
+      };
+    })
+    .filter(Boolean);
+}
+
+export const REPORT_PERIODS = [
+  { id: "week", days: 7, label: "7 days" },
+  { id: "fortnight", days: 14, label: "2 weeks" },
+  { id: "month", days: 30, label: "1 month" },
+];
+
+function normalizeStoredCategoryReport(c = {}) {
+  const pct = Number(c.pct) || 0;
+  return {
+    id: c.id || "",
+    name: (c.name || "Category").slice(0, 32),
+    color: c.color || "",
+    done: Number(c.done) || 0,
+    total: Number(c.total) || 0,
+    pct,
+    grade: c.grade || gradeFromPct(pct),
+  };
+}
+
+export function snapshotForDay(flow, dateKey) {
+  if (!flow || !dateKey) return null;
+  if (dateKey === todayKey()) return buildEverydayReport(flow, dateKey);
+  const hit = (flow.reports || []).find((r) => r.dateKey === dateKey);
+  if (!hit) return null;
+  return {
+    ...hit,
+    categories: Array.isArray(hit.categories)
+      ? hit.categories.map(normalizeStoredCategoryReport).filter((c) => c.id && c.total > 0)
+      : [],
+  };
+}
+
+function keysInWindow(endKey, days) {
+  const list = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    list.push(addDaysToKey(endKey, -i));
+  }
+  return list;
+}
+
+function sumSnapshots(snaps) {
+  const done = snaps.reduce((n, r) => n + (Number(r.done) || 0), 0);
+  const total = snaps.reduce((n, r) => n + (Number(r.total) || 0), 0);
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  const grade = gradeFromPct(pct);
+  return { done, total, pct, grade, feedback: feedbackForGrade(grade) };
+}
+
+/** Average completion across the last `days` calendar days (includes today if in range). */
+export function periodReportForFlow(flow, days, endKey = todayKey()) {
+  if (!flow || flow.repeat !== "daily") return null;
+  const created = flow.createdAt ? String(flow.createdAt).slice(0, 10) : null;
+  const snaps = keysInWindow(endKey, days)
+    .filter((k) => !created || k >= created)
+    .filter((k) => !flow.endDate || k <= flow.endDate)
+    .map((k) => snapshotForDay(flow, k))
+    .filter(Boolean);
+  if (!snaps.length) return null;
+  const sum = sumSnapshots(snaps);
+  return {
+    dateKey: endKey,
+    periodDays: days,
+    daysLogged: snaps.length,
+    ...sum,
+  };
+}
+
+export function periodReportsForCategories(flow, days, endKey = todayKey()) {
+  if (!flow || flow.repeat !== "daily") return [];
+  const created = flow.createdAt ? String(flow.createdAt).slice(0, 10) : null;
+  const keys = keysInWindow(endKey, days)
+    .filter((k) => !created || k >= created)
+    .filter((k) => !flow.endDate || k <= flow.endDate);
+  const cats = flowCategories(flow);
+  return cats
+    .map((cat) => {
+      const snaps = keys
+        .map((k) => {
+          const day = snapshotForDay(flow, k);
+          if (!day) return null;
+          const row = (day.categories || []).find((c) => c.id === cat.id);
+          return row && row.total > 0 ? row : null;
+        })
+        .filter(Boolean);
+      if (!snaps.length) return null;
+      const sum = sumSnapshots(snaps);
+      return {
+        category: cat,
+        report: {
+          dateKey: endKey,
+          periodDays: days,
+          daysLogged: snaps.length,
+          ...sum,
+        },
+      };
+    })
+    .filter(Boolean);
+}
+
 /** School-style grades from completion percent. */
 export function gradeFromPct(pct) {
   const n = Math.max(0, Math.min(100, Number(pct) || 0));
@@ -234,6 +381,7 @@ export function buildEverydayReport(flow, dateKey) {
     feedback: feedbackForGrade(grade),
     done: prog.done,
     total: prog.total,
+    categories: categoryReportSlice(flow, dateKey),
   };
 }
 
@@ -252,7 +400,7 @@ export function rollEverydayFlow(flow, today = null) {
   const reports = report
     ? [report, ...(flow.reports || [])]
         .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
-        .slice(0, 30)
+        .slice(0, 31)
     : flow.reports || [];
   const stillActive = isEverydayActive(flow, day);
   const resetSteps = stillActive
@@ -369,13 +517,24 @@ export async function upsertFollowFlow(uid, flow) {
         ? flow.labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
         : [],
       reports: Array.isArray(flow.reports)
-        ? flow.reports.slice(0, 30).map((r) => ({
+        ? flow.reports.slice(0, 31).map((r) => ({
             dateKey: r.dateKey || "",
             pct: Number(r.pct) || 0,
             grade: r.grade || "F",
             feedback: r.feedback || "",
             done: Number(r.done) || 0,
             total: Number(r.total) || 0,
+            categories: Array.isArray(r.categories)
+              ? r.categories.map((c) => ({
+                  id: c.id || "",
+                  name: (c.name || "Category").slice(0, 32),
+                  color: c.color || "",
+                  done: Number(c.done) || 0,
+                  total: Number(c.total) || 0,
+                  pct: Number(c.pct) || 0,
+                  grade: c.grade || "F",
+                })).filter((c) => c.id)
+              : [],
           }))
         : [],
       createdAt: flow.createdAt || new Date().toISOString(),

@@ -200,7 +200,6 @@ export default function FlowPage() {
     );
   }
 
-  const ink = flowColorInk(flow.color);
   const day = todayKey();
   const prog = flowProgress(flow, day);
   const steps = flow.steps || [];
@@ -211,6 +210,11 @@ export default function FlowPage() {
   const activeCat = categories.some((c) => c.id === activeCategoryId)
     ? activeCategoryId
     : categories[0]?.id || null;
+  const activeCatMeta = categories.find((c) => c.id === activeCat) || null;
+  const themeBg = isEveryday && activeCatMeta
+    ? flowColorValue(activeCatMeta.color)
+    : flow.color;
+  const ink = flowColorInk(isEveryday && activeCatMeta ? activeCatMeta.color : flow.color);
   const visibleSteps = isEveryday && activeCat
     ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
     : steps;
@@ -328,7 +332,7 @@ export default function FlowPage() {
   return (
     <div
       className="page narrow-page page-flow"
-      style={{ "--flow-bg": flow.color, "--flow-ink": ink }}
+      style={{ "--flow-bg": themeBg, "--flow-ink": ink }}
     >
       <div className="workspace-topbar">
         <Link to="/app/flows" className="workspace-back">
