@@ -5,7 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
-import { clearAllFollowFlowDocs, FLOW_COLORS, flowColorValue, isFlowStepActiveOnDay, removeFollowFlowDoc, rollEverydayFlow, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -371,7 +371,7 @@ export const useTaskStore = create(
         syncLabelRemove(id);
       },
 
-      addFollowFlow: ({ name, color, repeat, endDate, labelIds }) => {
+      addFollowFlow: ({ name, color, repeat, endDate, labelIds, anyOrder }) => {
         const clean = name?.trim();
         if (!clean) return null;
         const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
@@ -388,6 +388,8 @@ export const useTaskStore = create(
           name: clean.slice(0, 48),
           color: flowColorValue(picked?.value || color || FLOW_COLORS[0].value),
           steps: [],
+          categories: isDaily ? [{ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main" }] : [],
+          anyOrder: isDaily && Boolean(anyOrder),
           repeat: isDaily ? "daily" : null,
           dayKey: isDaily ? todayKey() : null,
           endDate: end,
@@ -424,6 +426,9 @@ export const useTaskStore = create(
               updates.labelIds = Array.isArray(patch.labelIds)
                 ? patch.labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
                 : [];
+            }
+            if (Object.prototype.hasOwnProperty.call(patch, "anyOrder")) {
+              updates.anyOrder = f.repeat === "daily" && Boolean(patch.anyOrder);
             }
             next = { ...f, ...updates };
             return next;
@@ -475,11 +480,17 @@ export const useTaskStore = create(
           completedAt: null,
           startDate,
           endDate,
+          categoryId: null,
         };
         set((s) => ({
           followFlows: (s.followFlows || []).map((f) => {
             if (f.id !== flowId) return f;
-            next = { ...f, steps: [...(f.steps || []), step] };
+            const cats = flowCategories(f);
+            const categoryId =
+              opts.categoryId && cats.some((c) => c.id === opts.categoryId)
+                ? opts.categoryId
+                : cats[0]?.id || DEFAULT_FLOW_CATEGORY_ID;
+            next = { ...f, steps: [...(f.steps || []), { ...step, categoryId }] };
             return next;
           }),
         }));
@@ -531,12 +542,17 @@ export const useTaskStore = create(
             const index = steps.findIndex((st) => st.id === stepId);
             if (index < 0) return f;
             const everyday = f.repeat === "daily";
+            const anyOrder = everyday && Boolean(f.anyOrder);
+            const cid = stepCategoryId(steps[index], f);
             if (everyday) {
-              for (let i = 0; i < index; i += 1) {
-                if (!isFlowStepActiveOnDay(steps[i], day)) continue;
-                if (!steps[i].done) return f;
-              }
               if (!isFlowStepActiveOnDay(steps[index], day)) return f;
+              if (!anyOrder) {
+                for (let i = 0; i < index; i += 1) {
+                  if (stepCategoryId(steps[i], f) !== cid) continue;
+                  if (!isFlowStepActiveOnDay(steps[i], day)) continue;
+                  if (!steps[i].done) return f;
+                }
+              }
             } else {
               for (let i = 0; i < index; i += 1) {
                 if (!steps[i].done) return f;
@@ -552,12 +568,22 @@ export const useTaskStore = create(
               };
             });
             const unchecked = !updated[index].done;
-            const finalSteps = unchecked
-              ? updated.map((st, i) =>
-                  i > index ? { ...st, done: false, completedAt: null } : st
-                )
-              : updated;
-            next = { ...f, steps: finalSteps };
+            let finalSteps = updated;
+            if (unchecked && !anyOrder) {
+              finalSteps = updated.map((st, i) =>
+                i > index && stepCategoryId(st, f) === cid
+                  ? { ...st, done: false, completedAt: null }
+                  : st
+              );
+            }
+            let nextFlow = { ...f, steps: finalSteps };
+            if (anyOrder) {
+              nextFlow = {
+                ...nextFlow,
+                steps: reorderAnyOrderInCategory(nextFlow, cid),
+              };
+            }
+            next = nextFlow;
             return next;
           }),
         }));
@@ -580,27 +606,36 @@ export const useTaskStore = create(
         if (next) syncFlowUpsert(next);
       },
 
-      reorderFlowSteps: (flowId, fromIndex, toIndex) => {
+      reorderFlowSteps: (flowId, fromIndex, toIndex, categoryId = null) => {
         if (!flowId || fromIndex === toIndex) return;
         let next = null;
         set((s) => ({
           followFlows: (s.followFlows || []).map((f) => {
             if (f.id !== flowId) return f;
             const steps = [...(f.steps || [])];
-            if (
-              fromIndex < 0 ||
-              toIndex < 0 ||
-              fromIndex >= steps.length ||
-              toIndex >= steps.length
-            ) {
-              return f;
+            let from = fromIndex;
+            let to = toIndex;
+            if (categoryId) {
+              const idxs = [];
+              steps.forEach((st, i) => {
+                if (stepCategoryId(st, f) === categoryId) idxs.push(i);
+              });
+              from = idxs[fromIndex];
+              to = idxs[toIndex];
+              if (from == null || to == null) return f;
             }
-            const [moved] = steps.splice(fromIndex, 1);
-            steps.splice(toIndex, 0, moved);
-            // After reorder, truncate done state so sequence stays valid:
-            // first incomplete forces all after to incomplete.
+            if (from < 0 || to < 0 || from >= steps.length || to >= steps.length) return f;
+            const [moved] = steps.splice(from, 1);
+            steps.splice(to, 0, moved);
+            const anyOrder = f.repeat === "daily" && Boolean(f.anyOrder);
+            if (anyOrder) {
+              next = { ...f, steps };
+              return next;
+            }
+            const cid = categoryId || stepCategoryId(moved, f);
             let sawOpen = false;
             const normalized = steps.map((st) => {
+              if (stepCategoryId(st, f) !== cid) return st;
               if (sawOpen) return { ...st, done: false, completedAt: null };
               if (!st.done) {
                 sawOpen = true;
@@ -609,6 +644,66 @@ export const useTaskStore = create(
               return st;
             });
             next = { ...f, steps: normalized };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      addFlowCategory: (flowId, name) => {
+        const clean = name?.trim().slice(0, 32);
+        if (!flowId || !clean) return null;
+        let created = null;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId || f.repeat !== "daily") return f;
+            const cats = flowCategories(f);
+            created = { id: uuid(), name: clean };
+            next = { ...f, categories: [...cats, created] };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return created;
+      },
+
+      renameFlowCategory: (flowId, categoryId, name) => {
+        const clean = name?.trim().slice(0, 32);
+        if (!flowId || !categoryId || !clean) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            next = {
+              ...f,
+              categories: flowCategories(f).map((c) =>
+                c.id === categoryId ? { ...c, name: clean } : c
+              ),
+            };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      deleteFlowCategory: (flowId, categoryId) => {
+        if (!flowId || !categoryId) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const cats = flowCategories(f);
+            if (cats.length <= 1) return f;
+            const remaining = cats.filter((c) => c.id !== categoryId);
+            const fallback = remaining[0].id;
+            next = {
+              ...f,
+              categories: remaining,
+              steps: (f.steps || []).map((st) =>
+                stepCategoryId(st, f) === categoryId ? { ...st, categoryId: fallback } : st
+              ),
+            };
             return next;
           }),
         }));

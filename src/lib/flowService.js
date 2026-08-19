@@ -45,6 +45,29 @@ function isValidDateKey(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+export const DEFAULT_FLOW_CATEGORY_ID = "main";
+
+export function normalizeFlowCategory(data = {}, index = 0) {
+  const name = (data.name || (index === 0 ? "Main" : `Category ${index + 1}`)).trim().slice(0, 32);
+  return {
+    id: data.id || (index === 0 ? DEFAULT_FLOW_CATEGORY_ID : `cat-${index}`),
+    name: name || "Category",
+  };
+}
+
+export function flowCategories(flow) {
+  const raw = Array.isArray(flow?.categories) ? flow.categories : [];
+  if (raw.length > 0) return raw.map((c, i) => normalizeFlowCategory(c, i));
+  return [{ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main" }];
+}
+
+export function stepCategoryId(step, flow) {
+  const cats = flowCategories(flow);
+  const id = step?.categoryId || null;
+  if (id && cats.some((c) => c.id === id)) return id;
+  return cats[0]?.id || DEFAULT_FLOW_CATEGORY_ID;
+}
+
 export function normalizeFlowStep(data = {}, index = 0) {
   return {
     id: data.id || `step-${index}`,
@@ -53,6 +76,7 @@ export function normalizeFlowStep(data = {}, index = 0) {
     completedAt: data.completedAt || null,
     startDate: isValidDateKey(data.startDate) ? data.startDate : null,
     endDate: isValidDateKey(data.endDate) ? data.endDate : null,
+    categoryId: data.categoryId || DEFAULT_FLOW_CATEGORY_ID,
   };
 }
 
@@ -83,11 +107,20 @@ export function normalizeFollowFlow(id, data = {}) {
     repeat === "daily" && typeof data.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.endDate)
       ? data.endDate
       : null;
+  const categories = flowCategories({ categories: data.categories });
+  const anyOrder = repeat === "daily" && Boolean(data.anyOrder);
   return {
     id,
     name: (data.name || "Flow").trim() || "Flow",
     color: flowColorValue(data.color),
-    steps,
+    steps: steps.map((s) => ({
+      ...s,
+      categoryId: categories.some((c) => c.id === s.categoryId)
+        ? s.categoryId
+        : categories[0].id,
+    })),
+    categories,
+    anyOrder,
     repeat,
     dayKey: data.dayKey || null,
     endDate,
@@ -225,22 +258,54 @@ export function rollEverydayFlow(flow, today = null) {
 }
 
 /**
- * Step is actionable when all earlier steps that are active on `day` are done.
- * Inactive (future/expired) steps are skipped in the Everyday sequence.
+ * After ticking any step in any-order mode, done items bubble to the top
+ * of their category in the order they were completed.
  */
-export function isFlowStepUnlocked(steps, index, day = null, everyday = false) {
+export function reorderAnyOrderInCategory(flow, categoryId) {
+  const steps = [...(flow?.steps || [])];
+  const cid = categoryId || flowCategories(flow)[0]?.id;
+  const indexes = [];
+  const cat = [];
+  steps.forEach((s, i) => {
+    if (stepCategoryId(s, flow) === cid) {
+      indexes.push(i);
+      cat.push(s);
+    }
+  });
+  const done = cat
+    .filter((s) => s.done)
+    .sort((a, b) => {
+      const ta = a.completedAt || "";
+      const tb = b.completedAt || "";
+      if (ta === tb) return 0;
+      return ta < tb ? -1 : 1;
+    });
+  const open = cat.filter((s) => !s.done);
+  const nextCat = [...done, ...open];
+  const out = [...steps];
+  indexes.forEach((idx, j) => {
+    out[idx] = nextCat[j];
+  });
+  return out;
+}
+
+/**
+ * Step is actionable when all earlier same-category steps are done.
+ * Everyday any-order mode unlocks every step that is active today.
+ */
+export function isFlowStepUnlocked(steps, index, day = null, everyday = false, opts = {}) {
   if (index < 0 || index >= (steps?.length || 0)) return false;
   const d = day || todayKey();
-  if (everyday) {
-    if (!isFlowStepActiveOnDay(steps[index], d)) return false;
-    for (let i = 0; i < index; i += 1) {
-      if (!isFlowStepActiveOnDay(steps[i], d)) continue;
-      if (!steps[i]?.done) return false;
-    }
-    return true;
-  }
+  const step = steps[index];
+  if (everyday && !isFlowStepActiveOnDay(step, d)) return false;
+  if (opts.anyOrder) return true;
+  const cid = opts.categoryId || step?.categoryId || DEFAULT_FLOW_CATEGORY_ID;
   for (let i = 0; i < index; i += 1) {
-    if (!steps[i]?.done) return false;
+    const prev = steps[i];
+    const prevCid = prev?.categoryId || DEFAULT_FLOW_CATEGORY_ID;
+    if (prevCid !== cid) continue;
+    if (everyday && !isFlowStepActiveOnDay(prev, d)) continue;
+    if (!prev?.done) return false;
   }
   return true;
 }
@@ -272,7 +337,13 @@ export async function upsertFollowFlow(uid, flow) {
         completedAt: s.completedAt || null,
         startDate: isValidDateKey(s.startDate) ? s.startDate : null,
         endDate: isValidDateKey(s.endDate) ? s.endDate : null,
+        categoryId: s.categoryId || DEFAULT_FLOW_CATEGORY_ID,
       })),
+      categories: flowCategories(flow).map((c, i) => ({
+        id: c.id || `cat-${i}`,
+        name: c.name || `Category ${i + 1}`,
+      })),
+      anyOrder: flow.repeat === "daily" && Boolean(flow.anyOrder),
       repeat: flow.repeat === "daily" ? "daily" : null,
       dayKey: flow.dayKey || null,
       endDate:

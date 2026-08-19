@@ -139,8 +139,8 @@ export default function FlowsPage() {
     setCreateOpen(true);
   }
 
-  function handleCreate({ name, color, repeat, endDate, labelIds }) {
-    const created = addFollowFlow({ name, color, repeat, endDate, labelIds });
+  function handleCreate({ name, color, repeat, endDate, labelIds, anyOrder }) {
+    const created = addFollowFlow({ name, color, repeat, endDate, labelIds, anyOrder });
     setCreateOpen(false);
     if (created?.id) navigate(`/app/flows/${created.id}`);
   }

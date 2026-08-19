@@ -13,6 +13,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
   const [everyday, setEveryday] = useState(defaultEveryday);
   const [endDate, setEndDate] = useState("");
   const [labelIds, setLabelIds] = useState([]);
+  const [anyOrder, setAnyOrder] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -21,6 +22,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
       setEveryday(defaultEveryday);
       setEndDate("");
       setLabelIds([]);
+      setAnyOrder(false);
     } else {
       setEveryday(defaultEveryday);
     }
@@ -40,6 +42,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
       repeat: everyday ? "daily" : null,
       endDate: everyday && endDate ? endDate : null,
       labelIds: everyday ? labelIds : [],
+      anyOrder: everyday && anyOrder,
     });
   }
 
@@ -113,6 +116,18 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                       onChange={(e) => setEndDate(e.target.value)}
                       aria-label="Everyday end date"
                     />
+                  </label>
+
+                  <label className="flow-everyday-toggle">
+                    <input
+                      type="checkbox"
+                      checked={anyOrder}
+                      onChange={(e) => setAnyOrder(e.target.checked)}
+                    />
+                    <span>
+                      <strong>Tick any step</strong>
+                      <small>Skip the lock — complete in any order and the list reorders.</small>
+                    </span>
                   </label>
 
                   <div className="flow-label-field">

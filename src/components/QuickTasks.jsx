@@ -20,7 +20,10 @@ function buildEverydayMirrors(followFlows, activeDate, dayNow) {
     const steps = flow.steps || [];
     steps.forEach((step, index) => {
       if (!isFlowStepActiveOnDay(step, activeDate)) return;
-      const unlocked = isFlowStepUnlocked(steps, index, activeDate, true);
+      const unlocked = isFlowStepUnlocked(steps, index, activeDate, true, {
+        anyOrder: Boolean(flow.anyOrder),
+        categoryId: step.categoryId,
+      });
       items.push({
         id: `flow:${flow.id}:${step.id}`,
         title: step.title,

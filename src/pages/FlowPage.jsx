@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { flowColorInk, flowProgress, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
+import { flowCategories, flowColorInk, flowProgress, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
 
@@ -95,6 +95,9 @@ export default function FlowPage() {
   const reorderFlowSteps = useTaskStore((s) => s.reorderFlowSteps);
   const renameFollowFlow = useTaskStore((s) => s.renameFollowFlow);
   const updateFollowFlow = useTaskStore((s) => s.updateFollowFlow);
+  const addFlowCategory = useTaskStore((s) => s.addFlowCategory);
+  const renameFlowCategory = useTaskStore((s) => s.renameFlowCategory);
+  const deleteFlowCategory = useTaskStore((s) => s.deleteFlowCategory);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
 
@@ -106,6 +109,9 @@ export default function FlowPage() {
   const [endDraft, setEndDraft] = useState("");
   const [gate, setGate] = useState(null);
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const [addingCat, setAddingCat] = useState(false);
+  const [catDraft, setCatDraft] = useState("");
   const switchRef = useRef(null);
 
   const flow = useMemo(
@@ -169,6 +175,14 @@ export default function FlowPage() {
   const steps = flow.steps || [];
   const isEveryday = flow.repeat === "daily";
   const everydayActive = isEveryday && isEverydayActive(flow, day);
+  const anyOrder = isEveryday && Boolean(flow.anyOrder);
+  const categories = isEveryday ? flowCategories(flow) : [];
+  const activeCat = categories.some((c) => c.id === activeCategoryId)
+    ? activeCategoryId
+    : categories[0]?.id || null;
+  const visibleSteps = isEveryday && activeCat
+    ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
+    : steps;
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
     .filter(Boolean);
@@ -177,6 +191,7 @@ export default function FlowPage() {
     const added = addFlowStep(flow.id, draft, {
       startDate: isEveryday && startDraft ? startDraft : null,
       endDate: isEveryday && endStepDraft ? endStepDraft : null,
+      categoryId: isEveryday ? activeCat : null,
     });
     if (added) {
       setDraft("");
@@ -252,6 +267,9 @@ export default function FlowPage() {
       return;
     } else if (gate.type === "delete-step" && gate.stepId) {
       deleteFlowStep(flow.id, gate.stepId);
+    } else if (gate.type === "delete-category" && gate.categoryId) {
+      deleteFlowCategory(flow.id, gate.categoryId);
+      if (activeCategoryId === gate.categoryId) setActiveCategoryId(null);
     }
     setGate(null);
   }
@@ -261,16 +279,20 @@ export default function FlowPage() {
       ? "Edit this flow"
       : gate?.type === "delete-step"
         ? `Delete step “${gate.title || ""}”`
-        : `Delete flow “${flow.name}”`;
+        : gate?.type === "delete-category"
+          ? `Delete category “${gate.title || ""}”`
+          : `Delete flow “${flow.name}”`;
 
   const gateDescription =
     gate?.type === "edit"
       ? isEveryday
-        ? "Answer your One Password question to rename, set end date, labels, or edit steps."
+        ? "Answer your One Password question to rename, set end date, labels, categories, or edit steps."
         : "Answer your One Password question to rename, reorder, or remove steps."
       : gate?.type === "delete-step"
         ? "Answer your One Password question to delete this step."
-        : "This removes the whole step path. Answer your One Password question to continue.";
+        : gate?.type === "delete-category"
+          ? "Steps in this tab move to another category. Answer your One Password question to continue."
+          : "This removes the whole step path. Answer your One Password question to continue.";
 
   return (
     <div
@@ -361,7 +383,7 @@ export default function FlowPage() {
                   ? `Everyday ended${flow.endDate ? ` · ${formatFriendly(flow.endDate)}` : ""}.`
                   : prog.complete
                     ? "All steps done for today — report card lands after midnight."
-                    : `${prog.done} of ${prog.total} today · resets at midnight.`
+                    : `${prog.done} of ${prog.total} today · resets at midnight${anyOrder ? " · tick any step" : ""}.`
               : steps.length === 0
                 ? "Add steps below. No dates — just the path."
                 : prog.complete
@@ -399,6 +421,17 @@ export default function FlowPage() {
                         Clear
                       </button>
                     )}
+                  </label>
+                  <label className="flow-everyday-toggle">
+                    <input
+                      type="checkbox"
+                      checked={anyOrder}
+                      onChange={(e) => updateFollowFlow(flow.id, { anyOrder: e.target.checked })}
+                    />
+                    <span>
+                      <strong>Tick any step</strong>
+                      <small>Complete in any order — the list reorders as you tick.</small>
+                    </span>
                   </label>
                   <div className="flow-label-field">
                     <span className="workspace-color-label">Labels</span>
@@ -470,18 +503,136 @@ export default function FlowPage() {
         </div>
       </header>
 
+      {isEveryday && (
+        <div className="flow-cat-tabs" role="tablist" aria-label="Flow categories">
+          {categories.map((cat) => {
+            const selected = cat.id === activeCat;
+            const catDone = steps.filter(
+              (s) => stepCategoryId(s, flow) === cat.id && isFlowStepActiveOnDay(s, day) && s.done
+            ).length;
+            const catTotal = steps.filter(
+              (s) => stepCategoryId(s, flow) === cat.id && isFlowStepActiveOnDay(s, day)
+            ).length;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                className={`flow-cat-tab${selected ? " is-active" : ""}`}
+                onClick={() => setActiveCategoryId(cat.id)}
+              >
+                {editing && selected ? (
+                  <input
+                    className="flow-cat-rename"
+                    defaultValue={cat.name}
+                    maxLength={32}
+                    aria-label="Category name"
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={(e) => {
+                      const next = e.target.value.trim();
+                      if (next && next !== cat.name) renameFlowCategory(flow.id, cat.id, next);
+                    }}
+                  />
+                ) : (
+                  <span>{cat.name}</span>
+                )}
+                {catTotal > 0 && (
+                  <em>
+                    {catDone}/{catTotal}
+                  </em>
+                )}
+              </button>
+            );
+          })}
+          {editing && addingCat ? (
+            <form
+              className="flow-cat-add-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const created = addFlowCategory(flow.id, catDraft);
+                if (created?.id) {
+                  setActiveCategoryId(created.id);
+                  setCatDraft("");
+                  setAddingCat(false);
+                }
+              }}
+            >
+              <input
+                className="flow-cat-rename"
+                value={catDraft}
+                onChange={(e) => setCatDraft(e.target.value)}
+                placeholder="Category name"
+                maxLength={32}
+                autoFocus
+                aria-label="New category name"
+              />
+              <button type="submit" className="icon-button" disabled={!catDraft.trim()} aria-label="Save category">
+                <Check size={14} />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => {
+                  setAddingCat(false);
+                  setCatDraft("");
+                }}
+                aria-label="Cancel"
+              >
+                <X size={14} />
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              className="flow-cat-add"
+              onClick={() => {
+                if (!editing) {
+                  setGate({ type: "edit" });
+                  return;
+                }
+                setAddingCat(true);
+              }}
+              aria-label="Add category"
+            >
+              <Plus size={16} />
+            </button>
+          )}
+          {editing && categories.length > 1 && activeCat && (
+            <button
+              type="button"
+              className="flow-cat-delete"
+              onClick={() => {
+                const cat = categories.find((c) => c.id === activeCat);
+                setGate({
+                  type: "delete-category",
+                  categoryId: activeCat,
+                  title: cat?.name || "",
+                });
+              }}
+            >
+              Delete tab
+            </button>
+          )}
+        </div>
+      )}
+
       <ol className="flow-stepper" aria-label="Flow steps">
-        {steps.map((step, index) => {
+        {visibleSteps.map((step, visIndex) => {
+          const index = steps.findIndex((s) => s.id === step.id);
           const onToday = !isEveryday || isFlowStepActiveOnDay(step, day);
-          const unlocked = isFlowStepUnlocked(steps, index, day, isEveryday);
+          const unlocked = isFlowStepUnlocked(steps, index, day, isEveryday, {
+            anyOrder,
+            categoryId: activeCat || step.categoryId,
+          });
           const isActive = onToday && unlocked && !step.done;
           const locked = onToday && !unlocked;
           const scheduled = isEveryday && !onToday;
           const windowLabel = stepWindowLabel(step);
           let todayOrd = 0;
           if (onToday && isEveryday) {
-            for (let i = 0; i <= index; i += 1) {
-              if (isFlowStepActiveOnDay(steps[i], day)) todayOrd += 1;
+            for (let i = 0; i <= visIndex; i += 1) {
+              if (isFlowStepActiveOnDay(visibleSteps[i], day)) todayOrd += 1;
             }
           }
           return (
@@ -524,7 +675,7 @@ export default function FlowPage() {
                   <span className="flow-step-index">
                     {isEveryday && onToday
                       ? `Today ${todayOrd}`
-                      : `Step ${index + 1}`}
+                      : `Step ${visIndex + 1}`}
                   </span>
                   <strong className="flow-step-title">{step.title}</strong>
                   <span className="flow-step-status">
@@ -534,7 +685,9 @@ export default function FlowPage() {
                         ? "Done"
                         : locked
                           ? "Locked"
-                          : "Do this next"}
+                          : anyOrder
+                            ? "Open"
+                            : "Do this next"}
                   </span>
                   {onToday && windowLabel && !scheduled && (
                     <span className="flow-step-window">{windowLabel}</span>
@@ -579,8 +732,10 @@ export default function FlowPage() {
                     <button
                       type="button"
                       className="icon-button"
-                      disabled={index === 0}
-                      onClick={() => reorderFlowSteps(flow.id, index, index - 1)}
+                      disabled={visIndex === 0}
+                      onClick={() =>
+                        reorderFlowSteps(flow.id, visIndex, visIndex - 1, isEveryday ? activeCat : null)
+                      }
                       aria-label="Move up"
                     >
                       <ArrowUp size={14} />
@@ -588,8 +743,10 @@ export default function FlowPage() {
                     <button
                       type="button"
                       className="icon-button"
-                      disabled={index === steps.length - 1}
-                      onClick={() => reorderFlowSteps(flow.id, index, index + 1)}
+                      disabled={visIndex === visibleSteps.length - 1}
+                      onClick={() =>
+                        reorderFlowSteps(flow.id, visIndex, visIndex + 1, isEveryday ? activeCat : null)
+                      }
                       aria-label="Move down"
                     >
                       <ArrowDown size={14} />
@@ -612,8 +769,10 @@ export default function FlowPage() {
         })}
       </ol>
 
-      {steps.length === 0 && !editing && (
-        <p className="flow-steps-empty">No steps yet — add the first one below.</p>
+      {visibleSteps.length === 0 && !editing && (
+        <p className="flow-steps-empty">
+          {isEveryday ? "No steps in this tab — add one below." : "No steps yet — add the first one below."}
+        </p>
       )}
 
       <div className="flow-add-block">
