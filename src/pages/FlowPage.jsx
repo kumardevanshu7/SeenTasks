@@ -9,25 +9,29 @@ import { formatFriendly, todayKey, toKey } from "../lib/date";
 
 function CategoryColorRow({ value, onChange, label }) {
   return (
-    <div className="flow-cat-color-row" role="radiogroup" aria-label={label}>
-      {FLOW_COLORS.map((c) => {
-        const selected = value === c.id || value === c.value;
-        return (
-          <button
-            key={c.id}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={c.id}
-            className={`workspace-color-swatch${selected ? " is-selected" : ""}`}
-            style={{ background: c.value }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange(c.id);
-            }}
-          />
-        );
-      })}
+    <div className="flow-cat-color-panel">
+      <span className="workspace-color-label">{label}</span>
+      <div className="flow-cat-color-row" role="radiogroup" aria-label={label}>
+        {FLOW_COLORS.map((c) => {
+          const selected = value === c.id || value === c.value;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={c.id}
+              className={`workspace-color-swatch${selected ? " is-selected" : ""}`}
+              style={{ background: c.value }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange(c.id);
+              }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -531,6 +535,7 @@ export default function FlowPage() {
       </header>
 
       {isEveryday && (
+        <div className="flow-cat-block">
         <div className="flow-cat-tabs" role="tablist" aria-label="Flow categories">
           {categories.map((cat) => {
             const selected = cat.id === activeCat;
@@ -540,6 +545,8 @@ export default function FlowPage() {
             const catTotal = steps.filter(
               (s) => stepCategoryId(s, flow) === cat.id && isFlowStepActiveOnDay(s, day)
             ).length;
+            const catBg = flowColorValue(cat.color);
+            const catInk = flowColorInk(cat.color);
             return (
               <button
                 key={cat.id}
@@ -548,8 +555,10 @@ export default function FlowPage() {
                 aria-selected={selected}
                 className={`flow-cat-tab${selected ? " is-active" : ""}`}
                 style={{
-                  "--cat-bg": flowColorValue(cat.color),
-                  "--cat-ink": flowColorInk(cat.color),
+                  "--cat-bg": catBg,
+                  "--cat-ink": catInk,
+                  background: selected ? "#fff" : catBg,
+                  color: catInk,
                 }}
                 onClick={() => setActiveCategoryId(cat.id)}
               >
@@ -646,20 +655,21 @@ export default function FlowPage() {
               Delete tab
             </button>
           )}
-          {editing && addingCat && (
-            <CategoryColorRow
-              label="New tab color"
-              value={catColorId}
-              onChange={setCatColorId}
-            />
-          )}
-          {editing && !addingCat && activeCat && (
-            <CategoryColorRow
-              label="Tab color"
-              value={categories.find((c) => c.id === activeCat)?.color}
-              onChange={(id) => setFlowCategoryColor(flow.id, activeCat, id)}
-            />
-          )}
+        </div>
+        {editing && addingCat && (
+          <CategoryColorRow
+            label="Tab color"
+            value={catColorId}
+            onChange={setCatColorId}
+          />
+        )}
+        {editing && !addingCat && activeCat && (
+          <CategoryColorRow
+            label="Tab color"
+            value={categories.find((c) => c.id === activeCat)?.color}
+            onChange={(id) => setFlowCategoryColor(flow.id, activeCat, id)}
+          />
+        )}
         </div>
       )}
 
