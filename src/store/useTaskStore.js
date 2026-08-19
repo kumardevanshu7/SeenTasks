@@ -5,6 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
+import { applyAchievementsToFlows } from "../lib/flowAchievements";
 import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 
@@ -397,6 +398,7 @@ export const useTaskStore = create(
           endDate: end,
           labelIds: labels,
           reports: [],
+          achievements: [],
           createdAt: new Date().toISOString(),
         };
         set((s) => ({ followFlows: [item, ...(s.followFlows || [])] }));
@@ -443,16 +445,22 @@ export const useTaskStore = create(
       /** Archive yesterday + reset Everyday flows when the calendar day changes. */
       rollEverydayFlows: () => {
         const day = todayKey();
-        const changed = [];
-        set((s) => ({
-          followFlows: (s.followFlows || []).map((f) => {
+        const changedIds = new Set();
+        set((s) => {
+          const rolled = (s.followFlows || []).map((f) => {
             const result = rollEverydayFlow(f, day);
-            if (result.changed) changed.push(result.flow);
+            if (result.changed) changedIds.add(result.flow.id);
             return result.flow;
-          }),
-        }));
-        changed.forEach((f) => syncFlowUpsert(f));
-        return changed.length;
+          });
+          const withBadges = applyAchievementsToFlows(rolled);
+          withBadges.forEach((f, i) => {
+            if (f !== rolled[i]) changedIds.add(f.id);
+          });
+          return { followFlows: withBadges };
+        });
+        const latest = useTaskStore.getState().followFlows || [];
+        latest.filter((f) => changedIds.has(f.id)).forEach((f) => syncFlowUpsert(f));
+        return changedIds.size;
       },
 
       deleteFollowFlow: (id) => {
@@ -589,7 +597,19 @@ export const useTaskStore = create(
             return next;
           }),
         }));
-        if (next) syncFlowUpsert(next);
+        if (next) {
+          const all = applyAchievementsToFlows(
+            (useTaskStore.getState().followFlows || []).map((f) => (f.id === next.id ? next : f))
+          );
+          next = all.find((f) => f.id === next.id) || next;
+          set((s) => ({
+            followFlows: (s.followFlows || []).map((f) => all.find((x) => x.id === f.id) || f),
+          }));
+          syncFlowUpsert(next);
+          all.forEach((f) => {
+            if (f.id !== next.id && f.repeat === "daily") syncFlowUpsert(f);
+          });
+        }
       },
 
       deleteFlowStep: (flowId, stepId) => {

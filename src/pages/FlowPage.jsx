@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Plus, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
 
@@ -581,6 +581,11 @@ export default function FlowPage() {
                 ) : (
                   <span>{cat.name}</span>
                 )}
+                {catTotal > 0 && catDone === catTotal && (
+                  <span className="flow-cat-winner" title="Winner — this tab is complete today">
+                    <Trophy size={13} aria-hidden="true" />
+                  </span>
+                )}
                 {catTotal > 0 && (
                   <em>
                     {catDone}/{catTotal}
@@ -675,6 +680,13 @@ export default function FlowPage() {
           />
         )}
         </div>
+      )}
+
+      {isEveryday && activeCatMeta && flowProgressInCategory(flow, activeCat, day).complete && (
+        <p className="flow-winner-banner">
+          <Trophy size={16} aria-hidden="true" />
+          Winner — {activeCatMeta.name} is complete today
+        </p>
       )}
 
       <ol className="flow-stepper" aria-label="Flow steps">

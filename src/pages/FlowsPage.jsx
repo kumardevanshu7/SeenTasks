@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw } from "lucide-react";
+import { ArrowUpRight, ClipboardList, GitBranch, Medal, Plus, RefreshCw, Trophy } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
+import { FLOW_ACHIEVEMENTS, evaluateUnlockedIds } from "../lib/flowAchievements";
 import { flowColorInk, flowProgress, isEverydayActive } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
@@ -134,6 +135,9 @@ export default function FlowsPage() {
       .filter(Boolean);
   }, [everydayFlows, yKey]);
 
+  const unlocked = useMemo(() => evaluateUnlockedIds(followFlows), [followFlows]);
+  const earnedCount = FLOW_ACHIEVEMENTS.filter((a) => unlocked.has(a.id)).length;
+
   function openCreate(everyday = false) {
     setCreateEveryday(everyday);
     setCreateOpen(true);
@@ -193,6 +197,37 @@ export default function FlowsPage() {
                 ))}
               </div>
             )}
+          </section>
+
+          <section className="flow-section" aria-label="Achievements">
+            <div className="flow-list-head">
+              <div>
+                <h2>Achievements</h2>
+                <p className="flow-section-sub">
+                  {earnedCount}/50 unlocked — finish a tab today for a winner badge
+                </p>
+              </div>
+              <span className="flow-achieve-count">
+                <Medal size={15} aria-hidden="true" />
+                {earnedCount}
+              </span>
+            </div>
+            <div className="flow-achieve-grid">
+              {FLOW_ACHIEVEMENTS.map((a) => {
+                const earned = unlocked.has(a.id);
+                return (
+                  <article
+                    key={a.id}
+                    className={`flow-achieve-card${earned ? " is-earned" : ""}`}
+                    title={a.hint}
+                  >
+                    <Trophy size={16} aria-hidden="true" />
+                    <strong>{a.title}</strong>
+                    <span>{earned ? a.hint : a.hint}</span>
+                  </article>
+                );
+              })}
+            </div>
           </section>
 
           {(yesterdayReports.length > 0 || everydayFlows.length > 0) && (

@@ -239,6 +239,59 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-section { margin-bottom: 36px; }
 .flow-section-sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .flow-section-empty { margin: 0; padding: 16px 4px; color: var(--muted-soft); font-size: 13px; }
+.flow-achieve-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.flow-achieve-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+.flow-achieve-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 96px;
+  padding: 12px;
+  color: var(--muted-soft);
+  background: #f3eee6;
+  border-radius: 12px;
+  opacity: .55;
+}
+.flow-achieve-card svg { opacity: .45; }
+.flow-achieve-card.is-earned {
+  color: var(--ink);
+  background: color-mix(in srgb, #fff0bf 70%, white);
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #7a620e 18%, transparent);
+}
+.flow-achieve-card.is-earned svg { opacity: 1; color: #7a620e; }
+.flow-achieve-card strong { font-size: 13px; font-weight: 700; line-height: 1.25; }
+.flow-achieve-card span { font-size: 11px; line-height: 1.35; color: var(--muted); }
+.report-reliable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.report-reliable-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 14px;
+  color: var(--cat-ink, var(--ink));
+  background: var(--cat-bg, #fff0bf);
+  border-radius: 14px;
+  text-decoration: none;
+}
+.report-reliable-card strong { display: block; font-size: 14px; }
+.report-reliable-card span { display: block; font-size: 11px; opacity: .85; }
 .flow-list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 14px; }
 .flow-list-head h2 { margin: 0; font-family: "Cormorant Garamond", Garamond, serif; font-size: 22px; font-weight: 500; }
 .flow-list { display: flex; flex-direction: column; gap: 10px; }
@@ -715,6 +768,11 @@ p, h1, h2, h3, h4 { margin: 0; }
   height: 28px;
   background-clip: padding-box;
 }
+.flow-cat-winner {
+  display: inline-flex;
+  align-items: center;
+  color: var(--cat-ink, #7a620e);
+}
 .flow-cat-tab em {
   font-style: normal;
   font-size: 11px;
@@ -868,6 +926,18 @@ p, h1, h2, h3, h4 { margin: 0; }
   min-width: 132px;
   padding: 6px 8px;
   font-size: 12px;
+}
+.flow-winner-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  color: var(--flow-ink, #7a620e);
+  background: color-mix(in srgb, white 40%, var(--flow-bg, #fff0bf));
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 650;
 }
 .flow-steps-empty { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
 .flow-add-block {

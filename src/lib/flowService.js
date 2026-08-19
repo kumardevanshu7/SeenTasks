@@ -149,6 +149,12 @@ export function normalizeFollowFlow(id, data = {}) {
     endDate,
     labelIds,
     reports,
+    achievements: Array.isArray(data.achievements)
+      ? data.achievements
+          .filter((a) => a?.id)
+          .map((a) => ({ id: String(a.id), unlockedAt: a.unlockedAt || null }))
+          .slice(0, 50)
+      : [],
     createdAt: data.createdAt || new Date().toISOString(),
   };
 }
@@ -536,6 +542,12 @@ export async function upsertFollowFlow(uid, flow) {
                 })).filter((c) => c.id)
               : [],
           }))
+        : [],
+      achievements: Array.isArray(flow.achievements)
+        ? flow.achievements
+            .filter((a) => a?.id)
+            .map((a) => ({ id: String(a.id), unlockedAt: a.unlockedAt || null }))
+            .slice(0, 50)
         : [],
       createdAt: flow.createdAt || new Date().toISOString(),
       updatedAt: serverTimestamp(),

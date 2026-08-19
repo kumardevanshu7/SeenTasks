@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, ClipboardList, Sparkles, Trophy, TriangleAlert } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
+import { mostReliableCategory } from "../lib/flowAchievements";
 import {
   buildEverydayReport,
   feedbackForGrade,
@@ -289,6 +290,14 @@ export default function ReportPage() {
       .filter(Boolean);
   }, [everydayFlows, period.days]);
 
+  const reliableTabs = useMemo(
+    () =>
+      everydayFlows
+        .map((flow) => ({ flow, cat: mostReliableCategory(flow) }))
+        .filter((row) => row.cat && row.cat.completeDays > 0),
+    [everydayFlows]
+  );
+
   return (
     <div className="page narrow-page page-reports">
       <section className="simple-hero simple-hero-compact">
@@ -308,6 +317,45 @@ export default function ReportPage() {
         </div>
       ) : (
         <>
+          {reliableTabs.length > 0 && (
+            <section className="report-section" aria-label="Most finished tabs">
+              <div className="flow-list-head">
+                <div>
+                  <h2>You always finish</h2>
+                  <p className="flow-section-sub">
+                    The tab you complete most often — your reliable win
+                  </p>
+                </div>
+              </div>
+              <div className="report-reliable">
+                {reliableTabs.map(({ flow, cat }) => {
+                  const pct = Math.round((cat.rate || 0) * 100);
+                  const always = cat.logged >= 3 && cat.rate >= 0.8;
+                  return (
+                    <Link
+                      key={`${flow.id}-${cat.id}`}
+                      to={`/app/flows/${flow.id}`}
+                      className="report-reliable-card"
+                      style={{
+                        "--cat-bg": flowColorValue(cat.color),
+                        "--cat-ink": flowColorInk(cat.color),
+                      }}
+                    >
+                      <Trophy size={18} aria-hidden="true" />
+                      <div>
+                        <strong>{cat.name}</strong>
+                        <span>
+                          {flow.name} · {cat.completeDays}/{cat.logged} days
+                          {always ? " · always" : ` · ${pct}% of days`}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {liveToday.length > 0 && (
             <section className="report-section" aria-label="Today live">
               <div className="flow-list-head">
