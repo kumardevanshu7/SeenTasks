@@ -3,9 +3,34 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { flowCategories, flowColorInk, flowProgress, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
+
+function CategoryColorRow({ value, onChange, label }) {
+  return (
+    <div className="flow-cat-color-row" role="radiogroup" aria-label={label}>
+      {FLOW_COLORS.map((c) => {
+        const selected = value === c.id || value === c.value;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={c.id}
+            className={`workspace-color-swatch${selected ? " is-selected" : ""}`}
+            style={{ background: c.value }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(c.id);
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 function EverydayMiniCalendar({ flow }) {
   const today = todayKey();
@@ -97,6 +122,7 @@ export default function FlowPage() {
   const updateFollowFlow = useTaskStore((s) => s.updateFollowFlow);
   const addFlowCategory = useTaskStore((s) => s.addFlowCategory);
   const renameFlowCategory = useTaskStore((s) => s.renameFlowCategory);
+  const setFlowCategoryColor = useTaskStore((s) => s.setFlowCategoryColor);
   const deleteFlowCategory = useTaskStore((s) => s.deleteFlowCategory);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
@@ -112,6 +138,7 @@ export default function FlowPage() {
   const [activeCategoryId, setActiveCategoryId] = useState(null);
   const [addingCat, setAddingCat] = useState(false);
   const [catDraft, setCatDraft] = useState("");
+  const [catColorId, setCatColorId] = useState(FLOW_COLORS[1].id);
   const switchRef = useRef(null);
 
   const flow = useMemo(
@@ -520,6 +547,10 @@ export default function FlowPage() {
                 role="tab"
                 aria-selected={selected}
                 className={`flow-cat-tab${selected ? " is-active" : ""}`}
+                style={{
+                  "--cat-bg": flowColorValue(cat.color),
+                  "--cat-ink": flowColorInk(cat.color),
+                }}
                 onClick={() => setActiveCategoryId(cat.id)}
               >
                 {editing && selected ? (
@@ -550,7 +581,7 @@ export default function FlowPage() {
               className="flow-cat-add-form"
               onSubmit={(e) => {
                 e.preventDefault();
-                const created = addFlowCategory(flow.id, catDraft);
+                const created = addFlowCategory(flow.id, catDraft, catColorId);
                 if (created?.id) {
                   setActiveCategoryId(created.id);
                   setCatDraft("");
@@ -591,6 +622,7 @@ export default function FlowPage() {
                   setGate({ type: "edit" });
                   return;
                 }
+                setCatColorId(nextFlowCategoryColor(categories));
                 setAddingCat(true);
               }}
               aria-label="Add category"
@@ -613,6 +645,20 @@ export default function FlowPage() {
             >
               Delete tab
             </button>
+          )}
+          {editing && addingCat && (
+            <CategoryColorRow
+              label="New tab color"
+              value={catColorId}
+              onChange={setCatColorId}
+            />
+          )}
+          {editing && !addingCat && activeCat && (
+            <CategoryColorRow
+              label="Tab color"
+              value={categories.find((c) => c.id === activeCat)?.color}
+              onChange={(id) => setFlowCategoryColor(flow.id, activeCat, id)}
+            />
           )}
         </div>
       )}

@@ -673,9 +673,9 @@ p, h1, h2, h3, h4 { margin: 0; }
   gap: 8px;
   min-height: 36px;
   padding: 6px 14px;
-  color: var(--muted);
-  background: #f3eee6;
-  border: 1px solid transparent;
+  color: var(--cat-ink, var(--muted));
+  background: var(--cat-bg, #f3eee6);
+  border: 1px solid color-mix(in srgb, var(--cat-ink, #4a4038) 12%, transparent);
   border-radius: 999px;
   font: inherit;
   font-size: 13px;
@@ -683,10 +683,22 @@ p, h1, h2, h3, h4 { margin: 0; }
   cursor: pointer;
 }
 .flow-cat-tab.is-active {
-  color: var(--flow-ink, var(--ink));
-  background: color-mix(in srgb, white 45%, var(--flow-bg, #e8e1d6));
-  border-color: color-mix(in srgb, var(--flow-ink, var(--primary)) 25%, transparent);
-  box-shadow: 0 4px 12px rgba(60, 48, 36, .06);
+  color: var(--cat-ink, var(--ink));
+  background: #fff;
+  border-color: color-mix(in srgb, var(--cat-ink, var(--primary)) 28%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cat-bg, #d7ebfb) 85%, white);
+}
+.flow-cat-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+.flow-cat-color-row .workspace-color-swatch {
+  width: 22px;
+  height: 22px;
 }
 .flow-cat-tab em {
   font-style: normal;

@@ -5,7 +5,7 @@ import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
-import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 
 const MAX_ITERATION = 10;
@@ -388,7 +388,9 @@ export const useTaskStore = create(
           name: clean.slice(0, 48),
           color: flowColorValue(picked?.value || color || FLOW_COLORS[0].value),
           steps: [],
-          categories: isDaily ? [{ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main" }] : [],
+          categories: isDaily
+            ? [{ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main", color: "sky" }]
+            : [],
           anyOrder: isDaily && Boolean(anyOrder),
           repeat: isDaily ? "daily" : null,
           dayKey: isDaily ? todayKey() : null,
@@ -650,7 +652,7 @@ export const useTaskStore = create(
         if (next) syncFlowUpsert(next);
       },
 
-      addFlowCategory: (flowId, name) => {
+      addFlowCategory: (flowId, name, color) => {
         const clean = name?.trim().slice(0, 32);
         if (!flowId || !clean) return null;
         let created = null;
@@ -659,13 +661,37 @@ export const useTaskStore = create(
           followFlows: (s.followFlows || []).map((f) => {
             if (f.id !== flowId || f.repeat !== "daily") return f;
             const cats = flowCategories(f);
-            created = { id: uuid(), name: clean };
+            const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+            created = {
+              id: uuid(),
+              name: clean,
+              color: picked?.id || nextFlowCategoryColor(cats),
+            };
             next = { ...f, categories: [...cats, created] };
             return next;
           }),
         }));
         if (next) syncFlowUpsert(next);
         return created;
+      },
+
+      setFlowCategoryColor: (flowId, categoryId, color) => {
+        const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+        if (!flowId || !categoryId || !picked) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            next = {
+              ...f,
+              categories: flowCategories(f).map((c) =>
+                c.id === categoryId ? { ...c, color: picked.id } : c
+              ),
+            };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
       },
 
       renameFlowCategory: (flowId, categoryId, name) => {

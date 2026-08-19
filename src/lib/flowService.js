@@ -47,18 +47,30 @@ function isValidDateKey(value) {
 
 export const DEFAULT_FLOW_CATEGORY_ID = "main";
 
+export function nextFlowCategoryColor(categories = []) {
+  const used = new Set(
+    (categories || [])
+      .map((c) => FLOW_COLORS.find((x) => x.id === c.color || x.value === c.color)?.id)
+      .filter(Boolean)
+  );
+  const free = FLOW_COLORS.find((c) => !used.has(c.id));
+  return (free || FLOW_COLORS[categories.length % FLOW_COLORS.length]).id;
+}
+
 export function normalizeFlowCategory(data = {}, index = 0) {
   const name = (data.name || (index === 0 ? "Main" : `Category ${index + 1}`)).trim().slice(0, 32);
+  const hit = FLOW_COLORS.find((c) => c.id === data.color || c.value === data.color);
   return {
     id: data.id || (index === 0 ? DEFAULT_FLOW_CATEGORY_ID : `cat-${index}`),
     name: name || "Category",
+    color: hit?.id || FLOW_COLORS[index % FLOW_COLORS.length].id,
   };
 }
 
 export function flowCategories(flow) {
   const raw = Array.isArray(flow?.categories) ? flow.categories : [];
   if (raw.length > 0) return raw.map((c, i) => normalizeFlowCategory(c, i));
-  return [{ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main" }];
+  return [normalizeFlowCategory({ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main", color: "sky" }, 0)];
 }
 
 export function stepCategoryId(step, flow) {
@@ -342,6 +354,7 @@ export async function upsertFollowFlow(uid, flow) {
       categories: flowCategories(flow).map((c, i) => ({
         id: c.id || `cat-${i}`,
         name: c.name || `Category ${i + 1}`,
+        color: c.color || FLOW_COLORS[i % FLOW_COLORS.length].id,
       })),
       anyOrder: flow.repeat === "daily" && Boolean(flow.anyOrder),
       repeat: flow.repeat === "daily" ? "daily" : null,
