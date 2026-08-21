@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CircleAlert, Plus, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert, Filter, Plus, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
@@ -9,6 +9,19 @@ import { flowColorInk, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlock
 import { formatDateTime, formatDuration, formatDelayDays, formatFriendly, formatMonthDay, delayedCompletionMessage, isBeforeToday, taskDelayDays, todayKey, toKey } from "../lib/date";
 
 const LABEL_DRAG_TYPE = "application/x-seentasks-label";
+
+function taskMatchesFilter(task, filterId) {
+  if (!filterId) return true;
+  const labelIds = Array.isArray(task.labelIds)
+    ? task.labelIds.filter(Boolean).map(String)
+    : task.labelId
+      ? [String(task.labelId)]
+      : [];
+  if (filterId === "__none__") {
+    return labelIds.length === 0;
+  }
+  return labelIds.includes(String(filterId));
+}
 
 /** Build Quick Tasks mirror rows from active Everyday flow steps. */
 function buildEverydayMirrors(followFlows, activeDate, dayNow) {
@@ -353,12 +366,15 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const [draft, setDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
   const [labelDraft, setLabelDraft] = useState("");
+  const [filterLabelId, setFilterLabelId] = useState(null);
   const [labelModalOpen, setLabelModalOpen] = useState(false);
   const [draggingLabel, setDraggingLabel] = useState(false);
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
   const inputRef = useRef(null);
+  const lastTapRef = useRef({ time: 0, id: null });
+  const lastDoubleActionRef = useRef(0);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const quickLabels = useTaskStore((s) => s.quickLabels);
   const quickWorkspaces = useTaskStore((s) => s.quickWorkspaces);
@@ -392,6 +408,12 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     });
     return map;
   }, [quickWorkspaces]);
+
+  const activeFilterObj = useMemo(() => {
+    if (!filterLabelId) return null;
+    if (filterLabelId === "__none__") return { id: "__none__", name: "None (Unlabeled)", color: null };
+    return labelsById[filterLabelId] || { id: filterLabelId, name: "Label", color: null };
+  }, [filterLabelId, labelsById]);
 
   useEffect(() => {
     function onFocusInput() {
@@ -466,16 +488,52 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     [foreign, viewingToday, dayHasEnded, activeDate]
   );
 
-  const activeList = [...dayOpen, ...dayDone];
-  const mirrorList = showWorkspaceMirrors ? [...mirrorOpen, ...mirrorDone] : [];
-  const flowMirrorList = useMemo(
+  const rawFlowMirrors = useMemo(
     () => (showFlowMirrors ? buildEverydayMirrors(followFlows, activeDate, dayNow) : []),
     [showFlowMirrors, followFlows, activeDate, dayNow]
   );
-  const displayList = [...activeList, ...mirrorList, ...flowMirrorList];
+
+  const filteredDayOpen = useMemo(
+    () => (filterLabelId ? dayOpen.filter((t) => taskMatchesFilter(t, filterLabelId)) : dayOpen),
+    [dayOpen, filterLabelId]
+  );
+
+  const filteredDayDone = useMemo(
+    () => (filterLabelId ? dayDone.filter((t) => taskMatchesFilter(t, filterLabelId)) : dayDone),
+    [dayDone, filterLabelId]
+  );
+
+  const filteredNotCompleted = useMemo(
+    () => (filterLabelId ? notCompleted.filter((t) => taskMatchesFilter(t, filterLabelId)) : notCompleted),
+    [notCompleted, filterLabelId]
+  );
+
+  const filteredMirrorOpen = useMemo(
+    () => (filterLabelId ? mirrorOpen.filter((t) => taskMatchesFilter(t, filterLabelId)) : mirrorOpen),
+    [mirrorOpen, filterLabelId]
+  );
+
+  const filteredMirrorDone = useMemo(
+    () => (filterLabelId ? mirrorDone.filter((t) => taskMatchesFilter(t, filterLabelId)) : mirrorDone),
+    [mirrorDone, filterLabelId]
+  );
+
+  const filteredMirrorMissed = useMemo(
+    () => (filterLabelId ? mirrorMissed.filter((t) => taskMatchesFilter(t, filterLabelId)) : mirrorMissed),
+    [mirrorMissed, filterLabelId]
+  );
+
+  const filteredFlowMirrors = useMemo(
+    () => (filterLabelId ? rawFlowMirrors.filter((t) => taskMatchesFilter(t, filterLabelId)) : rawFlowMirrors),
+    [rawFlowMirrors, filterLabelId]
+  );
+
+  const activeList = [...filteredDayOpen, ...filteredDayDone];
+  const mirrorList = showWorkspaceMirrors ? [...filteredMirrorOpen, ...filteredMirrorDone] : [];
+  const displayList = [...activeList, ...mirrorList, ...filteredFlowMirrors];
   const missedList = showWorkspaceMirrors
-    ? [...notCompleted, ...mirrorMissed]
-    : notCompleted;
+    ? [...filteredNotCompleted, ...filteredMirrorMissed]
+    : filteredNotCompleted;
   const canAdd = !dayHasEnded || viewingToday;
 
   function workspaceRefFor(item) {
@@ -485,6 +543,34 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     const ws = workspacesById[id];
     if (!ws) return { id, name: "Workspace", color: "#c9dff3" };
     return { id: ws.id, name: ws.name, color: ws.color };
+  }
+
+  function toggleFilter(labelId) {
+    const now = Date.now();
+    if (now - lastDoubleActionRef.current < 350) return;
+    lastDoubleActionRef.current = now;
+    setFilterLabelId((cur) => (cur === labelId ? null : labelId));
+  }
+
+  function handleLabelClick(labelId) {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 320;
+    if (lastTapRef.current.id === labelId && now - lastTapRef.current.time < DOUBLE_TAP_DELAY) {
+      lastTapRef.current = { time: 0, id: null };
+      toggleFilter(labelId);
+      return;
+    }
+    lastTapRef.current = { time: now, id: labelId };
+
+    if (labelId === "__none__") {
+      setLabelDraft("");
+    } else {
+      setLabelDraft((cur) => (cur === labelId ? "" : labelId));
+    }
+  }
+
+  function handleLabelDoubleClick(labelId) {
+    toggleFilter(labelId);
   }
 
   function submit() {
@@ -518,9 +604,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   function runDelete(request) {
     if (!request) return;
     if (request.type === "clear") {
-      dayDone.forEach((t) => deleteQuickTask(t.id));
+      filteredDayDone.forEach((t) => deleteQuickTask(t.id));
     } else if (request.type === "label" && request.id) {
       deleteQuickLabel(request.id);
+      if (filterLabelId === request.id) setFilterLabelId(null);
     } else if (request.type === "clear-label" && request.taskId) {
       if (request.labelId) removeQuickTaskLabel(request.taskId, request.labelId);
       else clearQuickTaskLabels(request.taskId);
@@ -627,7 +714,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             {dayHasEnded
               ? "This day has closed. Unfinished items sit in Not completed."
               : isWorkspace
-                ? "Tasks in this workspace only. Drag a label onto any task."
+                ? "Tasks in this workspace only. Drag a label onto any task · Double-tap label to filter."
                 : "Your everyday checklist. Workspace and Everyday flow steps show here too."}
           </p>
         </div>
@@ -687,22 +774,28 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   <Tag size={13} className="quick-label-tray-icon" aria-hidden="true" />
                   <button
                     type="button"
-                    className={`quick-label-pill${!labelDraft ? " is-selected" : ""}`}
+                    className={`quick-label-pill${!labelDraft ? " is-selected" : ""}${filterLabelId === "__none__" ? " is-filtered" : ""}`}
                     draggable
                     onDragStart={(e) => onLabelDragStart(e, "__none__")}
                     onDragEnd={onLabelDragEnd}
-                    onClick={() => setLabelDraft("")}
-                    title="Drag onto a task to clear its label"
+                    onClick={() => handleLabelClick("__none__")}
+                    onDoubleClick={() => handleLabelDoubleClick("__none__")}
+                    title="Double-tap to filter unlabeled tasks · Click for new tasks · Drag onto task to clear label"
+                    aria-pressed={filterLabelId === "__none__"}
                   >
+                    {filterLabelId === "__none__" && (
+                      <Filter size={10} className="quick-label-filter-icon" aria-hidden="true" />
+                    )}
                     None
                   </button>
                   {(quickLabels || []).map((label) => {
                     const selected = labelDraft === label.id;
+                    const isFiltered = filterLabelId === label.id;
                     return (
                       <button
                         key={label.id}
                         type="button"
-                        className={`quick-label-pill${selected ? " is-selected" : ""}${draggingLabel ? " is-dragging-source" : ""}`}
+                        className={`quick-label-pill${selected ? " is-selected" : ""}${isFiltered ? " is-filtered" : ""}${draggingLabel ? " is-dragging-source" : ""}`}
                         style={{
                           "--label-bg": label.color,
                           "--label-ink": labelColorInk(label.color),
@@ -710,7 +803,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                         draggable
                         onDragStart={(e) => onLabelDragStart(e, label.id)}
                         onDragEnd={onLabelDragEnd}
-                        onClick={() => setLabelDraft(selected ? "" : label.id)}
+                        onClick={() => handleLabelClick(label.id)}
+                        onDoubleClick={() => handleLabelDoubleClick(label.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setDeleteRequest({
@@ -719,8 +813,12 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                             title: label.name,
                           });
                         }}
-                        title="Drag onto a task · click for new tasks · right-click to delete"
+                        title="Double-tap to filter · Drag onto a task · Click for new tasks · Right-click to delete"
+                        aria-pressed={isFiltered}
                       >
+                        {isFiltered && (
+                          <Filter size={10} className="quick-label-filter-icon" aria-hidden="true" />
+                        )}
                         {label.name}
                       </button>
                     );
@@ -737,14 +835,67 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             </div>
           )}
 
+          {filterLabelId && (
+            <div className="quick-filter-banner" role="status">
+              <div className="quick-filter-banner-text">
+                <Filter size={13} aria-hidden="true" />
+                <span>
+                  Filtered by label:{" "}
+                  <strong>{activeFilterObj?.name || "Label"}</strong>
+                </span>
+                <span className="quick-filter-banner-count">
+                  ({displayList.length} {displayList.length === 1 ? "task" : "tasks"})
+                </span>
+              </div>
+              <button
+                type="button"
+                className="quick-filter-banner-clear"
+                onClick={() => setFilterLabelId(null)}
+                title="Clear filter and show all tasks"
+              >
+                Show all <X size={12} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
           {displayList.length === 0 && !dayHasEnded ? (
-            <p className="quick-tasks-empty">Nothing here yet—type above and press Enter.</p>
+            filterLabelId ? (
+              <div className="quick-tasks-empty-wrap">
+                <p className="quick-tasks-empty">
+                  No tasks found with label “{activeFilterObj?.name || "selected"}”.
+                </p>
+                <button
+                  type="button"
+                  className="quick-filter-empty-reset"
+                  onClick={() => setFilterLabelId(null)}
+                >
+                  Show all tasks
+                </button>
+              </div>
+            ) : (
+              <p className="quick-tasks-empty">Nothing here yet—type above and press Enter.</p>
+            )
           ) : displayList.length === 0 && dayHasEnded ? (
-            <p className="quick-tasks-empty">
-              {missedList.length > 0
-                ? "Nothing was finished this day—open items are in Not completed below."
-                : "Nothing logged for this day."}
-            </p>
+            filterLabelId ? (
+              <div className="quick-tasks-empty-wrap">
+                <p className="quick-tasks-empty">
+                  No tasks found with label “{activeFilterObj?.name || "selected"}”.
+                </p>
+                <button
+                  type="button"
+                  className="quick-filter-empty-reset"
+                  onClick={() => setFilterLabelId(null)}
+                >
+                  Show all tasks
+                </button>
+              </div>
+            ) : (
+              <p className="quick-tasks-empty">
+                {missedList.length > 0
+                  ? "Nothing was finished this day—open items are in Not completed below."
+                  : "Nothing logged for this day."}
+              </p>
+            )
           ) : (
             <ul className="quick-tasks-list">
               {displayList.map((item) => {
@@ -777,20 +928,37 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
           {displayList.length > 0 && (
             <div className="quick-tasks-footer">
               <span>
-                {dayOpen.length} open
-                {dayDone.length > 0 ? ` · ${dayDone.length} done` : ""}
-                {mirrorList.length > 0 ? ` · ${mirrorList.length} from workspaces` : ""}
-                {flowMirrorList.length > 0 ? ` · ${flowMirrorList.length} from Everyday` : ""}
+                {filteredDayOpen.length} open
+                {filteredDayDone.length > 0 ? ` · ${filteredDayDone.length} done` : ""}
+                {filteredMirrorOpen.length > 0 || filteredMirrorDone.length > 0
+                  ? ` · ${filteredMirrorOpen.length + filteredMirrorDone.length} from workspaces`
+                  : ""}
+                {filteredFlowMirrors.length > 0 ? ` · ${filteredFlowMirrors.length} from Everyday` : ""}
+                {filterLabelId && (
+                  <span className="quick-tasks-filter-note"> · Filter active</span>
+                )}
               </span>
-              {dayDone.length > 0 && dayOpen.length === 0 && (
-                <button
-                  type="button"
-                  className="quick-tasks-clear"
-                  onClick={() => setDeleteRequest({ type: "clear" })}
-                >
-                  <X size={13} /> Clear completed
-                </button>
-              )}
+              <div className="quick-tasks-footer-actions">
+                {filterLabelId && (
+                  <button
+                    type="button"
+                    className="quick-tasks-clear quick-tasks-filter-clear-btn"
+                    onClick={() => setFilterLabelId(null)}
+                    title="Clear label filter"
+                  >
+                    <X size={12} /> Clear filter
+                  </button>
+                )}
+                {filteredDayDone.length > 0 && filteredDayOpen.length === 0 && (
+                  <button
+                    type="button"
+                    className="quick-tasks-clear"
+                    onClick={() => setDeleteRequest({ type: "clear" })}
+                  >
+                    <X size={13} /> Clear completed
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
