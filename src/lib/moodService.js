@@ -151,6 +151,8 @@ export const MOOD_EXPRESSIONS = [
   },
 ];
 
+export const EXPRESSIONS_MAP = Object.fromEntries(MOOD_EXPRESSIONS.map((m) => [m.id, m]));
+
 /** Check if the strict 11:00 PM - 11:59 PM (23:00-23:59) reflection window is currently open */
 export function isMoodWindowOpen(date = new Date()) {
   const hours = date.getHours();
