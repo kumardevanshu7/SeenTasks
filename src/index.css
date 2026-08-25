@@ -1053,61 +1053,50 @@ p, h1, h2, h3, h4 { margin: 0; }
   display: flex;
   justify-content: center;
 }
-/* Line above node — stops at circle edge */
-.flow-step:not(:first-child) .flow-step-rail::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  height: 2px;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  background: #ddd5c8;
-  pointer-events: none;
-}
-.flow-step.is-done + .flow-step .flow-step-rail::before {
-  background: var(--flow-ink, #1f6b48);
-}
-/* Line below node — stops at bottom of this step, next ::before continues */
+/* Continuous centered vertical timeline rail behind nodes */
 .flow-step:not(:last-child) .flow-step-rail::after {
   content: "";
   position: absolute;
-  top: 28px;
-  bottom: 0;
+  top: 14px;
+  bottom: -14px;
   left: 50%;
   width: 2px;
   transform: translateX(-50%);
-  background: #ddd5c8;
+  background: #e2dad0;
+  z-index: 0;
   pointer-events: none;
-}
-.flow-step.is-done:not(:last-child) .flow-step-rail::after {
-  background: var(--flow-ink, #1f6b48);
 }
 .flow-step-node {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   margin-top: 2px;
   color: white;
-  background: var(--canvas);
-  border: 2px solid #cfc5b6;
+  background: #ffffff;
+  border: 2px solid #d4cbbe;
   border-radius: 50%;
   cursor: pointer;
+  box-sizing: border-box;
+  transition: all .15s ease;
 }
 .flow-step.is-done .flow-step-node {
-  background: var(--flow-ink, #1f6b48);
-  border-color: var(--flow-ink, #1f6b48);
+  background: var(--flow-ink, #166534);
+  border-color: var(--flow-ink, #166534);
+  color: #ffffff;
 }
 .flow-step.is-active .flow-step-node {
-  border-color: var(--flow-ink, #1f6b48);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--flow-bg, #d8f3e4) 70%, white);
+  background: #ffffff;
+  border-color: var(--flow-ink, #166534);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--flow-bg, #bbf7d0) 80%, white);
 }
 .flow-step.is-locked .flow-step-node {
-  color: #a39a8e;
+  background: #f7f3ec;
+  border-color: #ded6c9;
+  color: #a89e91;
   cursor: not-allowed;
 }
 .flow-step-body {
