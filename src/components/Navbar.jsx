@@ -28,10 +28,13 @@ export default function Navbar() {
   const flowActiveCount = useTaskStore(
     (state) =>
       (state.followFlows || []).filter((f) => {
-      const p = flowProgress(f, todayKey());
-        return p.total > 0 && !p.complete;
+        const p = flowProgress(f, todayKey());
+        return p.total > 0 && p.done < p.total;
       }).length
   );
+  const dailyMoods = useTaskStore((state) => state.dailyMoods) || {};
+  const isTodayMoodLogged = !!dailyMoods[todayKey()];
+  const showMoodLive = isMoodWindowOpen() && !isTodayMoodLogged;
   const connectionCount = useTaskStore((state) => state.connections.length);
   const requestCount = useTaskStore((state) => state.incomingRequests.length);
   const displayName = profile?.displayName || user?.displayName || "Your workspace";
@@ -107,7 +110,7 @@ export default function Navbar() {
           >
             <Moon size={17} />
             <span>Nightly mood</span>
-            {isMoodWindowOpen() && <em className="em-live" title="11:00 PM reflection window is open!">Live</em>}
+            {showMoodLive && <em className="em-live" title="11:00 PM reflection window is open!">Live</em>}
           </button>
 
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/assistant")}><MessageCircle size={17} /><span>Assistant</span></NavLink>

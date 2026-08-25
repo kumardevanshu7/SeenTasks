@@ -2800,6 +2800,27 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   border: 1px solid #fef08a;
   color: #854d0e;
 }
+.mood-window-banner.is-complete {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.mood-complete-check {
+  color: #10b981;
+  flex-shrink: 0;
+}
+.mood-done-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: #10b981;
+  color: #fff;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
 .mood-window-info {
   display: flex;
   align-items: center;
@@ -2831,6 +2852,104 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   height: 6px;
   background: #fff;
   border-radius: 50%;
+}
+
+/* Today Confirmed Mood Card */
+.mood-completed-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mood-confirmed-card {
+  padding: 18px 20px;
+  background: var(--mood-bg, #f3f4f6);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.mood-confirmed-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mood-confirmed-emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.mood-confirmed-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.mood-confirmed-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mood-confirmed-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  background: rgba(0, 0, 0, 0.07);
+  border-radius: 6px;
+  color: var(--ink);
+}
+
+.mood-confirmed-date {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.mood-confirmed-title-wrap h3 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--ink);
+}
+
+.mood-confirmed-meaning {
+  font-size: 13px;
+  color: var(--body);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.mood-confirmed-quote {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.75);
+  border-left: 3px solid var(--ink);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--ink);
+  font-style: italic;
+}
+
+.mood-confirmed-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.mood-edit-btn {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--muted) !important;
+  padding: 4px 8px !important;
+}
+.mood-edit-btn:hover {
+  color: var(--ink) !important;
 }
 
 .mood-active-showcase {
@@ -2886,6 +3005,11 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   font-size: 12px;
   font-weight: 600;
   color: var(--ink);
+}
+.mood-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .mood-note-input {
   background: #fff;
@@ -2973,26 +3097,76 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   overflow: hidden;
 }
 
+.mood-history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--hairline);
+}
 .mood-history-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .mood-history-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 8px 12px;
-  background: var(--canvas);
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+}
+.mood-history-row.is-today {
+  background: #fafaf8;
+  border-color: #d1c7b7;
+}
+.mood-history-emoji { font-size: 22px; line-height: 1.1; }
+.mood-history-body { flex: 1; min-width: 0; }
+.mood-history-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.mood-history-head strong { font-weight: 700; color: var(--ink); }
+.mood-history-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.mood-history-date { font-size: 11px; color: var(--muted); margin-left: auto; }
+.mood-history-note { margin: 3px 0 0; font-size: 12px; color: var(--body); font-style: italic; }
+
+.mood-modal-footer {
+  padding-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.mood-analytics-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 8px 16px;
+  background: var(--surface-card);
   border: 1px solid var(--hairline);
   border-radius: 10px;
+  transition: all .15s ease;
 }
-.mood-history-emoji { font-size: 20px; }
-.mood-history-body { flex: 1; }
-.mood-history-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 12.5px; }
-.mood-history-head strong { font-weight: 700; }
-.mood-history-head span { font-size: 11px; color: var(--muted); }
-.mood-history-note { margin: 2px 0 0; font-size: 11.5px; color: var(--body); font-style: italic; }
+.mood-analytics-link:hover {
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
 
 /* Streak Shields Banner & Custom Milestone Rewards */
 .streak-shield-card {
