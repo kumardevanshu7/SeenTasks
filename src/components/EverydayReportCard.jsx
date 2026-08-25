@@ -169,7 +169,112 @@ export function EverydayReportCard({
   );
 }
 
-export function CategoryReportCards({ flow, report, live, periodLabel }) {
+export function MiniProgressRing({ pct, ink, size = 54, stroke = 6 }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
+  const offset = c - (clamped / 100) * c;
+  return (
+    <div className="report-mini-ring" style={{ "--ring-ink": ink, width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle
+          className="report-ring-track"
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+        />
+        <circle
+          className="report-ring-value"
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div className="report-mini-ring-label">
+        <strong>{clamped}%</strong>
+      </div>
+    </div>
+  );
+}
+
+export function CategoryMiniCard({ flow, category, report, live, periodLabel }) {
+  const color = category.color ? flowColorValue(category.color) : flow.color;
+  const ink = flowColorInk(category.color || flow.color);
+  const tone = gradeTone(report.grade);
+  const remaining = Math.max(0, (report.total || 0) - (report.done || 0));
+  const periodDays = Number(report.periodDays) || 0;
+  const daysLogged = Number(report.daysLogged) || 0;
+
+  return (
+    <article
+      className={`report-cat-mini-card tone-${tone}`}
+      style={{
+        "--cat-bg": color,
+        "--cat-ink": ink,
+      }}
+    >
+      <div className="report-cat-mini-head">
+        <div className="report-cat-mini-title-wrap">
+          <span
+            className="report-cat-mini-dot"
+            style={{ background: color }}
+            aria-hidden="true"
+          />
+          <h3 className="report-cat-mini-name">{category.name}</h3>
+        </div>
+        <span className={`report-cat-mini-grade grade-${String(report.grade || "F").replace("+", "p")}`}>
+          {report.grade}
+        </span>
+      </div>
+
+      <div className="report-cat-mini-body">
+        <div className="report-cat-mini-ring-wrap">
+          <MiniProgressRing pct={report.pct} ink={ink} />
+        </div>
+        <div className="report-cat-mini-stats">
+          <div className="report-cat-mini-stat-row">
+            <span>Steps</span>
+            <strong>{report.done}/{report.total || 0}</strong>
+          </div>
+          <div className="report-cat-mini-stat-row">
+            <span>Remaining</span>
+            <strong>{remaining} ({report.pct}%)</strong>
+          </div>
+          {periodDays > 1 ? (
+            <div className="report-cat-mini-stat-row">
+              <span>Days logged</span>
+              <strong>{daysLogged}/{periodDays}</strong>
+            </div>
+          ) : (
+            <div className="report-cat-mini-stat-row">
+              <span>Status</span>
+              <strong className={`report-cat-status-tag tone-${tone}`}>
+                {report.pct >= 100 ? "Complete" : report.pct > 0 ? "In progress" : "Pending"}
+              </strong>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="report-cat-mini-foot">
+        <Link to={`/app/flows/${flow.id}`} className="report-cat-mini-link">
+          Review steps
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+export function CategoryReportCards({ flow, report, live, periodLabel, mini = true }) {
   const cats =
     Array.isArray(report.categories) && report.categories.length
       ? report.categories
@@ -180,6 +285,29 @@ export function CategoryReportCards({ flow, report, live, periodLabel }) {
           })
           .filter(Boolean);
   if (!cats.length) return null;
+
+  if (mini) {
+    return cats.map((cat) => (
+      <CategoryMiniCard
+        key={`${flow.id}-${cat.id}-${report.dateKey}-${periodLabel || "day"}`}
+        flow={flow}
+        category={cat}
+        report={{
+          ...report,
+          pct: cat.pct,
+          grade: cat.grade || gradeFromPct(cat.pct),
+          feedback: cat.feedback || feedbackForGrade(cat.grade || gradeFromPct(cat.pct)),
+          done: cat.done,
+          total: cat.total,
+          periodDays: report.periodDays,
+          daysLogged: report.daysLogged,
+        }}
+        live={live}
+        periodLabel={periodLabel}
+      />
+    ));
+  }
+
   return cats.map((cat) => (
     <EverydayReportCard
       key={`${flow.id}-${cat.id}-${report.dateKey}-${periodLabel || "day"}`}

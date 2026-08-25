@@ -72,16 +72,44 @@ export function listenConnections(uid, cb) {
     cb([...map.values()]);
   };
   const unsubA = onSnapshot(query(ref, where("fromUid", "==", uid)), (snap) => {
-    fromList = snap.docs.map((d) => d.data()).filter((r) => r.status === "accepted")
-      .map((r) => ({ uid: r.toUid, username: r.toUsername, name: r.toName, photoURL: "" }));
+    fromList = snap.docs
+      .filter((d) => d.data().status === "accepted")
+      .map((d) => {
+        const r = d.data();
+        return { uid: r.toUid, username: r.toUsername, name: r.toName, photoURL: "", requestId: d.id };
+      });
     emit();
   });
   const unsubB = onSnapshot(query(ref, where("toUid", "==", uid)), (snap) => {
-    toList = snap.docs.map((d) => d.data()).filter((r) => r.status === "accepted")
-      .map((r) => ({ uid: r.fromUid, username: r.fromUsername, name: r.fromName, photoURL: r.fromPhoto || "" }));
+    toList = snap.docs
+      .filter((d) => d.data().status === "accepted")
+      .map((d) => {
+        const r = d.data();
+        return { uid: r.fromUid, username: r.fromUsername, name: r.fromName, photoURL: r.fromPhoto || "", requestId: d.id };
+      });
     emit();
   });
   return () => { unsubA(); unsubB(); };
+}
+
+export async function removeConnection(targetUid, requestId) {
+  const me = auth.currentUser;
+  if (!me) throw new Error("auth/required");
+  if (requestId) {
+    try {
+      await deleteDoc(doc(db, "connectionRequests", requestId));
+      return;
+    } catch {
+      // Fall through to query delete if direct ID delete fails
+    }
+  }
+  const ref = collection(db, "connectionRequests");
+  const [snap1, snap2] = await Promise.all([
+    getDocs(query(ref, where("fromUid", "==", me.uid), where("toUid", "==", targetUid))),
+    getDocs(query(ref, where("fromUid", "==", targetUid), where("toUid", "==", me.uid))),
+  ]);
+  const deletes = [...snap1.docs, ...snap2.docs].map((d) => deleteDoc(d.ref));
+  await Promise.all(deletes);
 }
 
 // ---------- Assigned tasks ----------

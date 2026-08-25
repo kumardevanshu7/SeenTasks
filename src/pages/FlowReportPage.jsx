@@ -106,12 +106,22 @@ export default function FlowReportPage() {
           <div className="flow-list-head">
             <div>
               <h2>Today</h2>
-              <p className="flow-section-sub">Overall first, then every category</p>
+              <p className="flow-section-sub">Overall performance & category breakdown</p>
             </div>
           </div>
-          <div className="report-pro-grid">
-            <EverydayReportCard flow={flow} report={liveReport} live />
-            <CategoryReportCards flow={flow} report={liveReport} live />
+          <div className="report-flow-overview">
+            <div className="report-flow-featured">
+              <EverydayReportCard flow={flow} report={liveReport} live />
+            </div>
+            <div className="report-flow-categories">
+              <div className="report-cat-section-head">
+                <h3>Category breakdown</h3>
+                <span>Today's active tabs</span>
+              </div>
+              <div className="report-cat-mini-grid">
+                <CategoryReportCards flow={flow} report={liveReport} live mini />
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -138,13 +148,23 @@ export default function FlowReportPage() {
           ))}
         </div>
         {periodReport ? (
-          <div className="report-pro-grid">
-            <EverydayReportCard
-              flow={flow}
-              report={periodReport}
-              eyebrow={`${flow.name} · ${period.label}`}
-            />
-            <CategoryReportCards flow={flow} report={periodReport} periodLabel={period.label} />
+          <div className="report-flow-overview">
+            <div className="report-flow-featured">
+              <EverydayReportCard
+                flow={flow}
+                report={periodReport}
+                eyebrow={`${flow.name} · ${period.label}`}
+              />
+            </div>
+            <div className="report-flow-categories">
+              <div className="report-cat-section-head">
+                <h3>Category breakdown</h3>
+                <span>Last {period.label} performance</span>
+              </div>
+              <div className="report-cat-mini-grid">
+                <CategoryReportCards flow={flow} report={periodReport} periodLabel={period.label} mini />
+              </div>
+            </div>
           </div>
         ) : (
           <p className="flow-section-empty">Not enough days logged for this window yet.</p>
@@ -175,9 +195,19 @@ export default function FlowReportPage() {
           </div>
         )}
         {past ? (
-          <div className="report-pro-grid">
-            <EverydayReportCard flow={flow} report={past} />
-            <CategoryReportCards flow={flow} report={past} />
+          <div className="report-flow-overview">
+            <div className="report-flow-featured">
+              <EverydayReportCard flow={flow} report={past} />
+            </div>
+            <div className="report-flow-categories">
+              <div className="report-cat-section-head">
+                <h3>Category breakdown</h3>
+                <span>Performance for {formatFriendly(selectedDay)}</span>
+              </div>
+              <div className="report-cat-mini-grid">
+                <CategoryReportCards flow={flow} report={past} mini />
+              </div>
+            </div>
           </div>
         ) : (
           <p className="flow-section-empty">No locked report for this day yet.</p>
