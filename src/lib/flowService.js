@@ -11,29 +11,46 @@ import {
 import { db } from "./firebase";
 import { addDaysToKey, todayKey } from "./date";
 
-/** 10 light theme colors for Follow Flow (distinct from workspace/label palettes) */
+/** 12 distinct light theme colors for Follow Flow */
 export const FLOW_COLORS = [
-  { id: "mint", value: "#d8f3e4", ink: "#1f6b48" },
-  { id: "sky", value: "#d7ebfb", ink: "#1f5f8a" },
-  { id: "peach", value: "#ffe2d1", ink: "#a14a28" },
-  { id: "lilac", value: "#e8def8", ink: "#5c418a" },
-  { id: "sand", value: "#f3e6d2", ink: "#7a5a32" },
-  { id: "seafoam", value: "#d5f0ee", ink: "#1d6a66" },
-  { id: "blush", value: "#f8d9e4", ink: "#8a3d5c" },
-  { id: "butter", value: "#fff0bf", ink: "#7a620e" },
-  { id: "fog", value: "#e4e9f2", ink: "#445066" },
-  { id: "sage", value: "#e2edd8", ink: "#4a6440" },
+  { id: "red", value: "#fecaca", ink: "#991b1b" },
+  { id: "yellow", value: "#fff085", ink: "#854d0e" },
+  { id: "lime", value: "#bbf451", ink: "#365314" },
+  { id: "green", value: "#bbf7d0", ink: "#166534" },
+  { id: "cyan", value: "#a5f3fc", ink: "#155e75" },
+  { id: "blue", value: "#bae6fd", ink: "#075985" },
+  { id: "indigo", value: "#c7d2fe", ink: "#3730a3" },
+  { id: "purple", value: "#e9d5ff", ink: "#6b21a8" },
+  { id: "pink", value: "#fbcfe8", ink: "#9d174d" },
+  { id: "rose", value: "#fecdd3", ink: "#9f1239" },
+  { id: "orange", value: "#fed7aa", ink: "#9a3412" },
+  { id: "brown", value: "#e8d5c4", ink: "#6e3d1b" },
 ];
+
+const LEGACY_COLOR_MAP = {
+  mint: "green",
+  sky: "blue",
+  peach: "orange",
+  lilac: "purple",
+  sand: "brown",
+  seafoam: "cyan",
+  blush: "pink",
+  butter: "yellow",
+  fog: "indigo",
+  sage: "lime",
+};
 
 export function flowColorValue(color) {
   if (!color) return FLOW_COLORS[0].value;
-  const hit = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+  const mapped = LEGACY_COLOR_MAP[color] || color;
+  const hit = FLOW_COLORS.find((c) => c.id === mapped || c.value === mapped);
   return hit?.value || color;
 }
 
 export function flowColorInk(color) {
   if (!color) return FLOW_COLORS[0].ink;
-  const hit = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+  const mapped = LEGACY_COLOR_MAP[color] || color;
+  const hit = FLOW_COLORS.find((c) => c.id === mapped || c.value === mapped);
   return hit?.ink || "#4a4038";
 }
 
