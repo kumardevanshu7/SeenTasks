@@ -1,13 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Activity,
   ArrowLeft,
-  Award,
   Calendar,
   CheckCircle2,
   Clock,
-  Compass,
   Flame,
   Layers,
   Moon,
@@ -24,6 +21,7 @@ import { todayKey } from "../lib/date";
 export default function AnalyticsPage() {
   const [rangeId, setRangeId] = useState("7d");
   const [activeHoverBar, setActiveHoverBar] = useState(null);
+  const [activeHoverHour, setActiveHoverHour] = useState(null);
 
   const quickTasks = useTaskStore((s) => s.quickTasks) || [];
   const followFlows = useTaskStore((s) => s.followFlows) || [];
@@ -50,8 +48,17 @@ export default function AnalyticsPage() {
     );
   }, [quickTasks, followFlows, workspaces, dailyMoods, streakShields, unlockedAchievementCount, rangeId]);
 
-  const { overview, dailyTrend, hourlyDistribution, peakHourWindow, categoryBreakdown, moodEntries, smartInsights } =
-    analytics;
+  const {
+    overview,
+    dailyTrend,
+    hourlyDistribution,
+    periodBreakdown,
+    totalHourlyCompletions,
+    peakHourWindow,
+    categoryBreakdown,
+    moodEntries,
+    smartInsights,
+  } = analytics;
 
   // Max value in daily trend for SVG scaling
   const maxDayTotal = Math.max(...dailyTrend.map((d) => d.totalAll), 5);
@@ -62,15 +69,15 @@ export default function AnalyticsPage() {
       <div className="analytics-header">
         <div className="analytics-header-left">
           <Link to="/app" className="workspace-back">
-            <ArrowLeft size={16} /> Back to tasks
+            <ArrowLeft size={15} /> Back to tasks
           </Link>
           <div className="analytics-title-wrap">
             <span className="analytics-badge-icon">
-              <TrendingUp size={20} />
+              <TrendingUp size={22} />
             </span>
             <div>
               <h1>Productivity Analytics</h1>
-              <p>Real-time performance trends, completion velocity & focus insights</p>
+              <p>Performance velocity, focus time & habit correlation</p>
             </div>
           </div>
         </div>
@@ -97,7 +104,7 @@ export default function AnalyticsPage() {
         <div className="analytics-kpi-card is-primary">
           <div className="analytics-kpi-head">
             <span>Productivity Score</span>
-            <Zap size={17} className="kpi-icon-accent" />
+            <Zap size={16} className="kpi-icon-accent" />
           </div>
           <div className="analytics-kpi-val">
             <strong>{overview.completionRate}%</strong>
@@ -111,7 +118,7 @@ export default function AnalyticsPage() {
         <div className="analytics-kpi-card">
           <div className="analytics-kpi-head">
             <span>Task & Step Volume</span>
-            <CheckCircle2 size={17} className="kpi-icon-accent" />
+            <CheckCircle2 size={16} className="kpi-icon-accent" />
           </div>
           <div className="analytics-kpi-val">
             <strong>{overview.grandTotalDone}</strong>
@@ -124,22 +131,22 @@ export default function AnalyticsPage() {
 
         <div className="analytics-kpi-card">
           <div className="analytics-kpi-head">
-            <span>Streak Health</span>
-            <Flame size={17} className="kpi-icon-accent" />
+            <span>Streak Shields</span>
+            <Flame size={16} className="kpi-icon-accent" />
           </div>
           <div className="analytics-kpi-val">
             <strong>{overview.activeShields}</strong>
             <small>shields left</small>
           </div>
           <div className="analytics-kpi-foot">
-            <span>{overview.achievementsCount} / 250 achievements earned</span>
+            <span>{overview.achievementsCount} / 250 achievements unlocked</span>
           </div>
         </div>
 
         <div className="analytics-kpi-card">
           <div className="analytics-kpi-head">
-            <span>Golden Peak Window</span>
-            <Clock size={17} className="kpi-icon-accent" />
+            <span>Peak Focus Window</span>
+            <Clock size={16} className="kpi-icon-accent" />
           </div>
           <div className="analytics-kpi-val">
             <strong className="analytics-kpi-time">{peakHourWindow}</strong>
@@ -150,11 +157,11 @@ export default function AnalyticsPage() {
         </div>
       </section>
 
-      {/* Chart 1: Daily Completion Velocity (SVG) */}
+      {/* Chart 1: Daily Completion Velocity */}
       <section className="analytics-card" aria-label="Daily Completion Trend">
         <div className="analytics-card-header">
           <div>
-            <h2>Daily Completion Trend</h2>
+            <h2>Daily Execution Velocity</h2>
             <p>Task and Everyday Flow completions over the selected timeframe</p>
           </div>
           <div className="analytics-chart-legend">
@@ -166,7 +173,7 @@ export default function AnalyticsPage() {
         <div className="analytics-chart-wrapper">
           <div className="analytics-bars-container">
             {dailyTrend.map((d, idx) => {
-              const heightPct = Math.max(12, Math.round((d.totalAll / maxDayTotal) * 100));
+              const heightPct = Math.max(14, Math.round((d.totalAll / maxDayTotal) * 100));
               const doneHeightPct = d.totalAll > 0 ? Math.round((d.totalDone / d.totalAll) * 100) : 0;
               const isHovered = activeHoverBar === idx;
 
@@ -176,13 +183,14 @@ export default function AnalyticsPage() {
                   className={`analytics-bar-col${d.isToday ? " is-today" : ""}${isHovered ? " is-hovered" : ""}`}
                   onMouseEnter={() => setActiveHoverBar(idx)}
                   onMouseLeave={() => setActiveHoverBar(null)}
+                  onClick={() => setActiveHoverBar(isHovered ? null : idx)}
                 >
-                  {/* Tooltip on Hover */}
+                  {/* Tooltip on Hover/Tap */}
                   {isHovered && (
                     <div className="analytics-bar-tooltip">
                       <strong>{d.dayName}, {d.shortDate}</strong>
-                      <span>{d.totalDone} of {d.totalAll} done ({d.pct}%)</span>
-                      <small>{d.tasksDone} tasks · {d.flowDone} steps</small>
+                      <span className="tooltip-stat">{d.totalDone} of {d.totalAll} done ({d.pct}%)</span>
+                      <span className="tooltip-sub">{d.tasksDone} tasks · {d.flowDone} steps</span>
                     </div>
                   )}
 
@@ -206,49 +214,95 @@ export default function AnalyticsPage() {
         </div>
       </section>
 
-      {/* Grid: Hourly Activity Distribution & Category Breakdown */}
-      <div className="analytics-two-col">
-        {/* Hourly Peak Activity Heatmap */}
-        <section className="analytics-card">
-          <div className="analytics-card-header">
-            <div>
-              <h2>Hourly Focus Distribution</h2>
-              <p>When you complete the most tasks throughout the 24-hour cycle</p>
-            </div>
+      {/* Section 2: Hourly Focus Distribution (Completely Redesigned) */}
+      <section className="analytics-card" aria-label="Hourly Focus Distribution">
+        <div className="analytics-card-header">
+          <div>
+            <h2>Hourly Focus & Time Distribution</h2>
+            <p>Understand which time blocks yield your highest productivity and deep work</p>
           </div>
+          <span className="analytics-peak-pill">
+            <Zap size={13} /> Golden Window: {peakHourWindow}
+          </span>
+        </div>
 
-          <div className="analytics-hourly-grid">
+        {/* 3 Spacious Period Summary Cards */}
+        <div className="analytics-period-cards">
+          {periodBreakdown.map((p) => (
+            <div key={p.id} className="analytics-period-card">
+              <div className="period-card-top">
+                <span className="period-icon">{p.icon}</span>
+                <div className="period-meta">
+                  <strong>{p.label}</strong>
+                  <small>{p.time}</small>
+                </div>
+                <span className="period-pct">{p.pct}%</span>
+              </div>
+              <div className="period-meter">
+                <div
+                  className="period-meter-fill"
+                  style={{ width: `${p.pct}%`, background: p.color }}
+                />
+              </div>
+              <span className="period-foot">{p.count} completions logged</span>
+            </div>
+          ))}
+        </div>
+
+        {/* 24-Hour Timeline Bar Chart with Clean Spaced Ticks */}
+        <div className="analytics-hourly-chart-wrap">
+          <div className="analytics-hourly-bars">
             {hourlyDistribution
-              .filter((h) => h.hour >= 6 && h.hour <= 23) // Focus on active daytime hours 6 AM to 11 PM
-              .map((h) => {
+              .filter((h) => h.hour >= 6 && h.hour <= 23)
+              .map((h, i) => {
+                const isHovered = activeHoverHour === h.hour;
                 const isPeak = h.pct >= 70 && h.count > 0;
                 return (
-                  <div key={h.hour} className={`analytics-hourly-bar${isPeak ? " is-peak" : ""}`}>
-                    <div className="hourly-bar-tube">
+                  <div
+                    key={h.hour}
+                    className={`hourly-tube-col${isPeak ? " is-peak" : ""}${isHovered ? " is-hovered" : ""}`}
+                    onMouseEnter={() => setActiveHoverHour(h.hour)}
+                    onMouseLeave={() => setActiveHoverHour(null)}
+                    onClick={() => setActiveHoverHour(isHovered ? null : h.hour)}
+                  >
+                    {isHovered && (
+                      <div className="analytics-hourly-tooltip">
+                        <strong>{h.label}</strong>
+                        <span>{h.count} completions</span>
+                      </div>
+                    )}
+                    <div className="hourly-tube-track">
                       <div
-                        className="hourly-bar-level"
-                        style={{ height: `${Math.max(8, h.pct)}%` }}
-                        title={`${h.count} completions at ${h.label}`}
+                        className="hourly-tube-fill"
+                        style={{ height: `${Math.max(10, h.pct)}%` }}
                       />
                     </div>
-                    <span className="hourly-bar-time">{h.label.replace(" ", "")}</span>
                   </div>
                 );
               })}
           </div>
-          <div className="analytics-hourly-footer">
-            <span>🌅 Morning (6 AM - 12 PM)</span>
-            <span>☀️ Afternoon (12 PM - 6 PM)</span>
-            <span>🌙 Night (6 PM - 11 PM)</span>
-          </div>
-        </section>
 
-        {/* Category & Workspace Progress */}
+          {/* Clean Spaced Time Ticks (Never Overlap) */}
+          <div className="analytics-hourly-ticks" aria-hidden="true">
+            <span>6 AM</span>
+            <span>9 AM</span>
+            <span>12 PM</span>
+            <span>3 PM</span>
+            <span>6 PM</span>
+            <span>9 PM</span>
+            <span>11 PM</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Grid: Category Mastery & Mood Spectrum */}
+      <div className="analytics-two-col">
+        {/* Category & Workspace Mastery */}
         <section className="analytics-card">
           <div className="analytics-card-header">
             <div>
               <h2>Domain & Category Mastery</h2>
-              <p>Completion performance grouped across workspaces and flows</p>
+              <p>Completion rates across workspaces and Everyday Flow categories</p>
             </div>
           </div>
 
@@ -280,47 +334,44 @@ export default function AnalyticsPage() {
             </div>
           )}
         </section>
-      </div>
 
-      {/* Mood Energy & Consistency Spectrum */}
-      <section className="analytics-card">
-        <div className="analytics-card-header">
-          <div>
-            <h2>Nightly Mood & Reflection Spectrum</h2>
-            <p>11:00 PM mood logs and mindsets recorded across this timeframe</p>
+        {/* Nightly Mood & Mindset Reflection Spectrum */}
+        <section className="analytics-card">
+          <div className="analytics-card-header">
+            <div>
+              <h2>Nightly Mood Spectrum</h2>
+              <p>11:00 PM mood logs and mindsets recorded across this timeframe</p>
+            </div>
           </div>
-          <Link to="/app" className="analytics-action-link">
-            <Moon size={14} /> Open mood log
-          </Link>
-        </div>
 
-        {moodEntries.length === 0 ? (
-          <div className="analytics-empty-mood">
-            <p>No nightly reflections logged yet in this timeframe.</p>
-            <small>Log your mood daily between 11:00 PM and 11:59 PM to unlock mindset correlation analytics.</small>
-          </div>
-        ) : (
-          <div className="analytics-mood-grid">
-            {moodEntries.map((m) => (
-              <div key={m.dateKey} className="analytics-mood-card">
-                <div className="analytics-mood-top">
-                  <span className="analytics-mood-emoji">{m.emoji}</span>
-                  <span className="analytics-mood-date">{m.shortDate}</span>
+          {moodEntries.length === 0 ? (
+            <div className="analytics-empty-mood">
+              <p>No nightly reflections logged yet in this timeframe.</p>
+              <small>Log your mood daily between 11:00 PM and 11:59 PM to unlock mindset correlation analytics.</small>
+            </div>
+          ) : (
+            <div className="analytics-mood-grid">
+              {moodEntries.slice(0, 6).map((m) => (
+                <div key={m.dateKey} className="analytics-mood-card">
+                  <div className="analytics-mood-top">
+                    <span className="analytics-mood-emoji">{m.emoji}</span>
+                    <span className="analytics-mood-date">{m.shortDate}</span>
+                  </div>
+                  <strong className="analytics-mood-title">{m.title}</strong>
+                  <span className="analytics-mood-tag">{m.tag}</span>
+                  {m.note && <p className="analytics-mood-note">“{m.note}”</p>}
                 </div>
-                <strong className="analytics-mood-title">{m.title}</strong>
-                <span className="analytics-mood-tag">{m.tag}</span>
-                {m.note && <p className="analytics-mood-note">“{m.note}”</p>}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* Smart Automated Insights */}
       {smartInsights.length > 0 && (
         <section className="analytics-insights-section">
           <div className="analytics-section-title">
-            <Sparkles size={17} />
+            <Sparkles size={18} />
             <h2>Productivity Patterns & Insights</h2>
           </div>
           <div className="analytics-insights-grid">

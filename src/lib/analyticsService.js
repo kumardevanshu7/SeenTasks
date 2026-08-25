@@ -50,16 +50,9 @@ export function computeAnalytics({
   }
   const dateSet = new Set(dateKeys);
 
-  // 1. Filter Quick Tasks within window
-  const relevantQuickTasks = quickTasks.filter((t) => {
-    if (!t.dateKey) return false;
-    if (rangeId === "all") return true;
-    return dateSet.has(t.dateKey);
-  });
-
   const everydayFlows = followFlows.filter((f) => f.repeat === "daily");
 
-  // 2. Compute Daily Performance Series
+  // 1. Compute Daily Performance Series
   let totalTasksDone = 0;
   let totalTasksCount = 0;
   let totalFlowDone = 0;
@@ -80,7 +73,6 @@ export function computeAnalytics({
     let flowDone = 0;
     let flowTotal = 0;
     everydayFlows.forEach((f) => {
-      // If report exists for this day, use historical report
       const rep = (f.reports || []).find((r) => r.dateKey === k);
       if (rep) {
         flowDone += rep.done || 0;
@@ -114,8 +106,7 @@ export function computeAnalytics({
     };
   });
 
-  // 3. Hourly Activity Heatmap
-  // Collect timestamps from completed tasks and focus sessions
+  // 2. Hourly Activity Heatmap
   quickTasks.forEach((t) => {
     if (t.done && t.completedAt) {
       const d = new Date(t.completedAt);
@@ -126,12 +117,50 @@ export function computeAnalytics({
   });
 
   const maxHourlyCount = Math.max(...hourlyCounts, 1);
+  const totalHourlyCompletions = hourlyCounts.reduce((a, b) => a + b, 0);
+
   const hourlyDistribution = hourlyCounts.map((count, hour) => ({
     hour,
     label: formatHourLabel(hour),
     count,
     pct: Math.round((count / maxHourlyCount) * 100),
   }));
+
+  // Group into 4 clean time periods
+  const morningCount = hourlyCounts.slice(6, 12).reduce((a, b) => a + b, 0);
+  const afternoonCount = hourlyCounts.slice(12, 18).reduce((a, b) => a + b, 0);
+  const eveningCount = hourlyCounts.slice(18, 24).reduce((a, b) => a + b, 0);
+  const lateNightCount = hourlyCounts.slice(0, 6).reduce((a, b) => a + b, 0);
+
+  const periodBreakdown = [
+    {
+      id: "morning",
+      label: "Morning",
+      icon: "🌅",
+      time: "6 AM – 12 PM",
+      count: morningCount,
+      pct: totalHourlyCompletions > 0 ? Math.round((morningCount / totalHourlyCompletions) * 100) : 0,
+      color: "#f59e0b",
+    },
+    {
+      id: "afternoon",
+      label: "Afternoon",
+      icon: "☀️",
+      time: "12 PM – 6 PM",
+      count: afternoonCount,
+      pct: totalHourlyCompletions > 0 ? Math.round((afternoonCount / totalHourlyCompletions) * 100) : 0,
+      color: "#3b82f6",
+    },
+    {
+      id: "night",
+      label: "Night",
+      icon: "🌙",
+      time: "6 PM – 12 AM",
+      count: eveningCount,
+      pct: totalHourlyCompletions > 0 ? Math.round((eveningCount / totalHourlyCompletions) * 100) : 0,
+      color: "#8b5cf6",
+    },
+  ];
 
   // Identify Peak Hours
   let maxHour = 9;
@@ -144,7 +173,7 @@ export function computeAnalytics({
   });
   const peakHourWindow = `${formatHourLabel(maxHour)} – ${formatHourLabel((maxHour + 2) % 24)}`;
 
-  // 4. Overall Productivity Score
+  // 3. Overall Productivity Score
   const grandTotalDone = totalTasksDone + totalFlowDone;
   const grandTotalAll = totalTasksCount + totalFlowCount;
   const completionRate = grandTotalAll > 0 ? Math.round((grandTotalDone / grandTotalAll) * 100) : 0;
@@ -155,10 +184,9 @@ export function computeAnalytics({
   else if (completionRate >= 50) scoreBadge = "Consistent Steady";
   else if (completionRate > 0) scoreBadge = "Building Momentum";
 
-  // 5. Category / Workspace Performance
+  // 4. Category / Workspace Performance
   const categoryMap = {};
 
-  // Everyday Flow Categories
   everydayFlows.forEach((f) => {
     const cats = flowCategories(f);
     cats.forEach((cat) => {
@@ -180,7 +208,6 @@ export function computeAnalytics({
     });
   });
 
-  // Workspaces
   workspaces.forEach((ws) => {
     const wsTasks = quickTasks.filter((t) => t.workspaceId === ws.id);
     if (wsTasks.length > 0) {
@@ -202,7 +229,7 @@ export function computeAnalytics({
     .sort((a, b) => b.total - a.total)
     .slice(0, 8);
 
-  // 6. Mood Energy Analytics
+  // 5. Mood Energy Analytics
   const moodEntries = [];
   dateKeys.forEach((k) => {
     const entry = dailyMoods[k];
@@ -227,7 +254,7 @@ export function computeAnalytics({
   });
   const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-  // 7. Focus Sessions Analytics
+  // 6. Focus Sessions Analytics
   let totalFocusMins = 0;
   let totalFocusSessions = 0;
   if (Array.isArray(focusHistory)) {
@@ -237,10 +264,9 @@ export function computeAnalytics({
     });
   }
 
-  // 8. Smart Insights
+  // 7. Smart Insights
   const smartInsights = [];
 
-  // Best day of week
   const dayOfWeekDone = {};
   const dayOfWeekTotal = {};
   dailyTrend.forEach((d) => {
@@ -264,17 +290,17 @@ export function computeAnalytics({
     smartInsights.push({
       type: "peak-day",
       icon: "🔥",
-      title: `${bestDay} is your peak performance day`,
-      description: `You complete an average of ${Math.round(bestDayRate * 100)}% of your tasks and steps on ${bestDay}s.`,
+      title: `${bestDay} is your strongest execution day`,
+      description: `You hit an average of ${Math.round(bestDayRate * 100)}% completion on ${bestDay}s. Schedule your hardest deep work here.`,
     });
   }
 
   if (grandTotalDone > 0) {
     smartInsights.push({
       type: "peak-hour",
-      icon: "⏰",
-      title: `Golden focus window: ${peakHourWindow}`,
-      description: `The majority of your completions occur around ${peakHourWindow}. Protect this time block for priority deep work.`,
+      icon: "⚡",
+      title: `Prime Focus Window: ${peakHourWindow}`,
+      description: `Your highest output occurs around ${peakHourWindow}. Block notifications during this window to enter flow state faster.`,
     });
   }
 
@@ -282,8 +308,8 @@ export function computeAnalytics({
     smartInsights.push({
       type: "mood",
       icon: "🧘",
-      title: `Dominant vibe: “${topMood}”`,
-      description: `Your most frequent nightly reflection expression is ${topMood}. Keep reinforcing this positive habit loop.`,
+      title: `Dominant Mindset: “${topMood}”`,
+      description: `Your most frequent nightly reflection is ${topMood}. Consistent mindset tracking sharpens daily clarity.`,
     });
   }
 
@@ -292,8 +318,8 @@ export function computeAnalytics({
     smartInsights.push({
       type: "category",
       icon: "🎯",
-      title: `Top domain: ${topCat.name}`,
-      description: `${topCat.name} leads with ${topCat.done} completions (${topCat.pct}% completion rate).`,
+      title: `Top Focus Domain: ${topCat.name}`,
+      description: `${topCat.name} leads your workspace with ${topCat.done} completions (${topCat.pct}% completion rate).`,
     });
   }
 
@@ -316,6 +342,8 @@ export function computeAnalytics({
     },
     dailyTrend,
     hourlyDistribution,
+    periodBreakdown,
+    totalHourlyCompletions,
     peakHourWindow,
     categoryBreakdown,
     moodEntries,
