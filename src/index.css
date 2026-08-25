@@ -1052,24 +1052,22 @@ p, h1, h2, h3, h4 { margin: 0; }
   position: relative;
   display: flex;
   justify-content: center;
-  isolation: isolate;
 }
-/* Continuous centered vertical timeline rail behind nodes */
+/* Line connects between steps — starts below circle 1, ends above circle 2 */
 .flow-step:not(:last-child) .flow-step-rail::after {
   content: "";
   position: absolute;
-  top: 14px;
-  bottom: -14px;
+  top: 28px;
+  bottom: 0;
   left: 50%;
   width: 2px;
   margin-left: -1px;
   background: #ded5c7;
-  z-index: 1;
   pointer-events: none;
 }
 .flow-step-node {
   position: relative;
-  z-index: 5;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1082,25 +1080,28 @@ p, h1, h2, h3, h4 { margin: 0; }
   border-radius: 50%;
   cursor: pointer;
   box-sizing: border-box;
-  box-shadow: 0 0 0 3px var(--canvas, #faf9f5);
+  opacity: 1 !important;
   transition: all .15s ease;
 }
+.flow-step-node:disabled {
+  opacity: 1 !important;
+}
 .flow-step.is-done .flow-step-node {
-  background: var(--flow-ink, #166534) !important;
-  border-color: var(--flow-ink, #166534) !important;
+  background: #10b981 !important;
+  border-color: #10b981 !important;
   color: #ffffff !important;
-  box-shadow: 0 0 0 3px var(--canvas, #faf9f5);
 }
 .flow-step.is-active .flow-step-node {
   background: #ffffff !important;
-  border-color: var(--flow-ink, #166534) !important;
-  box-shadow: 0 0 0 3px var(--canvas, #faf9f5), 0 0 0 6px color-mix(in srgb, var(--flow-bg, #bbf7d0) 80%, white);
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #bbf7d0 80%, white);
 }
-.flow-step.is-locked .flow-step-node {
+.flow-step.is-locked .flow-step-node,
+.flow-step.is-scheduled .flow-step-node {
   background: #ffffff !important;
   border-color: #cfc5b6;
   color: #a89e91;
-  box-shadow: 0 0 0 3px var(--canvas, #faf9f5);
+  opacity: 1 !important;
   cursor: not-allowed;
 }
 .flow-step-body {
@@ -1116,7 +1117,7 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step-title { color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.35; }
 .flow-step.is-done .flow-step-title { color: var(--muted-soft); text-decoration: line-through; font-weight: 500; }
 .flow-step.is-locked .flow-step-title { color: var(--muted-soft); }
-.flow-step.is-scheduled { opacity: .72; }
+.flow-step.is-scheduled .flow-step-body { opacity: .72; }
 .flow-step.is-scheduled .flow-step-title { color: var(--muted); font-weight: 500; }
 .flow-step-status { color: var(--muted); font-size: 12px; }
 .flow-step.is-active .flow-step-status { color: var(--flow-ink, var(--primary)); font-weight: 600; }
