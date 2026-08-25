@@ -107,7 +107,7 @@ export default function Navbar() {
           >
             <Moon size={17} />
             <span>Nightly mood</span>
-            {isMoodWindowOpen() && <span className="quick-tool-live-dot" title="Window is live!" />}
+            {isMoodWindowOpen() && <em className="em-live" title="11:00 PM reflection window is open!">Live</em>}
           </button>
 
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/assistant")}><MessageCircle size={17} /><span>Assistant</span></NavLink>
