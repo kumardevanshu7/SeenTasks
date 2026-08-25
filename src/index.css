@@ -1583,21 +1583,23 @@ p, h1, h2, h3, h4 { margin: 0; }
 .quick-task-row:last-child::after { bottom: 50%; }
 .quick-task-row:only-child::after { display: none; }
 .quick-task-rail { position: relative; z-index: 2; flex: 0 0 22px; display: flex; align-items: center; justify-content: center; align-self: center; }
-.quick-task-check { position: relative; z-index: 2; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 22px; width: 22px; height: 22px; padding: 0; margin: 0; color: white; background: #ffffff !important; border: 2px solid #cfc5b6 !important; border-radius: 50%; box-sizing: border-box; line-height: 0; cursor: pointer; transition: background .2s ease, border-color .2s ease, transform .18s ease; -webkit-tap-highlight-color: transparent; }
+.quick-task-check { position: relative; z-index: 2; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 22px; width: 22px; height: 22px; padding: 0; margin: 0; color: #ffffff; background: #ffffff; border: 2px solid #cfc5b6; border-radius: 50%; box-sizing: border-box; line-height: 0; cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .18s ease; -webkit-tap-highlight-color: transparent; }
 .quick-task-check:focus { outline: none; }
-.quick-task-check:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.quick-task-check:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
 .quick-task-check:active { transform: scale(.92); }
-.quick-task-done .quick-task-check { background: var(--primary) !important; border-color: var(--primary) !important; color: #ffffff !important; }
 .quick-task-check-locked {
   cursor: default;
   pointer-events: none;
-  background: #ffffff !important;
-  border: 2px solid #cfc5b6 !important;
+  background: #ffffff;
+  border: 2px solid #cfc5b6;
 }
+
+/* Green fill and white tick for all completed tasks */
+.quick-task-done .quick-task-check,
+.quick-task-check.is-done,
 .quick-task-check-locked.is-done {
-  background: var(--ws-ink, var(--primary, #10b981)) !important;
-  border-color: var(--ws-ink, var(--primary, #10b981)) !important;
-  border-style: solid;
+  background: #10b981 !important;
+  border-color: #10b981 !important;
   color: #ffffff !important;
 }
 .quick-task-missed:not(.quick-task-done) .quick-task-check { border-color: #c98972; }

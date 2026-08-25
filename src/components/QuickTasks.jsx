@@ -268,7 +268,20 @@ function QuickTaskRow({
             }
             aria-hidden="true"
             title={flowRef ? "Complete this in its Everyday flow" : "Complete this in its workspace"}
-          />
+          >
+            {item.done && (
+              <svg className="quick-task-tick" viewBox="0 0 12 12" aria-hidden="true">
+                <path
+                  d="M2.4 6.2 L4.9 8.7 L9.6 3.4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </span>
         ) : (
           <button
             type="button"
