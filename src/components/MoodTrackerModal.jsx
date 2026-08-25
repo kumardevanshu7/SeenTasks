@@ -171,18 +171,6 @@ export default function MoodTrackerModal({ open, onClose }) {
                     <span>“{todayEntry.note}”</span>
                   </div>
                 )}
-
-                {isWindowOpen && (
-                  <div className="mood-confirmed-actions">
-                    <button
-                      type="button"
-                      className="button button-ghost mood-edit-btn"
-                      onClick={() => setIsEditing(true)}
-                    >
-                      <Edit3 size={13} /> Edit today’s reflection
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           )}

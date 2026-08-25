@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CircleAlert, Clock, Filter, Moon, Plus, Tag, Timer, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChevronDown, ChevronRight, CircleAlert, Clock, Filter, GitBranch, Moon, Plus, Tag, Timer, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
@@ -642,6 +642,30 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     [rawFlowMirrors, filterLabelId]
   );
 
+  const [collapsedFlows, setCollapsedFlows] = useState({});
+
+  const flowGroups = useMemo(() => {
+    const map = {};
+    (filteredFlowMirrors || []).forEach((item) => {
+      const fid = item.flowRef?.id || "other";
+      if (!map[fid]) {
+        map[fid] = {
+          flowRef: item.flowRef,
+          items: [],
+        };
+      }
+      map[fid].items.push(item);
+    });
+    return Object.values(map);
+  }, [filteredFlowMirrors]);
+
+  function toggleFlowCollapse(flowId) {
+    setCollapsedFlows((cur) => ({
+      ...cur,
+      [flowId]: !cur[flowId],
+    }));
+  }
+
   const activeList = [...filteredDayOpen, ...filteredDayDone];
   const mirrorList = showWorkspaceMirrors ? [...filteredMirrorOpen, ...filteredMirrorDone] : [];
   const displayList = [...activeList, ...mirrorList, ...filteredFlowMirrors];
@@ -1056,34 +1080,101 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
               </p>
             )
           ) : (
-            <ul className="quick-tasks-list">
-              {displayList.map((item) => {
-                const workspaceRef = item.flowRef ? null : workspaceRefFor(item);
-                const flowRef = item.flowRef || null;
-                const labelIds = Array.isArray(item.labelIds)
-                  ? item.labelIds
-                  : item.labelId
-                    ? [item.labelId]
-                    : [];
-                const labels = labelIds.map((id) => labelsById[id]).filter(Boolean);
-                const isMirror = Boolean(workspaceRef || flowRef);
+            <div className="quick-tasks-groups-wrap">
+              {/* Regular Quick Tasks & Workspace Mirrors */}
+              {(activeList.length > 0 || mirrorList.length > 0) && (
+                <ul className="quick-tasks-list">
+                  {[...activeList, ...mirrorList].map((item) => {
+                    const workspaceRef = item.flowRef ? null : workspaceRefFor(item);
+                    const labelIds = Array.isArray(item.labelIds)
+                      ? item.labelIds
+                      : item.labelId
+                        ? [item.labelId]
+                        : [];
+                    const labels = labelIds.map((id) => labelsById[id]).filter(Boolean);
+                    const isMirror = Boolean(workspaceRef);
+                    return (
+                      <QuickTaskRow
+                        key={item.id}
+                        item={item}
+                        labels={labels}
+                        workspaceRef={workspaceRef}
+                        flowRef={null}
+                        isDropTarget={!isMirror && dropTargetId === item.id}
+                        onToggle={handleToggle}
+                        onRequestDelete={setDeleteRequest}
+                        onSnooze={handleSnooze}
+                        onStartFocus={handleStartFocus}
+                        {...(isMirror ? {} : rowDragProps)}
+                      />
+                    );
+                  })}
+                </ul>
+              )}
+
+              {/* Grouped & Collapsible Everyday Flows */}
+              {flowGroups.map((group) => {
+                const fid = group.flowRef?.id || "flow";
+                const isCollapsed = Boolean(collapsedFlows[fid]);
+                const doneCount = group.items.filter((t) => t.done).length;
+                const totalCount = group.items.length;
+                const allDone = doneCount === totalCount;
+
                 return (
-                  <QuickTaskRow
-                    key={item.id}
-                    item={item}
-                    labels={labels}
-                    workspaceRef={workspaceRef}
-                    flowRef={flowRef}
-                    isDropTarget={!isMirror && dropTargetId === item.id}
-                    onToggle={handleToggle}
-                    onRequestDelete={setDeleteRequest}
-                    onSnooze={handleSnooze}
-                    onStartFocus={handleStartFocus}
-                    {...(isMirror ? {} : rowDragProps)}
-                  />
+                  <div
+                    key={fid}
+                    className={`quick-flow-group${isCollapsed ? " is-collapsed" : ""}`}
+                    style={{ "--flow-tint": group.flowRef.color }}
+                  >
+                    <div
+                      className="quick-flow-group-head"
+                      onClick={() => toggleFlowCollapse(fid)}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={!isCollapsed}
+                    >
+                      <div className="quick-flow-group-head-left">
+                        <span className="quick-flow-group-toggle" aria-hidden="true">
+                          {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                        </span>
+                        <span className="quick-flow-group-icon">
+                          <GitBranch size={13} />
+                        </span>
+                        <strong className="quick-flow-group-title">{group.flowRef.name}</strong>
+                        <span className={`quick-flow-group-pill${allDone ? " is-done" : ""}`}>
+                          {doneCount}/{totalCount} done
+                        </span>
+                      </div>
+
+                      <div className="quick-flow-group-head-right" onClick={(e) => e.stopPropagation()}>
+                        <Link to={`/app/flows/${fid}`} className="quick-flow-group-link">
+                          Open flow <ArrowUpRight size={12} />
+                        </Link>
+                      </div>
+                    </div>
+
+                    {!isCollapsed && (
+                      <ul className="quick-tasks-list quick-flow-group-list">
+                        {group.items.map((item) => (
+                          <QuickTaskRow
+                            key={item.id}
+                            item={item}
+                            labels={[]}
+                            workspaceRef={null}
+                            flowRef={item.flowRef}
+                            isDropTarget={false}
+                            onToggle={handleToggle}
+                            onRequestDelete={setDeleteRequest}
+                            onSnooze={handleSnooze}
+                            onStartFocus={handleStartFocus}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
 
           {displayList.length > 0 && (
