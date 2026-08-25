@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CheckSquare, ClipboardList, GitBranch, LogOut, Menu, MessageCircle, Plus, Settings, Trash2, Users, X } from "lucide-react";
+import { CheckSquare, ClipboardList, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Timer, Trash2, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
+import FocusTimerModal from "./FocusTimerModal";
+import MoodTrackerModal from "./MoodTrackerModal";
+import { isMoodWindowOpen } from "../lib/moodService";
 import { todayKey } from "../lib/date";
 import { flowProgress } from "../lib/flowService";
 import { prefetchRoute } from "../lib/prefetchRoute";
@@ -14,6 +17,8 @@ function warm(path) {
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(false);
+  const [moodOpen, setMoodOpen] = useState(false);
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const binCount = useTaskStore((state) => state.getBinTasks().length);
@@ -78,6 +83,32 @@ export default function Navbar() {
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app")}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
           <NavLink to="/app/flows" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/flows")}><GitBranch size={17} /><span>Follow Flow</span>{flowActiveCount > 0 && <em>{flowActiveCount}</em>}</NavLink>
           <NavLink to="/app/reports" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/reports")}><ClipboardList size={17} /><span>Report</span></NavLink>
+          
+          <button
+            type="button"
+            className="side-link side-link-btn"
+            onClick={() => {
+              setOpen(false);
+              setTimerOpen(true);
+            }}
+          >
+            <Timer size={17} />
+            <span>Focus timer</span>
+          </button>
+
+          <button
+            type="button"
+            className="side-link side-link-btn"
+            onClick={() => {
+              setOpen(false);
+              setMoodOpen(true);
+            }}
+          >
+            <Moon size={17} />
+            <span>Nightly mood</span>
+            {isMoodWindowOpen() && <span className="quick-tool-live-dot" title="Window is live!" />}
+          </button>
+
           <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/assistant")}><MessageCircle size={17} /><span>Assistant</span></NavLink>
           <NavLink to="/app/bin" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/bin")}><Trash2 size={17} /><span>Abort bin</span>{binCount > 0 && <em>{binCount}</em>}</NavLink>
           <NavLink to="/app/team" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/team")}><Users size={17} /><span>Organization</span>{requestCount > 0 ? <em className="em-alert">{requestCount}</em> : connectionCount > 0 && <em>{connectionCount}</em>}</NavLink>
@@ -100,6 +131,9 @@ export default function Navbar() {
           <button className="sidebar-signout" onClick={handleSignOut}><LogOut size={15} /> Sign out</button>
         </div>
       </aside>
+
+      <FocusTimerModal open={timerOpen} onClose={() => setTimerOpen(false)} />
+      <MoodTrackerModal open={moodOpen} onClose={() => setMoodOpen(false)} />
     </>
   );
 }

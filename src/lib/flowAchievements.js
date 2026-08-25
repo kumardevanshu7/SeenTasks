@@ -299,15 +299,22 @@ function maxWinsSameDay(list) {
   return max;
 }
 
-function streakDays(list, pred) {
+function streakDays(list, pred, shieldDates = []) {
   let n = 0;
   let key = todayKey();
   for (let i = 0; i < 200; i += 1) {
-    if (!list.some((f) => pred(f, key))) break;
+    const isWon = list.some((f) => pred(f, key));
+    const hasShield = Array.isArray(shieldDates) && shieldDates.includes(key);
+    if (!isWon && !hasShield) break;
     n += 1;
     key = addDaysToKey(key, -1);
   }
   return n;
+}
+
+export function calculateFlowStreak(flows, shieldDates = []) {
+  const list = everydayFlows(flows);
+  return streakDays(list, anyWinOnDay, shieldDates);
 }
 
 function sameTabStreak(flow) {
@@ -425,7 +432,7 @@ export function mostReliableCategory(flow) {
   return best;
 }
 
-export function evaluateUnlockedIds(flows) {
+export function evaluateUnlockedIds(flows, shieldDates = []) {
   const list = everydayFlows(flows);
   const unlocked = new Set();
   if (!list.length) return unlocked;
@@ -521,7 +528,7 @@ export function evaluateUnlockedIds(flows) {
   });
 
   // --- Category 4: Consecutive Day Streaks ---
-  const anyStreak = streakDays(list, anyWinOnDay);
+  const anyStreak = streakDays(list, anyWinOnDay, shieldDates);
   const streakThresholds = [
     [2, "streak-2"], [3, "win-streak-3"], [4, "streak-4"], [5, "streak-5"], [6, "streak-6"],
     [7, "win-streak-7"], [8, "streak-8"], [9, "streak-9"], [10, "streak-10"], [12, "streak-12"],

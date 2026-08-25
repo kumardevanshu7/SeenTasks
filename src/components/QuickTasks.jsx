@@ -1,12 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CircleAlert, Filter, Plus, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert, Clock, Filter, Moon, Plus, Tag, Timer, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
+import FocusTimerModal from "./FocusTimerModal";
+import MoodTrackerModal from "./MoodTrackerModal";
 import { DEFAULT_WORKSPACE_ID, labelColorInk, workspaceColorInk } from "../lib/quickTaskService";
 import { flowColorInk, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
-import { formatDateTime, formatDuration, formatDelayDays, formatFriendly, formatMonthDay, delayedCompletionMessage, isBeforeToday, taskDelayDays, todayKey, toKey } from "../lib/date";
+import { addDaysToKey, formatDateTime, formatDuration, formatDelayDays, formatFriendly, formatMonthDay, delayedCompletionMessage, isBeforeToday, taskDelayDays, todayKey, toKey } from "../lib/date";
+import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
+import { isMoodWindowOpen } from "../lib/moodService";
+
+function getUpcomingWeekend(baseKey) {
+  const d = new Date(baseKey);
+  const day = d.getDay(); // 0 is Sunday, 6 is Saturday
+  const daysUntilSat = (6 - day + 7) % 7 || 7;
+  return addDaysToKey(baseKey, daysUntilSat);
+}
+
+function getUpcomingMonday(baseKey) {
+  const d = new Date(baseKey);
+  const day = d.getDay();
+  const daysUntilMon = (1 - day + 7) % 7 || 7;
+  return addDaysToKey(baseKey, daysUntilMon);
+}
 
 const LABEL_DRAG_TYPE = "application/x-seentasks-label";
 
@@ -138,6 +156,45 @@ function filterNotCompleted(tasks, { viewingToday, dayHasEnded, activeDate }) {
   return [];
 }
 
+function SnoozeMenu({ onSnooze, onClose, activeDate }) {
+  const tomorrow = addDaysToKey(activeDate || todayKey(), 1);
+  const weekend = getUpcomingWeekend(activeDate || todayKey());
+  const nextWeek = getUpcomingMonday(activeDate || todayKey());
+
+  return (
+    <div className="quick-task-snooze-menu" onClick={(e) => e.stopPropagation()}>
+      <div className="quick-task-snooze-head">
+        <Clock size={12} />
+        <span>Reschedule</span>
+      </div>
+      <button
+        type="button"
+        className="quick-task-snooze-opt"
+        onClick={() => onSnooze(tomorrow)}
+      >
+        <span>🌅 Tomorrow</span>
+        <em>{formatFriendly(tomorrow)}</em>
+      </button>
+      <button
+        type="button"
+        className="quick-task-snooze-opt"
+        onClick={() => onSnooze(weekend)}
+      >
+        <span>🏖️ This Weekend</span>
+        <em>{formatFriendly(weekend)}</em>
+      </button>
+      <button
+        type="button"
+        className="quick-task-snooze-opt"
+        onClick={() => onSnooze(nextWeek)}
+      >
+        <span>📅 Next Week</span>
+        <em>{formatFriendly(nextWeek)}</em>
+      </button>
+    </div>
+  );
+}
+
 function QuickTaskRow({
   item,
   labels = [],
@@ -152,7 +209,10 @@ function QuickTaskRow({
   onDragOverRow,
   onDragLeaveRow,
   onDropLabel,
+  onSnooze,
+  onStartFocus,
 }) {
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
   const isMirror = Boolean(workspaceRef || flowRef);
   const mirrorRef = flowRef || workspaceRef;
   const recovered = !isMirror && isRecoveredQuickTask(item);
@@ -173,9 +233,9 @@ function QuickTaskRow({
       : null;
   const mirrorInk = mirrorRef
     ? flowRef
-      ? flowColorInk(flowRef.color)
-      : workspaceColorInk(workspaceRef.color)
-    : null;
+    : workspaceRef
+      ? workspaceColorInk(workspaceRef.color)
+      : null;
   const mirrorChipLabel = flowRef ? flowRef.name : workspaceRef?.name;
   const gotoLabel = flowRef ? "Go to flow" : "Go to workspace";
   const openHint = flowRef
@@ -348,14 +408,50 @@ function QuickTaskRow({
           <ArrowUpRight size={13} aria-hidden="true" />
         </Link>
       ) : (
-        <button
-          type="button"
-          className="quick-task-delete"
-          onClick={() => onRequestDelete({ type: "one", id: item.id, title: item.title })}
-          aria-label={`Delete ${item.title}`}
-        >
-          <Trash2 size={14} />
-        </button>
+        <div className="quick-task-row-actions">
+          {!item.done && (
+            <>
+              <button
+                type="button"
+                className="quick-task-action-btn"
+                onClick={() => onStartFocus?.(item.id, item.title)}
+                title="Start 25m Focus Timer"
+                aria-label="Focus timer"
+              >
+                <Timer size={13} />
+              </button>
+              <div className="quick-task-snooze-wrap">
+                <button
+                  type="button"
+                  className={`quick-task-action-btn${snoozeOpen ? " is-active" : ""}`}
+                  onClick={() => setSnoozeOpen((cur) => !cur)}
+                  title="Reschedule task"
+                  aria-label="Reschedule task"
+                >
+                  <Clock size={13} />
+                </button>
+                {snoozeOpen && (
+                  <SnoozeMenu
+                    activeDate={item.dateKey}
+                    onSnooze={(newDate) => {
+                      setSnoozeOpen(false);
+                      onSnooze?.(item.id, newDate);
+                    }}
+                    onClose={() => setSnoozeOpen(false)}
+                  />
+                )}
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            className="quick-task-delete"
+            onClick={() => onRequestDelete({ type: "one", id: item.id, title: item.title })}
+            aria-label={`Delete ${item.title}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       )}
     </li>
   );
@@ -375,6 +471,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const inputRef = useRef(null);
   const lastTapRef = useRef({ time: 0, id: null });
   const lastDoubleActionRef = useRef(0);
+  const [timerModalOpen, setTimerModalOpen] = useState(false);
+  const [moodModalOpen, setMoodModalOpen] = useState(false);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const quickLabels = useTaskStore((s) => s.quickLabels);
   const quickWorkspaces = useTaskStore((s) => s.quickWorkspaces);
@@ -384,6 +482,9 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const addQuickLabel = useTaskStore((s) => s.addQuickLabel);
   const deleteQuickLabel = useTaskStore((s) => s.deleteQuickLabel);
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
+  const snoozeQuickTask = useTaskStore((s) => s.snoozeQuickTask);
+  const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
+  const soundEnabled = useTaskStore((s) => s.soundEnabled);
   const addQuickTaskLabel = useTaskStore((s) => s.addQuickTaskLabel);
   const removeQuickTaskLabel = useTaskStore((s) => s.removeQuickTaskLabel);
   const clearQuickTaskLabels = useTaskStore((s) => s.clearQuickTaskLabels);
@@ -692,7 +793,29 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   function handleToggle(id) {
     setDraggingLabel(false);
     setDropTargetId(null);
+    const task = quickTasks.find((t) => t.id === id);
+    const willBeDone = !task?.done;
     toggleQuickTask(id);
+    if (willBeDone) {
+      if (soundEnabled) playTickSound();
+      triggerConfetti();
+    }
+  }
+
+  function handleSnooze(id, newDate) {
+    snoozeQuickTask(id, newDate);
+    if (soundEnabled) playTickSound();
+  }
+
+  function handleStartFocus(id, title) {
+    setFocusTimer({
+      active: true,
+      taskId: id,
+      taskTitle: title,
+      secondsLeft: 25 * 60,
+      running: true,
+    });
+    setTimerModalOpen(true);
   }
 
   const rowDragProps = isWorkspace
@@ -709,7 +832,30 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     <div className="quick-tasks-stack">
       <section className="quick-tasks" aria-label="Quick tasks for the day">
         <div className="quick-section-head">
-          <h2>{viewingToday ? "Today" : formatFriendly(activeDate)}</h2>
+          <div className="quick-section-title-wrap">
+            <h2>{viewingToday ? "Today" : formatFriendly(activeDate)}</h2>
+            <div className="quick-head-tools">
+              <button
+                type="button"
+                className="quick-head-tool-btn"
+                onClick={() => setTimerModalOpen(true)}
+                title="Open Focus Timer (25m Focus / 5m Break)"
+              >
+                <Timer size={14} />
+                <span>Focus timer</span>
+              </button>
+              <button
+                type="button"
+                className="quick-head-tool-btn"
+                onClick={() => setMoodModalOpen(true)}
+                title="Daily Mood & Expression Reflection (Open 11:00 PM – 11:59 PM)"
+              >
+                <Moon size={14} />
+                <span>Nightly mood</span>
+                {isMoodWindowOpen() && <span className="quick-tool-live-dot" title="Window is Live!" />}
+              </button>
+            </div>
+          </div>
           <p>
             {dayHasEnded
               ? "This day has closed. Unfinished items sit in Not completed."
@@ -918,6 +1064,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     isDropTarget={!isMirror && dropTargetId === item.id}
                     onToggle={handleToggle}
                     onRequestDelete={setDeleteRequest}
+                    onSnooze={handleSnooze}
+                    onStartFocus={handleStartFocus}
                     {...(isMirror ? {} : rowDragProps)}
                   />
                 );
@@ -1004,6 +1152,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                       isDropTarget={!workspaceRef && dropTargetId === item.id}
                       onToggle={handleToggle}
                       onRequestDelete={setDeleteRequest}
+                      onSnooze={handleSnooze}
+                      onStartFocus={handleStartFocus}
                       {...(workspaceRef ? {} : rowDragProps)}
                     />
                   );
@@ -1018,6 +1168,16 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
         open={labelModalOpen}
         onClose={() => setLabelModalOpen(false)}
         onCreate={handleCreateLabel}
+      />
+
+      <FocusTimerModal
+        open={timerModalOpen}
+        onClose={() => setTimerModalOpen(false)}
+      />
+
+      <MoodTrackerModal
+        open={moodModalOpen}
+        onClose={() => setMoodModalOpen(false)}
       />
 
       <OnePasswordGate

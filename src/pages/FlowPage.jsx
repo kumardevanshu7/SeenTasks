@@ -6,6 +6,7 @@ import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
+import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 
 function CategoryColorRow({ value, onChange, label }) {
   return (
@@ -130,6 +131,7 @@ export default function FlowPage() {
   const deleteFlowCategory = useTaskStore((s) => s.deleteFlowCategory);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
+  const soundEnabled = useTaskStore((s) => s.soundEnabled);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -717,13 +719,16 @@ export default function FlowPage() {
                   type="button"
                   className="flow-step-node"
                   disabled={locked || editing || scheduled || (isEveryday && !everydayActive)}
-                  onClick={() =>
-                    !editing &&
-                    onToday &&
-                    unlocked &&
-                    (!isEveryday || everydayActive) &&
-                    toggleFlowStep(flow.id, step.id)
-                  }
+                  onClick={() => {
+                    if (!editing && onToday && unlocked && (!isEveryday || everydayActive)) {
+                      const willBeDone = !step.done;
+                      toggleFlowStep(flow.id, step.id);
+                      if (willBeDone) {
+                        if (soundEnabled) playTickSound();
+                        triggerConfetti();
+                      }
+                    }
+                  }}
                   aria-label={
                     scheduled
                       ? windowLabel || "Not active today"

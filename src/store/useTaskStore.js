@@ -126,11 +126,76 @@ export const useTaskStore = create(
       quickLabels: [], // { id, name, color, createdAt }
       followFlows: [], // { id, name, color, steps[], createdAt }
       activeWorkspaceId: DEFAULT_WORKSPACE_ID,
-      dataClearedAt: 0, // millis — shared wipe marker so devices don't re-upload old locals
       members: [], // { id, name, username, photoURL }
       persona: [], // selected trait ids from lib/persona.js
+      soundEnabled: true,
+      streakShields: { month: "", remaining: 2, usedDates: [] },
+      customRewards: {}, // { [achievementId]: string }
+      dailyMoods: {}, // { [dateKey]: { moodId, note, recordedAt } }
+      focusTimer: {
+        active: false,
+        secondsLeft: 1500,
+        mode: "focus",
+        running: false,
+        taskId: null,
+        taskTitle: "",
+      },
 
       setPersona: (persona) => set({ persona: Array.isArray(persona) ? persona : [] }),
+      setSoundEnabled: (val) => set({ soundEnabled: Boolean(val) }),
+
+      getStreakShields: () => {
+        const m = todayKey().slice(0, 7);
+        const s = get().streakShields;
+        if (!s || s.month !== m) {
+          return { month: m, remaining: 2, usedDates: [] };
+        }
+        return s;
+      },
+
+      useStreakShield: (dateKey) => {
+        const m = todayKey().slice(0, 7);
+        const current = get().getStreakShields();
+        if (current.remaining <= 0 || current.usedDates.includes(dateKey)) return false;
+        const next = {
+          month: m,
+          remaining: current.remaining - 1,
+          usedDates: [...current.usedDates, dateKey],
+        };
+        set({ streakShields: next });
+        return true;
+      },
+
+      setCustomReward: (achievementId, rewardText) =>
+        set((s) => {
+          const next = { ...(s.customRewards || {}) };
+          if (rewardText && rewardText.trim()) {
+            next[achievementId] = rewardText.trim();
+          } else {
+            delete next[achievementId];
+          }
+          return { customRewards: next };
+        }),
+
+      recordDailyMood: (dateKey, moodId, note = "") =>
+        set((s) => ({
+          dailyMoods: {
+            ...(s.dailyMoods || {}),
+            [dateKey]: {
+              moodId,
+              note: (note || "").trim().slice(0, 140),
+              recordedAt: new Date().toISOString(),
+            },
+          },
+        })),
+
+      setFocusTimer: (updater) =>
+        set((s) => ({
+          focusTimer:
+            typeof updater === "function"
+              ? updater(s.focusTimer)
+              : { ...s.focusTimer, ...updater },
+        })),
 
       // ---------- Quick tasks (manual checklist, synced to Firestore) ----------
       setQuickTasks: (quickTasks) =>
@@ -259,6 +324,36 @@ export const useTaskStore = create(
           quickTasks: s.quickTasks.map((t) => {
             if (t.id !== taskId) return t;
             next = { ...t, labelIds: [], labelId: null };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      updateQuickTask: (id, patch = {}) => {
+        if (!id || !patch) return;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== id) return t;
+            next = { ...t, ...patch };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      snoozeQuickTask: (id, newDateKey) => {
+        if (!id || !newDateKey) return;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== id) return t;
+            next = {
+              ...t,
+              dateKey: newDateKey,
+              dueDate: newDateKey,
+            };
             return next;
           }),
         }));
@@ -962,6 +1057,10 @@ export const useTaskStore = create(
         persona: state.persona,
         dataClearedAt: state.dataClearedAt || 0,
         activeWorkspaceId: state.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
+        soundEnabled: state.soundEnabled ?? true,
+        streakShields: state.streakShields || { month: "", remaining: 2, usedDates: [] },
+        customRewards: state.customRewards || {},
+        dailyMoods: state.dailyMoods || {},
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {

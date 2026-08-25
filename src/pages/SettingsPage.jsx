@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { KeyRound, RotateCcw, ShieldCheck } from "lucide-react";
+import { KeyRound, RotateCcw, ShieldCheck, Volume2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "../components/OnePasswordGate";
+import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 import {
   clearOnePasswordDoc,
   isOnePasswordConfigured,
@@ -18,6 +19,8 @@ export default function SettingsPage() {
   const setOnePassword = useTaskStore((s) => s.setOnePassword);
   const clearOnePassword = useTaskStore((s) => s.clearOnePassword);
   const resetAppData = useTaskStore((s) => s.resetAppData);
+  const soundEnabled = useTaskStore((s) => s.soundEnabled);
+  const setSoundEnabled = useTaskStore((s) => s.setSoundEnabled);
   const configured = isOnePasswordConfigured(onePassword);
 
   const [question, setQuestion] = useState("");
@@ -273,6 +276,38 @@ export default function SettingsPage() {
             )}
           </div>
         </form>
+      </section>
+
+      <section className="content-card">
+        <div className="card-heading">
+          <span className="heading-icon"><Volume2 size={18} /></span>
+          <div>
+            <h2>Sound & Haptics</h2>
+            <p>Mechanical audio feedback and celebratory particle bursts</p>
+          </div>
+        </div>
+
+        <div className="one-password-form">
+          <label className="toggle-setting-row">
+            <div className="toggle-setting-info">
+              <strong>Task & Step Click Sound</strong>
+              <p>Plays a soft, pleasant mechanical tick when checking off tasks or Everyday flow steps.</p>
+            </div>
+            <input
+              type="checkbox"
+              className="toggle-checkbox"
+              checked={soundEnabled}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setSoundEnabled(next);
+                if (next) {
+                  playTickSound();
+                  triggerConfetti();
+                }
+              }}
+            />
+          </label>
+        </div>
       </section>
 
       <section className="content-card">
