@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, ChevronDown, ChevronRight, CircleAlert, Clock, Filter, GitBranch, Moon, Plus, Tag, Timer, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CalendarRange, ChevronDown, ChevronRight, CircleAlert, Clock, Filter, GitBranch, Moon, Plus, Sunrise, Tag, Timer, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
