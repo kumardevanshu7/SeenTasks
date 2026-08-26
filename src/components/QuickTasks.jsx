@@ -42,7 +42,7 @@ function taskMatchesFilter(task, filterId) {
 }
 
 /** Build Quick Tasks mirror rows from active Everyday flow steps. */
-function buildEverydayMirrors(followFlows, activeDate, dayNow) {
+function buildEverydayMirrors(followFlows, activeDate, dayNow, quickTasks = []) {
   const isPast = isBeforeToday(activeDate);
   const flows = (followFlows || []).filter((f) => {
     if (isPast) {
@@ -60,7 +60,15 @@ function buildEverydayMirrors(followFlows, activeDate, dayNow) {
       let isDone = false;
       if (isPast) {
         if (report) {
-          isDone = Boolean(step.completedAt && toKey(step.completedAt) === activeDate) || (index < report.done);
+          if (report.pct === 100 || report.grade === "A+" || (report.total > 0 && report.done >= report.total)) {
+            isDone = true;
+          } else if (step.completedAt && toKey(step.completedAt) === activeDate) {
+            isDone = true;
+          } else if (report.done > 0 && index < report.done) {
+            isDone = true;
+          } else {
+            isDone = false;
+          }
         } else {
           isDone = Boolean(step.completedAt && toKey(step.completedAt) === activeDate);
         }
@@ -68,12 +76,19 @@ function buildEverydayMirrors(followFlows, activeDate, dayNow) {
         isDone = Boolean(step.done);
       }
 
+      // Check if quickTasks has a matching completed record for this flow step on this date
+      const mirrorKey = `flow:${flow.id}:${step.id}`;
+      const qtMatch = (quickTasks || []).find((q) => q.id === mirrorKey && q.dateKey === activeDate);
+      if (qtMatch?.done) {
+        isDone = true;
+      }
+
       const unlocked = isFlowStepUnlocked(steps, index, activeDate, true, {
         anyOrder: Boolean(flow.anyOrder),
         categoryId: step.categoryId,
       });
       items.push({
-        id: `flow:${flow.id}:${step.id}`,
+        id: mirrorKey,
         title: step.title,
         done: isDone,
         dateKey: activeDate,
@@ -90,7 +105,7 @@ function buildEverydayMirrors(followFlows, activeDate, dayNow) {
       });
     });
   });
-  return sortDayItems(items);
+  return items;
 }
 
 function sortDayItems(items) {
@@ -632,8 +647,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   );
 
   const rawFlowMirrors = useMemo(
-    () => (showFlowMirrors ? buildEverydayMirrors(followFlows, activeDate, dayNow) : []),
-    [showFlowMirrors, followFlows, activeDate, dayNow]
+    () => (showFlowMirrors ? buildEverydayMirrors(followFlows, activeDate, dayNow, quickTasks) : []),
+    [showFlowMirrors, followFlows, activeDate, dayNow, quickTasks]
   );
 
   const filteredDayOpen = useMemo(
