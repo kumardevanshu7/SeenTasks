@@ -43,14 +43,31 @@ function taskMatchesFilter(task, filterId) {
 
 /** Build Quick Tasks mirror rows from active Everyday flow steps. */
 function buildEverydayMirrors(followFlows, activeDate, dayNow) {
-  const flows = (followFlows || []).filter(
-    (f) => isEverydayActive(f, activeDate) && (f.dayKey || dayNow) === activeDate
-  );
+  const isPast = isBeforeToday(activeDate);
+  const flows = (followFlows || []).filter((f) => {
+    if (isPast) {
+      return (f.reports || []).some((r) => r.dateKey === activeDate) || isEverydayActive(f, activeDate);
+    }
+    return isEverydayActive(f, activeDate) && (f.dayKey || dayNow) === activeDate;
+  });
+
   const items = [];
   flows.forEach((flow) => {
+    const report = (flow.reports || []).find((r) => r.dateKey === activeDate);
     const steps = flow.steps || [];
     steps.forEach((step, index) => {
       if (!isFlowStepActiveOnDay(step, activeDate)) return;
+      let isDone = false;
+      if (isPast) {
+        if (report) {
+          isDone = Boolean(step.completedAt && toKey(step.completedAt) === activeDate) || (index < report.done);
+        } else {
+          isDone = Boolean(step.completedAt && toKey(step.completedAt) === activeDate);
+        }
+      } else {
+        isDone = Boolean(step.done);
+      }
+
       const unlocked = isFlowStepUnlocked(steps, index, activeDate, true, {
         anyOrder: Boolean(flow.anyOrder),
         categoryId: step.categoryId,
@@ -58,13 +75,13 @@ function buildEverydayMirrors(followFlows, activeDate, dayNow) {
       items.push({
         id: `flow:${flow.id}:${step.id}`,
         title: step.title,
-        done: Boolean(step.done),
+        done: isDone,
         dateKey: activeDate,
         labelIds: Array.isArray(flow.labelIds) ? flow.labelIds : [],
         createdAt: flow.createdAt || null,
-        completedAt: step.completedAt || null,
+        completedAt: isDone ? (step.completedAt || activeDate) : null,
         dueDate: step.endDate || null,
-        flowLocked: !unlocked && !step.done,
+        flowLocked: !isPast && !unlocked && !isDone,
         flowRef: {
           id: flow.id,
           name: flow.name,
@@ -122,7 +139,7 @@ function isDueCarry(task) {
 function filterDayOpen(tasks, { activeDate, dayHasEnded, viewingToday }) {
   if (dayHasEnded) {
     return sortDayItems(
-      tasks.filter((t) => t.dateKey === activeDate && !t.done && isDueCarry(t))
+      tasks.filter((t) => t.dateKey === activeDate && !t.done)
     );
   }
   return sortDayItems(

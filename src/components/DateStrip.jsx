@@ -1,25 +1,63 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useTaskStore } from "../store/useTaskStore";
-import { toKey, todayKey } from "../lib/date";
+import { toKey, todayKey, isBeforeToday } from "../lib/date";
+import { isFlowStepActiveOnDay } from "../lib/flowService";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DEFAULT_RANGE = 30;
 
-export default function DateStrip({ selected, onSelect, counts, range = DEFAULT_RANGE, instantScroll = false }) {
-  const tasks = useTaskStore((s) => s.tasks);
+export default function DateStrip({ selected, onSelect, counts, stats, range = DEFAULT_RANGE, instantScroll = false }) {
+  const tasks = useTaskStore((s) => s.tasks) || [];
+  const quickTasks = useTaskStore((s) => s.quickTasks) || [];
+  const followFlows = useTaskStore((s) => s.followFlows) || [];
   const scrollRef = useRef(null);
   const selectedRef = useRef(null);
   const today = todayKey();
 
-  const byDate = useMemo(() => {
-    if (counts) return counts;
+  const dayStatsMap = useMemo(() => {
+    if (stats) return stats;
     const map = {};
-    tasks.forEach((task) => {
-      if (task.status === "aborted") return;
-      map[task.dateKey] = (map[task.dateKey] || 0) + 1;
+
+    // 1. Regular board tasks
+    tasks.forEach((t) => {
+      if (t.status === "aborted" || !t.dateKey) return;
+      const k = t.dateKey;
+      if (!map[k]) map[k] = { total: 0, done: 0 };
+      map[k].total += 1;
+      if (t.status === "completed") map[k].done += 1;
     });
+
+    // 2. Quick tasks
+    quickTasks.forEach((t) => {
+      const k = t.dateKey;
+      if (!k) return;
+      if (!map[k]) map[k] = { total: 0, done: 0 };
+      map[k].total += 1;
+      if (t.done) map[k].done += 1;
+    });
+
+    // 3. Everyday Flows
+    followFlows.forEach((f) => {
+      // Past reports
+      (f.reports || []).forEach((r) => {
+        if (!r.dateKey) return;
+        const k = r.dateKey;
+        if (!map[k]) map[k] = { total: 0, done: 0 };
+        map[k].total += (r.total || 0);
+        map[k].done += (r.done || 0);
+      });
+
+      // Today active steps
+      const activeTodaySteps = (f.steps || []).filter((s) => isFlowStepActiveOnDay(s, today));
+      if (activeTodaySteps.length > 0) {
+        if (!map[today]) map[today] = { total: 0, done: 0 };
+        map[today].total += activeTodaySteps.length;
+        map[today].done += activeTodaySteps.filter((s) => s.done).length;
+      }
+    });
+
     return map;
-  }, [tasks, counts]);
+  }, [tasks, quickTasks, followFlows, stats, today]);
 
   const days = useMemo(() => {
     const base = new Date();
@@ -48,7 +86,11 @@ export default function DateStrip({ selected, onSelect, counts, range = DEFAULT_
         const key = toKey(date);
         const isSelected = key === selected;
         const isToday = key === today;
-        const count = byDate[key];
+        const st = dayStatsMap[key];
+        const hasData = st && st.total > 0;
+        const pct = hasData ? Math.round((st.done / st.total) * 100) : null;
+        const count = counts?.[key];
+
         return (
           <button
             key={key}
@@ -61,7 +103,18 @@ export default function DateStrip({ selected, onSelect, counts, range = DEFAULT_
             <span className="date-weekday">{WEEKDAYS[date.getDay()]}</span>
             <span className="date-number">{date.getDate()}</span>
             {isToday && <span className="date-today-dot">Today</span>}
-            {count ? <span className="date-count">{count}</span> : <span className="date-count-empty" />}
+            {pct !== null ? (
+              <span
+                className={`date-pct-badge${pct === 100 ? " is-complete" : pct > 0 ? " is-partial" : " is-zero"}`}
+                title={`${st.done}/${st.total} completed (${pct}%)`}
+              >
+                {pct}%
+              </span>
+            ) : count ? (
+              <span className="date-count">{count}</span>
+            ) : (
+              <span className="date-pct-empty" />
+            )}
           </button>
         );
       })}
