@@ -77,10 +77,19 @@ export default function FocusTimerModal({ open, onClose }) {
   const secs = focusTimer.secondsLeft % 60;
   const formattedTime = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 
-  if (!open && !minimized && !focusTimer.running) return null;
+  const hasActiveSession = Boolean(focusTimer.active || focusTimer.running || focusTimer.secondsLeft < totalSeconds);
 
-  // Mini floating pill at the bottom right when minimized or running in background
-  if ((minimized || (!open && focusTimer.running))) {
+  function handleAbort() {
+    setFocusTimer({
+      active: false,
+      running: false,
+      secondsLeft: totalSeconds,
+    });
+    setMinimized(false);
+  }
+
+  // Mini floating pill at the bottom right when minimized or running/paused in background
+  if (!open && (minimized || hasActiveSession)) {
     return (
       <motion.div
         className="focus-mini-pill"
@@ -89,17 +98,17 @@ export default function FocusTimerModal({ open, onClose }) {
         exit={{ y: 20, opacity: 0 }}
         onClick={() => {
           setMinimized(false);
-          setFocusTimer({ active: true });
+          window.dispatchEvent(new CustomEvent("open-focus-timer"));
         }}
         style={{
           "--pill-bg": currentMode.color,
           "--pill-ink": currentMode.ink,
         }}
       >
-        <div className="focus-mini-pulse" />
+        <div className={`focus-mini-pulse${!focusTimer.running ? " is-paused" : ""}`} />
         <currentMode.icon size={15} />
         <strong>{formattedTime}</strong>
-        <span className="focus-mini-label">{currentMode.label}</span>
+        <span className="focus-mini-label">{focusTimer.running ? currentMode.label : "Paused"}</span>
         <button
           type="button"
           className="focus-mini-action"
@@ -107,9 +116,22 @@ export default function FocusTimerModal({ open, onClose }) {
             e.stopPropagation();
             togglePlay();
           }}
-          aria-label={focusTimer.running ? "Pause" : "Play"}
+          aria-label={focusTimer.running ? "Pause" : "Resume"}
+          title={focusTimer.running ? "Pause" : "Resume"}
         >
           {focusTimer.running ? <Pause size={13} /> : <Play size={13} />}
+        </button>
+        <button
+          type="button"
+          className="focus-mini-close"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAbort();
+          }}
+          aria-label="Abort focus session"
+          title="Abort focus session"
+        >
+          <X size={12} />
         </button>
       </motion.div>
     );

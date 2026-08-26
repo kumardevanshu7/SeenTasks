@@ -19,6 +19,12 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
   const [moodOpen, setMoodOpen] = useState(false);
+
+  useEffect(() => {
+    const onOpenTimer = () => setTimerOpen(true);
+    window.addEventListener("open-focus-timer", onOpenTimer);
+    return () => window.removeEventListener("open-focus-timer", onOpenTimer);
+  }, []);
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const binCount = useTaskStore((state) => state.getBinTasks().length);

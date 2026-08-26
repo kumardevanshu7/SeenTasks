@@ -172,24 +172,33 @@ function SnoozeMenu({ onSnooze, onClose, activeDate }) {
         className="quick-task-snooze-opt"
         onClick={() => onSnooze(tomorrow)}
       >
-        <span>🌅 Tomorrow</span>
-        <em>{formatFriendly(tomorrow)}</em>
+        <div className="snooze-opt-title">
+          <Sunrise size={13} className="snooze-opt-icon" />
+          <span>Tomorrow</span>
+        </div>
+        <small>{formatFriendly(tomorrow)}</small>
       </button>
       <button
         type="button"
         className="quick-task-snooze-opt"
         onClick={() => onSnooze(weekend)}
       >
-        <span>🏖️ This Weekend</span>
-        <em>{formatFriendly(weekend)}</em>
+        <div className="snooze-opt-title">
+          <CalendarDays size={13} className="snooze-opt-icon" />
+          <span>This Weekend</span>
+        </div>
+        <small>{formatFriendly(weekend)}</small>
       </button>
       <button
         type="button"
         className="quick-task-snooze-opt"
         onClick={() => onSnooze(nextWeek)}
       >
-        <span>📅 Next Week</span>
-        <em>{formatFriendly(nextWeek)}</em>
+        <div className="snooze-opt-title">
+          <CalendarRange size={13} className="snooze-opt-icon" />
+          <span>Next Week</span>
+        </div>
+        <small>{formatFriendly(nextWeek)}</small>
       </button>
     </div>
   );
@@ -200,6 +209,7 @@ function QuickTaskRow({
   labels = [],
   workspaceRef = null,
   flowRef = null,
+  hideMirrorChip = false,
   missed = false,
   dropReady = false,
   isDropTarget = false,
@@ -315,7 +325,7 @@ function QuickTaskRow({
 
       <div className="quick-task-body">
         <div className="quick-task-title-row">
-          {mirrorRef && (
+          {mirrorRef && !hideMirrorChip && (
             <span
               className="quick-task-workspace-chip"
               style={{
@@ -405,21 +415,23 @@ function QuickTaskRow({
       </div>
 
       {isMirror ? (
-        <Link
-          to={mirrorHref}
-          className="quick-task-goto"
-          style={
-            mirrorRef
-              ? {
-                  "--ws-color": mirrorRef.color,
-                  "--ws-ink": mirrorInk,
-                }
-              : undefined
-          }
-        >
-          {gotoLabel}
-          <ArrowUpRight size={13} aria-hidden="true" />
-        </Link>
+        !hideMirrorChip ? (
+          <Link
+            to={mirrorHref}
+            className="quick-task-goto"
+            style={
+              mirrorRef
+                ? {
+                    "--ws-color": mirrorRef.color,
+                    "--ws-ink": mirrorInk,
+                  }
+                : undefined
+            }
+          >
+            {gotoLabel}
+            <ArrowUpRight size={13} aria-hidden="true" />
+          </Link>
+        ) : null
       ) : (
         <div className="quick-task-row-actions">
           {!item.done && (
@@ -850,9 +862,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       taskId: id,
       taskTitle: title,
       secondsLeft: 25 * 60,
+      mode: "focus",
       running: true,
     });
-    setTimerModalOpen(true);
+    window.dispatchEvent(new CustomEvent("open-focus-timer"));
   }
 
   const rowDragProps = isWorkspace
@@ -1162,6 +1175,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                             labels={[]}
                             workspaceRef={null}
                             flowRef={item.flowRef}
+                            hideMirrorChip={true}
                             isDropTarget={false}
                             onToggle={handleToggle}
                             onRequestDelete={setDeleteRequest}
@@ -1272,11 +1286,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
         open={labelModalOpen}
         onClose={() => setLabelModalOpen(false)}
         onCreate={handleCreateLabel}
-      />
-
-      <FocusTimerModal
-        open={timerModalOpen}
-        onClose={() => setTimerModalOpen(false)}
       />
 
       <MoodTrackerModal
