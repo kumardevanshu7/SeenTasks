@@ -25,11 +25,18 @@ export const WORKSPACE_COLORS = [
 
 /** Distinct accent chips for custom labels (not workspace theme colors) */
 export const LABEL_COLORS = [
-  { id: "teal", value: "#d2f4ef", ink: "#0f6e65" },
-  { id: "coral", value: "#ffe0d6", ink: "#b33a2b" },
-  { id: "indigo", value: "#dde3ff", ink: "#3d4ed8" },
-  { id: "amber", value: "#ffe8c2", ink: "#9a5b00" },
-  { id: "slate", value: "#e2e8f0", ink: "#334155" },
+  { id: "teal", value: "#d2f4ef", ink: "#0f6e65", name: "Teal" },
+  { id: "coral", value: "#ffe0d6", ink: "#b33a2b", name: "Coral" },
+  { id: "indigo", value: "#dde3ff", ink: "#3d4ed8", name: "Indigo" },
+  { id: "amber", value: "#ffe8c2", ink: "#9a5b00", name: "Amber" },
+  { id: "emerald", value: "#dcfce7", ink: "#15803d", name: "Emerald" },
+  { id: "rose", value: "#ffe4e6", ink: "#be123c", name: "Rose" },
+  { id: "sky", value: "#e0f2fe", ink: "#0369a1", name: "Sky" },
+  { id: "purple", value: "#f3e8ff", ink: "#7e22ce", name: "Purple" },
+  { id: "lime", value: "#ecfccb", ink: "#4d7c0f", name: "Lime" },
+  { id: "orange", value: "#ffedd5", ink: "#c2410c", name: "Orange" },
+  { id: "fuchsia", value: "#fae8ff", ink: "#a21caf", name: "Fuchsia" },
+  { id: "slate", value: "#e2e8f0", ink: "#334155", name: "Slate" },
 ];
 
 export function workspaceColorValue(color) {

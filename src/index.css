@@ -1259,9 +1259,25 @@ p, h1, h2, h3, h4 { margin: 0; }
 .workspace-create-body label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }
 .workspace-color-field { display: flex; flex-direction: column; gap: 8px; }
 .workspace-color-label { color: var(--muted); font-size: 11px; font-weight: 500; }
-.workspace-color-row { display: flex; flex-wrap: wrap; gap: 10px; }
-.workspace-color-swatch { width: 28px; height: 28px; padding: 0; border: 2px solid transparent; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
-.workspace-color-swatch.is-selected { border-color: var(--ink); box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 0 0 3px var(--ink); }
+.workspace-color-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.workspace-color-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  transition: transform .14s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .14s ease, border-color .14s ease;
+}
+.workspace-color-swatch:hover {
+  transform: scale(1.14);
+}
+.workspace-color-swatch.is-selected {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.95), 0 0 0 3.5px var(--ink);
+  transform: scale(1.1);
+}
 
 .workspace-topbar {
   display: flex;

@@ -74,7 +74,8 @@ export default function CreateLabelModal({ open, onClose, onCreate }) {
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        aria-label={c.id}
+                        aria-label={c.name || c.id}
+                        title={c.name || c.id}
                         className={`workspace-color-swatch${selected ? " is-selected" : ""}`}
                         style={{ background: c.value, boxShadow: `inset 0 0 0 1px ${c.ink}33` }}
                         onClick={() => setColorId(c.id)}
