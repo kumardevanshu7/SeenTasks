@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CalendarRange, ChevronDown, ChevronRight, CircleAlert, Clock, Filter, GitBranch, Moon, Plus, Sunrise, Tag, Timer, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CalendarRange, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Filter, GitBranch, Moon, Plus, Sunrise, Tag, Timer, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
@@ -245,6 +245,9 @@ function QuickTaskRow({
   missed = false,
   dropReady = false,
   isDropTarget = false,
+  selectMode = false,
+  isSelected = false,
+  onToggleSelect = null,
   onToggle,
   onRequestDelete,
   onClearLabel,
@@ -291,13 +294,27 @@ function QuickTaskRow({
 
   return (
     <li
-      className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}${isMirror ? " quick-task-mirror" : ""}${dropReady ? " quick-task-drop-ready" : ""}${isDropTarget ? " quick-task-drop-target" : ""}`}
-      onDragOver={isMirror ? undefined : (e) => onDragOverRow?.(e, item.id)}
-      onDragLeave={isMirror ? undefined : () => onDragLeaveRow?.(item.id)}
-      onDrop={isMirror ? undefined : (e) => onDropLabel?.(e, item.id)}
+      className={`quick-task-row${item.done ? " quick-task-done" : ""}${missed ? " quick-task-missed" : ""}${recovered ? " quick-task-recovered" : ""}${isMirror ? " quick-task-mirror" : ""}${dropReady ? " quick-task-drop-ready" : ""}${isDropTarget ? " quick-task-drop-target" : ""}${selectMode && !isMirror ? " is-selectable" : ""}${isSelected ? " is-selected" : ""}`}
+      onClick={selectMode && !isMirror ? () => onToggleSelect?.(item.id) : undefined}
+      onDragOver={isMirror || selectMode ? undefined : (e) => onDragOverRow?.(e, item.id)}
+      onDragLeave={isMirror || selectMode ? undefined : () => onDragLeaveRow?.(item.id)}
+      onDrop={isMirror || selectMode ? undefined : (e) => onDropLabel?.(e, item.id)}
     >
       <div className="quick-task-rail">
-        {isMirror ? (
+        {selectMode && !isMirror ? (
+          <button
+            type="button"
+            className={`quick-task-select-box${isSelected ? " is-selected" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.(item.id);
+            }}
+            aria-label={isSelected ? "Deselect task" : "Select task"}
+            aria-pressed={isSelected}
+          >
+            {isSelected && <Check size={12} strokeWidth={2.6} />}
+          </button>
+        ) : isMirror ? (
           <span
             className={`quick-task-check quick-task-check-locked${item.done ? " is-done" : ""}`}
             style={
@@ -718,6 +735,53 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     : filteredNotCompleted;
   const canAdd = !dayHasEnded || viewingToday;
 
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState(() => new Set());
+
+  // Deletable task IDs in active view (regular tasks & workspace tasks, not everyday flow template steps)
+  const deletableTaskIds = useMemo(() => {
+    const list = [...activeList, ...mirrorList, ...missedList]
+      .filter((t) => !t.flowRef)
+      .map((t) => t.id);
+    return Array.from(new Set(list));
+  }, [activeList, mirrorList, missedList]);
+
+  function toggleSelectMode() {
+    setSelectMode((cur) => {
+      if (cur) {
+        setSelectedTaskIds(new Set());
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function toggleTaskSelection(taskId) {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+
+  function handleSelectAll() {
+    if (selectedTaskIds.size === deletableTaskIds.length) {
+      setSelectedTaskIds(new Set());
+    } else {
+      setSelectedTaskIds(new Set(deletableTaskIds));
+    }
+  }
+
+  function requestBatchDelete() {
+    if (selectedTaskIds.size === 0) return;
+    setDeleteRequest({
+      type: "batch",
+      ids: Array.from(selectedTaskIds),
+      count: selectedTaskIds.size,
+    });
+  }
+
   function workspaceRefFor(item) {
     if (!showWorkspaceMirrors) return null;
     const id = taskWorkspaceId(item);
@@ -787,6 +851,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     if (!request) return;
     if (request.type === "clear") {
       filteredDayDone.forEach((t) => deleteQuickTask(t.id));
+    } else if (request.type === "batch" && Array.isArray(request.ids)) {
+      request.ids.forEach((id) => deleteQuickTask(id));
+      setSelectedTaskIds(new Set());
+      setSelectMode(false);
     } else if (request.type === "label" && request.id) {
       deleteQuickLabel(request.id);
       if (filterLabelId === request.id) setFilterLabelId(null);
@@ -917,6 +985,20 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
           <div className="quick-section-title-wrap">
             <h2>{viewingToday ? "Today" : formatFriendly(activeDate)}</h2>
             <div className="quick-head-tools">
+              {deletableTaskIds.length > 0 && (
+                <button
+                  type="button"
+                  className={`quick-head-tool-btn${selectMode ? " is-active" : ""}`}
+                  onClick={toggleSelectMode}
+                  title={selectMode ? "Exit selection mode" : "Select multiple tasks to delete"}
+                >
+                  <CheckSquare size={14} />
+                  <span>{selectMode ? "Done" : "Select"}</span>
+                  {selectedTaskIds.size > 0 && (
+                    <em className="quick-select-count-badge">{selectedTaskIds.size}</em>
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 className="quick-head-tool-btn"
@@ -1145,12 +1227,15 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                         labels={labels}
                         workspaceRef={workspaceRef}
                         flowRef={null}
+                        selectMode={selectMode}
+                        isSelected={selectedTaskIds.has(item.id)}
+                        onToggleSelect={toggleTaskSelection}
                         isDropTarget={!isMirror && dropTargetId === item.id}
                         onToggle={handleToggle}
                         onRequestDelete={setDeleteRequest}
                         onSnooze={handleSnooze}
                         onStartFocus={handleStartFocus}
-                        {...(isMirror ? {} : rowDragProps)}
+                        {...(isMirror || selectMode ? {} : rowDragProps)}
                       />
                     );
                   })}
@@ -1299,12 +1384,15 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                       }
                       workspaceRef={workspaceRef}
                       missed
+                      selectMode={selectMode}
+                      isSelected={selectedTaskIds.has(item.id)}
+                      onToggleSelect={toggleTaskSelection}
                       isDropTarget={!workspaceRef && dropTargetId === item.id}
                       onToggle={handleToggle}
                       onRequestDelete={setDeleteRequest}
                       onSnooze={handleSnooze}
                       onStartFocus={handleStartFocus}
-                      {...(workspaceRef ? {} : rowDragProps)}
+                      {...(workspaceRef || selectMode ? {} : rowDragProps)}
                     />
                   );
                 })}
@@ -1330,18 +1418,22 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
         title={
           deleteRequest?.type === "clear"
             ? "Clear all completed tasks"
-            : deleteRequest?.type === "label"
-              ? `Delete label “${deleteRequest?.title || ""}”`
-              : deleteRequest?.type === "clear-label"
-                ? `Remove label “${deleteRequest?.title || ""}”`
-                : `Delete “${deleteRequest?.title || "task"}”`
+            : deleteRequest?.type === "batch"
+              ? `Delete ${deleteRequest?.count || 0} selected tasks`
+              : deleteRequest?.type === "label"
+                ? `Delete label “${deleteRequest?.title || ""}”`
+                : deleteRequest?.type === "clear-label"
+                  ? `Remove label “${deleteRequest?.title || ""}”`
+                  : `Delete “${deleteRequest?.title || "task"}”`
         }
         description={
-          deleteRequest?.type === "label"
-            ? "Tasks keep their text; this label is removed from them."
-            : deleteRequest?.type === "clear-label"
-              ? "Answer your One Password question to remove this label from the task."
-              : "Answer your One Password question to delete this."
+          deleteRequest?.type === "batch"
+            ? `Answer your One Password question to permanently delete ${deleteRequest?.count || 0} selected tasks.`
+            : deleteRequest?.type === "label"
+              ? "Tasks keep their text; this label is removed from them."
+              : deleteRequest?.type === "clear-label"
+                ? "Answer your One Password question to remove this label from the task."
+                : "Answer your One Password question to delete this."
         }
         onClose={() => setDeleteRequest(null)}
         onConfirm={() => {
@@ -1350,6 +1442,51 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
           runDelete(pending);
         }}
       />
+
+      {selectMode && (
+        <aside className="quick-batch-bar" role="toolbar" aria-label="Batch actions">
+          <div className="quick-batch-info">
+            <button
+              type="button"
+              className="quick-batch-btn quick-batch-select-all"
+              onClick={handleSelectAll}
+            >
+              <CheckSquare size={13} />
+              <span>
+                {selectedTaskIds.size === deletableTaskIds.length && deletableTaskIds.length > 0
+                  ? "Deselect all"
+                  : `Select all (${deletableTaskIds.length})`}
+              </span>
+            </button>
+            <span className="quick-batch-count">
+              <strong>{selectedTaskIds.size}</strong> selected
+            </span>
+          </div>
+
+          <div className="quick-batch-actions">
+            <button
+              type="button"
+              className="quick-batch-btn quick-batch-delete"
+              disabled={selectedTaskIds.size === 0}
+              onClick={requestBatchDelete}
+            >
+              <Trash2 size={13} />
+              <span>Delete {selectedTaskIds.size > 0 ? `(${selectedTaskIds.size})` : ""}</span>
+            </button>
+            <button
+              type="button"
+              className="quick-batch-btn quick-batch-cancel"
+              onClick={() => {
+                setSelectMode(false);
+                setSelectedTaskIds(new Set());
+              }}
+            >
+              <X size={13} />
+              <span>Cancel</span>
+            </button>
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
