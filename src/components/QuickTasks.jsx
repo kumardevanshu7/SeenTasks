@@ -125,8 +125,21 @@ function isRecoveredQuickTask(item) {
 
 function belongsToDayDone(item, activeDate) {
   if (!item.done) return false;
-  if (item.dateKey === activeDate) return true;
-  return Boolean(item.completedAt && toKey(item.completedAt) === activeDate);
+  const compKey = item.completedAt ? toKey(item.completedAt) : null;
+  const dueKey = item.dueDate && String(item.dueDate).trim() ? String(item.dueDate).trim() : null;
+
+  // 1. If completed on this active date (e.g. finished on 31st August)
+  if (compKey && compKey === activeDate) return true;
+
+  // 2. If viewing the due date, and task was fulfilled on or before the due date (e.g. 2nd September)
+  if (dueKey && dueKey === activeDate) return true;
+
+  // 3. If standard task without future deadline, created on this date
+  if (!dueKey || dueKey <= item.dateKey) {
+    if (item.dateKey === activeDate) return true;
+  }
+
+  return false;
 }
 
 function taskWorkspaceId(task) {
@@ -154,7 +167,14 @@ function isDueCarry(task) {
 function filterDayOpen(tasks, { activeDate, dayHasEnded, viewingToday }) {
   if (dayHasEnded) {
     return sortDayItems(
-      tasks.filter((t) => t.dateKey === activeDate && !t.done)
+      tasks.filter((t) => {
+        if (t.done) return false;
+        // On past days, only show tasks that were actually due on that day
+        if (t.dueDate) {
+          return t.dueDate === activeDate;
+        }
+        return t.dateKey === activeDate;
+      })
     );
   }
   return sortDayItems(
@@ -162,6 +182,7 @@ function filterDayOpen(tasks, { activeDate, dayHasEnded, viewingToday }) {
       if (t.done) return false;
       if (t.dateKey === activeDate) return true;
       if (viewingToday && isDueCarry(t)) return true;
+      if (t.dueDate === activeDate) return true;
       return false;
     })
   );
@@ -429,28 +450,34 @@ function QuickTaskRow({
           )}
           {item.dueDate && (
             <span
-              className={`quick-task-due${dueOverdue ? " is-overdue" : ""}${dueToday ? " is-due-today" : ""}`}
+              className={`quick-task-due${item.done ? " is-completed" : dueOverdue ? " is-overdue" : dueToday ? " is-due-today" : ""}`}
             >
               <CalendarDays size={11} aria-hidden="true" />
-              {flowRef
-                ? dueToday
-                  ? "Ends today · "
+              {item.done
+                ? `Due ${formatFriendly(item.dueDate)}`
+                : flowRef
+                  ? dueToday
+                    ? "Ends today · "
+                    : dueOverdue
+                      ? "Ended · "
+                      : "Until "
                   : dueOverdue
-                    ? "Ended · "
-                    : "Until "
-                : dueOverdue
-                  ? "Overdue · "
-                  : dueToday
-                    ? "Due today · "
-                    : "Due "}
-              {formatFriendly(item.dueDate)}
+                    ? "Overdue · "
+                    : dueToday
+                      ? "Due today · "
+                      : "Due "}
+              {!item.done && formatFriendly(item.dueDate)}
             </span>
           )}
         </div>
         <div className="quick-task-times">
           {started && <span>Started {started}</span>}
           {ended ? (
-            <span>Ended {ended}</span>
+            <span>
+              {item.dueDate && item.completedAt && toKey(item.completedAt) !== item.dueDate
+                ? `Done on ${formatFriendly(toKey(item.completedAt))}`
+                : `Ended ${ended}`}
+            </span>
           ) : missed ? (
             <span>{missedHint}</span>
           ) : isMirror ? (

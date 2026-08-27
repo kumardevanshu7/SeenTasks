@@ -6,6 +6,36 @@ import { isFlowStepActiveOnDay } from "../lib/flowService";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DEFAULT_RANGE = 30;
 
+function getQuickTaskDayImpact(t) {
+  const createdKey = t.dateKey;
+  const dueKey = t.dueDate && String(t.dueDate).trim() ? String(t.dueDate).trim() : null;
+  const compKey = t.done && t.completedAt ? toKey(t.completedAt) : (t.done ? createdKey : null);
+  const impacts = [];
+
+  if (dueKey && dueKey > createdKey) {
+    if (compKey) {
+      impacts.push({ dateKey: compKey, done: true });
+      if (dueKey !== compKey && compKey <= dueKey) {
+        impacts.push({ dateKey: dueKey, done: true });
+      }
+    } else {
+      // Uncompleted tasks with future due date ONLY count on their due date!
+      impacts.push({ dateKey: dueKey, done: false });
+    }
+  } else {
+    const k = createdKey;
+    if (k) {
+      const isDoneOnCreated = Boolean(t.done && (!compKey || compKey === k));
+      impacts.push({ dateKey: k, done: isDoneOnCreated });
+    }
+    if (compKey && compKey !== k) {
+      impacts.push({ dateKey: compKey, done: true });
+    }
+  }
+
+  return impacts;
+}
+
 export default function DateStrip({ selected, onSelect, counts, stats, range = DEFAULT_RANGE, instantScroll = false }) {
   const tasks = useTaskStore((s) => s.tasks) || [];
   const quickTasks = useTaskStore((s) => s.quickTasks) || [];
@@ -29,11 +59,13 @@ export default function DateStrip({ selected, onSelect, counts, stats, range = D
 
     // 2. Quick tasks
     quickTasks.forEach((t) => {
-      const k = t.dateKey;
-      if (!k) return;
-      if (!map[k]) map[k] = { total: 0, done: 0 };
-      map[k].total += 1;
-      if (t.done) map[k].done += 1;
+      const impacts = getQuickTaskDayImpact(t);
+      impacts.forEach(({ dateKey, done }) => {
+        if (!dateKey) return;
+        if (!map[dateKey]) map[dateKey] = { total: 0, done: 0 };
+        map[dateKey].total += 1;
+        if (done) map[dateKey].done += 1;
+      });
     });
 
     // 3. Everyday Flows

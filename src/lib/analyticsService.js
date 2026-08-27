@@ -61,10 +61,39 @@ export function computeAnalytics({
   const hourlyCounts = Array(24).fill(0);
 
   const dailyTrend = dateKeys.map((k) => {
-    // Tasks on this day
-    const dayTasks = quickTasks.filter((t) => t.dateKey === k);
-    const tasksDone = dayTasks.filter((t) => t.done).length;
-    const tasksTotal = dayTasks.length;
+    // Tasks on this day (aligned with due date logic: uncompleted tasks with future due date do not penalize prior days)
+    let tasksDone = 0;
+    let tasksTotal = 0;
+    quickTasks.forEach((t) => {
+      const createdKey = t.dateKey;
+      const dueKey = t.dueDate && String(t.dueDate).trim() ? String(t.dueDate).trim() : null;
+      const compKey = t.done && t.completedAt ? toKey(t.completedAt) : (t.done ? createdKey : null);
+
+      if (dueKey && dueKey > createdKey) {
+        if (compKey) {
+          if (compKey === k) {
+            tasksTotal += 1;
+            tasksDone += 1;
+          } else if (dueKey === k && compKey <= dueKey) {
+            tasksTotal += 1;
+            tasksDone += 1;
+          }
+        } else if (dueKey === k) {
+          tasksTotal += 1;
+        }
+      } else {
+        if (createdKey === k) {
+          tasksTotal += 1;
+          if (t.done && (!compKey || compKey === k)) {
+            tasksDone += 1;
+          }
+        }
+        if (compKey && compKey === k && compKey !== createdKey) {
+          tasksTotal += 1;
+          tasksDone += 1;
+        }
+      }
+    });
 
     totalTasksDone += tasksDone;
     totalTasksCount += tasksTotal;
