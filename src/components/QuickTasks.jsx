@@ -118,11 +118,33 @@ function buildEverydayMirrors(followFlows, activeDate, dayNow, quickTasks = []) 
   return items;
 }
 
+function getTaskTargetDate(t) {
+  return t.dueDate && String(t.dueDate).trim()
+    ? String(t.dueDate).trim()
+    : t.dateKey && String(t.dateKey).trim()
+      ? String(t.dateKey).trim()
+      : "9999-99-99";
+}
+
 function sortDayItems(items) {
-  const byCreated = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
-  const byCompleted = (a, b) => (a.completedAt < b.completedAt ? 1 : -1);
+  const byTargetDate = (a, b) => {
+    const dateA = getTaskTargetDate(a);
+    const dateB = getTaskTargetDate(b);
+    if (dateA !== dateB) {
+      return dateA.localeCompare(dateB);
+    }
+    // Secondary: earlier created first
+    return (a.createdAt || "").localeCompare(b.createdAt || "");
+  };
+
+  const byCompleted = (a, b) => {
+    const timeA = a.completedAt || a.createdAt || "";
+    const timeB = b.completedAt || b.createdAt || "";
+    return timeB.localeCompare(timeA); // recently completed first
+  };
+
   return [
-    ...items.filter((t) => !t.done).sort(byCreated),
+    ...items.filter((t) => !t.done).sort(byTargetDate),
     ...items.filter((t) => t.done).sort(byCompleted),
   ];
 }
@@ -769,9 +791,14 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     }));
   }
 
-  const activeList = [...filteredDayOpen, ...filteredDayDone];
-  const mirrorList = showWorkspaceMirrors ? [...filteredMirrorOpen, ...filteredMirrorDone] : [];
-  const displayList = [...activeList, ...mirrorList, ...filteredFlowMirrors];
+  const allDisplayTasks = useMemo(() => {
+    const combined = showWorkspaceMirrors
+      ? [...filteredDayOpen, ...filteredMirrorOpen, ...filteredDayDone, ...filteredMirrorDone]
+      : [...filteredDayOpen, ...filteredDayDone];
+    return sortDayItems(combined);
+  }, [filteredDayOpen, filteredMirrorOpen, filteredDayDone, filteredMirrorDone, showWorkspaceMirrors]);
+
+  const displayList = [...allDisplayTasks, ...filteredFlowMirrors];
   const missedList = showWorkspaceMirrors
     ? [...filteredNotCompleted, ...filteredMirrorMissed]
     : filteredNotCompleted;
@@ -782,11 +809,11 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
 
   // Deletable task IDs in active view (regular tasks & workspace tasks, not everyday flow template steps)
   const deletableTaskIds = useMemo(() => {
-    const list = [...activeList, ...mirrorList, ...missedList]
+    const list = [...allDisplayTasks, ...missedList]
       .filter((t) => !t.flowRef)
       .map((t) => t.id);
     return Array.from(new Set(list));
-  }, [activeList, mirrorList, missedList]);
+  }, [allDisplayTasks, missedList]);
 
   function toggleSelectMode() {
     setSelectMode((cur) => {
@@ -1234,10 +1261,10 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
             )
           ) : (
             <div className="quick-tasks-groups-wrap">
-              {/* Regular Quick Tasks & Workspace Mirrors */}
-              {(activeList.length > 0 || mirrorList.length > 0) && (
+              {/* Regular Quick Tasks & Workspace Mirrors (Sorted Date-wise) */}
+              {allDisplayTasks.length > 0 && (
                 <ul className="quick-tasks-list">
-                  {[...activeList, ...mirrorList].map((item) => {
+                  {allDisplayTasks.map((item) => {
                     const workspaceRef = item.flowRef ? null : workspaceRefFor(item);
                     const labelIds = Array.isArray(item.labelIds)
                       ? item.labelIds
