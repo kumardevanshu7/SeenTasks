@@ -4446,3 +4446,119 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   }
 }
 
+/* Everyday Report Card Pending Dropdown */
+.report-pending-wrapper {
+  margin-top: 14px;
+  width: 100%;
+}
+.report-pending-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-card, #f8f6f0);
+  border: 1px solid var(--hairline, #e7e2d9);
+  border-radius: 10px;
+  color: var(--ink, #1c1917);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .16s ease;
+}
+.report-pending-btn:hover {
+  background: #ffffff;
+  border-color: #d1c7b7;
+}
+.report-pending-btn-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+}
+.report-pending-chevron {
+  color: var(--muted);
+  transition: transform .2s ease;
+}
+.report-pending-chevron.is-open {
+  transform: rotate(180deg);
+}
+.report-pending-menu {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid var(--hairline, #e7e2d9);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  max-height: 220px;
+  overflow-y: auto;
+  animation: pending-menu-in .18s ease;
+}
+@keyframes pending-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.report-pending-done-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #166534;
+}
+.report-pending-done-icon {
+  color: #16a34a;
+  flex-shrink: 0;
+}
+.report-pending-step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.report-pending-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--canvas, #faf9f5);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.report-pending-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.8px solid #ca8a04;
+  background: transparent;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.report-pending-step-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.report-pending-step-title {
+  color: var(--ink);
+  font-weight: 550;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.report-pending-step-cat {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--cat-bg, #f3f0e6);
+  color: var(--cat-ink, #44403c);
+}
+
+

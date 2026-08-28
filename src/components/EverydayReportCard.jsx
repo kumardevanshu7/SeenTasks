@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, ListTodo, Sparkles, TriangleAlert } from "lucide-react";
 import {
+  activeFlowSteps,
   feedbackForGrade,
   flowCategories,
   flowColorInk,
   flowColorValue,
   gradeFromPct,
 } from "../lib/flowService";
-import { formatFriendly } from "../lib/date";
+import { formatFriendly, todayKey } from "../lib/date";
 
 function gradeTone(grade) {
   const g = String(grade || "F").replace("+", "p");
@@ -65,6 +67,7 @@ export function EverydayReportCard({
   eyebrow,
   to,
 }) {
+  const [pendingOpen, setPendingOpen] = useState(false);
   const color = accent ? flowColorValue(accent) : flow.color;
   const ink = flowColorInk(accent || flow.color);
   const tone = gradeTone(report.grade);
@@ -79,6 +82,10 @@ export function EverydayReportCard({
         : report.pct >= 50
           ? "Room to climb"
           : "Needs a reset";
+
+  const targetDay = report.dateKey || todayKey();
+  const activeSteps = activeFlowSteps(flow, targetDay);
+  const pendingSteps = activeSteps.filter((s) => !s.done);
 
   const card = (
     <article
@@ -133,6 +140,76 @@ export function EverydayReportCard({
               : formatFriendly(report.dateKey)}
           </strong>
         </div>
+      </div>
+
+      {/* Dropdown to see which steps are pending for today */}
+      <div className="report-pending-wrapper">
+        <button
+          type="button"
+          className={`report-pending-btn${pendingOpen ? " is-open" : ""}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setPendingOpen((v) => !v);
+          }}
+          aria-expanded={pendingOpen}
+        >
+          <span className="report-pending-btn-label">
+            <ListTodo size={13} aria-hidden="true" />
+            <span>
+              {pendingSteps.length > 0
+                ? `${pendingSteps.length} pending step${pendingSteps.length === 1 ? "" : "s"} today`
+                : "All steps completed today"}
+            </span>
+          </span>
+          <ChevronDown
+            size={13}
+            className={`report-pending-chevron${pendingOpen ? " is-open" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {pendingOpen && (
+          <div
+            className="report-pending-menu"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {pendingSteps.length === 0 ? (
+              <div className="report-pending-done-msg">
+                <Check size={14} className="report-pending-done-icon" />
+                <span>Superb! No pending steps left for today.</span>
+              </div>
+            ) : (
+              <ul className="report-pending-step-list">
+                {pendingSteps.map((step, idx) => {
+                  const cat = flowCategories(flow).find((c) => c.id === step.categoryId);
+                  return (
+                    <li key={step.id || idx} className="report-pending-step-row">
+                      <span className="report-pending-dot" aria-hidden="true" />
+                      <div className="report-pending-step-info">
+                        <span className="report-pending-step-title">{step.title}</span>
+                        {cat && (
+                          <span
+                            className="report-pending-step-cat"
+                            style={{
+                              "--cat-bg": cat.color,
+                              "--cat-ink": flowColorInk(cat.color),
+                            }}
+                          >
+                            {cat.name}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="report-pro-foot">

@@ -28,7 +28,7 @@ function getUpcomingMonday(baseKey) {
 
 const LABEL_DRAG_TYPE = "application/x-seentasks-label";
 
-function taskMatchesFilter(task, filterId) {
+function taskMatchesFilter(task, filterId, quickLabels = []) {
   if (!filterId) return true;
   const labelIds = Array.isArray(task.labelIds)
     ? task.labelIds.filter(Boolean).map(String)
@@ -38,7 +38,17 @@ function taskMatchesFilter(task, filterId) {
   if (filterId === "__none__") {
     return labelIds.length === 0;
   }
-  return labelIds.includes(String(filterId));
+  if (labelIds.includes(String(filterId))) return true;
+
+  const targetLabel = (quickLabels || []).find((l) => l.id === filterId);
+  const targetName = (targetLabel?.name || filterId).toLowerCase().trim();
+
+  return labelIds.some((id) => {
+    if (id.toLowerCase().trim() === targetName) return true;
+    const matchObj = (quickLabels || []).find((l) => l.id === id);
+    if (matchObj?.name?.toLowerCase().trim() === targetName) return true;
+    return false;
+  });
 }
 
 /** Build Quick Tasks mirror rows from active Everyday flow steps. */
@@ -165,24 +175,29 @@ function isDueCarry(task) {
 }
 
 function filterDayOpen(tasks, { activeDate, dayHasEnded, viewingToday }) {
-  if (dayHasEnded) {
-    return sortDayItems(
-      tasks.filter((t) => {
-        if (t.done) return false;
-        // On past days, only show tasks that were actually due on that day
-        if (t.dueDate) {
-          return t.dueDate === activeDate;
-        }
-        return t.dateKey === activeDate;
-      })
-    );
-  }
   return sortDayItems(
     tasks.filter((t) => {
       if (t.done) return false;
-      if (t.dateKey === activeDate) return true;
+
+      // 1. If task has a dueDate:
+      // It is active and visible on EVERY DAY from its start date (dateKey) until its dueDate!
+      if (t.dueDate) {
+        const start = t.dateKey || t.dueDate;
+        const end = t.dueDate;
+        if (start <= end) {
+          if (start <= activeDate && activeDate <= end) return true;
+        } else {
+          // If dueDate is before dateKey, match either
+          if (activeDate === end || activeDate === start) return true;
+        }
+      } else {
+        // 2. Standard daily task without dueDate belongs to its creation dateKey
+        if (t.dateKey === activeDate) return true;
+      }
+
+      // 3. If viewing today, carry over any uncompleted task that hasn't finished
       if (viewingToday && isDueCarry(t)) return true;
-      if (t.dueDate === activeDate) return true;
+
       return false;
     })
   );
@@ -614,8 +629,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const activeFilterObj = useMemo(() => {
     if (!filterLabelId) return null;
     if (filterLabelId === "__none__") return { id: "__none__", name: "None (Unlabeled)", color: null };
-    return labelsById[filterLabelId] || { id: filterLabelId, name: "Label", color: null };
-  }, [filterLabelId, labelsById]);
+    return labelsById[filterLabelId] || (quickLabels || []).find((l) => l.id === filterLabelId || l.name === filterLabelId) || { id: filterLabelId, name: "Label", color: null };
+  }, [filterLabelId, labelsById, quickLabels]);
 
   useEffect(() => {
     function onFocusInput() {
@@ -696,38 +711,38 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   );
 
   const filteredDayOpen = useMemo(
-    () => (filterLabelId ? dayOpen.filter((t) => taskMatchesFilter(t, filterLabelId)) : dayOpen),
-    [dayOpen, filterLabelId]
+    () => (filterLabelId ? dayOpen.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : dayOpen),
+    [dayOpen, filterLabelId, quickLabels]
   );
 
   const filteredDayDone = useMemo(
-    () => (filterLabelId ? dayDone.filter((t) => taskMatchesFilter(t, filterLabelId)) : dayDone),
-    [dayDone, filterLabelId]
+    () => (filterLabelId ? dayDone.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : dayDone),
+    [dayDone, filterLabelId, quickLabels]
   );
 
   const filteredNotCompleted = useMemo(
-    () => (filterLabelId ? notCompleted.filter((t) => taskMatchesFilter(t, filterLabelId)) : notCompleted),
-    [notCompleted, filterLabelId]
+    () => (filterLabelId ? notCompleted.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : notCompleted),
+    [notCompleted, filterLabelId, quickLabels]
   );
 
   const filteredMirrorOpen = useMemo(
-    () => (filterLabelId ? mirrorOpen.filter((t) => taskMatchesFilter(t, filterLabelId)) : mirrorOpen),
-    [mirrorOpen, filterLabelId]
+    () => (filterLabelId ? mirrorOpen.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : mirrorOpen),
+    [mirrorOpen, filterLabelId, quickLabels]
   );
 
   const filteredMirrorDone = useMemo(
-    () => (filterLabelId ? mirrorDone.filter((t) => taskMatchesFilter(t, filterLabelId)) : mirrorDone),
-    [mirrorDone, filterLabelId]
+    () => (filterLabelId ? mirrorDone.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : mirrorDone),
+    [mirrorDone, filterLabelId, quickLabels]
   );
 
   const filteredMirrorMissed = useMemo(
-    () => (filterLabelId ? mirrorMissed.filter((t) => taskMatchesFilter(t, filterLabelId)) : mirrorMissed),
-    [mirrorMissed, filterLabelId]
+    () => (filterLabelId ? mirrorMissed.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : mirrorMissed),
+    [mirrorMissed, filterLabelId, quickLabels]
   );
 
   const filteredFlowMirrors = useMemo(
-    () => (filterLabelId ? rawFlowMirrors.filter((t) => taskMatchesFilter(t, filterLabelId)) : rawFlowMirrors),
-    [rawFlowMirrors, filterLabelId]
+    () => (filterLabelId ? rawFlowMirrors.filter((t) => taskMatchesFilter(t, filterLabelId, quickLabels)) : rawFlowMirrors),
+    [rawFlowMirrors, filterLabelId, quickLabels]
   );
 
   const [collapsedFlows, setCollapsedFlows] = useState({});
@@ -818,32 +833,18 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     return { id: ws.id, name: ws.name, color: ws.color };
   }
 
-  function toggleFilter(labelId) {
-    const now = Date.now();
-    if (now - lastDoubleActionRef.current < 350) return;
-    lastDoubleActionRef.current = now;
-    setFilterLabelId((cur) => (cur === labelId ? null : labelId));
-  }
-
   function handleLabelClick(labelId) {
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 320;
-    if (lastTapRef.current.id === labelId && now - lastTapRef.current.time < DOUBLE_TAP_DELAY) {
-      lastTapRef.current = { time: 0, id: null };
-      toggleFilter(labelId);
+    if (labelId === "__none__") {
+      setFilterLabelId((cur) => (cur === "__none__" ? null : "__none__"));
+      setLabelDraft("");
       return;
     }
-    lastTapRef.current = { time: now, id: labelId };
-
-    if (labelId === "__none__") {
-      setLabelDraft("");
-    } else {
-      setLabelDraft((cur) => (cur === labelId ? "" : labelId));
-    }
+    setFilterLabelId((cur) => (cur === labelId ? null : labelId));
+    setLabelDraft((cur) => (cur === labelId ? "" : labelId));
   }
 
   function handleLabelDoubleClick(labelId) {
-    toggleFilter(labelId);
+    handleLabelClick(labelId);
   }
 
   function submit() {
@@ -1111,13 +1112,12 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   <Tag size={13} className="quick-label-tray-icon" aria-hidden="true" />
                   <button
                     type="button"
-                    className={`quick-label-pill${!labelDraft ? " is-selected" : ""}${filterLabelId === "__none__" ? " is-filtered" : ""}`}
+                    className={`quick-label-pill${filterLabelId === "__none__" ? " is-filtered is-selected" : !labelDraft && !filterLabelId ? " is-selected" : ""}`}
                     draggable
                     onDragStart={(e) => onLabelDragStart(e, "__none__")}
                     onDragEnd={onLabelDragEnd}
                     onClick={() => handleLabelClick("__none__")}
-                    onDoubleClick={() => handleLabelDoubleClick("__none__")}
-                    title="Double-tap to filter unlabeled tasks · Click for new tasks · Drag onto task to clear label"
+                    title="Click to filter unlabeled tasks · Drag onto task to clear label"
                     aria-pressed={filterLabelId === "__none__"}
                   >
                     {filterLabelId === "__none__" && (
@@ -1126,8 +1126,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     None
                   </button>
                   {(quickLabels || []).map((label) => {
-                    const selected = labelDraft === label.id;
                     const isFiltered = filterLabelId === label.id;
+                    const selected = isFiltered || labelDraft === label.id;
                     return (
                       <button
                         key={label.id}
@@ -1141,7 +1141,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                         onDragStart={(e) => onLabelDragStart(e, label.id)}
                         onDragEnd={onLabelDragEnd}
                         onClick={() => handleLabelClick(label.id)}
-                        onDoubleClick={() => handleLabelDoubleClick(label.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setDeleteRequest({
@@ -1150,7 +1149,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                             title: label.name,
                           });
                         }}
-                        title="Double-tap to filter · Drag onto a task · Click for new tasks · Right-click to delete"
+                        title="Click to filter by this label · Drag onto a task · Right-click to delete"
                         aria-pressed={isFiltered}
                       >
                         {isFiltered && (
