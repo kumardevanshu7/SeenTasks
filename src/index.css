@@ -1400,9 +1400,8 @@ p, h1, h2, h3, h4 { margin: 0; }
 .quick-section-head { margin-bottom: 12px; }
 .quick-section-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink); font-family: "Cormorant Garamond", Garamond, serif; font-size: 22px; font-weight: 500; letter-spacing: -.3px; line-height: 1.1; }
 .quick-section-head h2 svg { color: var(--primary); }
-.quick-section-head p { max-width: 520px; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.quick-tasks-panel { background: var(--surface-card); border-radius: 12px; overflow: hidden; }
-.quick-tasks-composer { border-bottom: 1px solid #ded6c9; background: var(--canvas); }
+.quick-tasks-panel { background: var(--surface-card); border-radius: 12px; position: relative; }
+.quick-tasks-composer { border-bottom: 1px solid #ded6c9; background: var(--canvas); border-top-left-radius: 12px; border-top-right-radius: 12px; }
 .quick-tasks-input-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 0; background: transparent; }
 .quick-tasks-input-mark { flex: 0 0 18px; width: 18px; height: 18px; border: 1.5px dashed #c4bbb0; border-radius: 50%; }
 .quick-tasks-input { flex: 1; min-width: 0; min-height: 28px; padding: 0; color: var(--ink); background: transparent; border: 0; outline: none; font-size: 14px; line-height: 1.4; }
@@ -2870,25 +2869,26 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   background: var(--surface-card);
 }
 .quick-task-row:has(.quick-task-snooze-menu) {
-  z-index: 60 !important;
+  z-index: 100 !important;
 }
 .quick-task-snooze-wrap {
   position: relative;
 }
 .quick-task-snooze-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   right: 0;
-  min-width: 175px;
+  min-width: 185px;
   padding: 6px;
   background: #ffffff;
   border: 1px solid var(--hairline);
   border-radius: 12px;
-  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.16), 0 4px 10px -2px rgba(0, 0, 0, 0.08);
-  z-index: 120;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.22), 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  animation: modalFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .quick-task-snooze-head {
   display: flex;

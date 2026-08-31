@@ -156,22 +156,9 @@ function isRecoveredQuickTask(item) {
 }
 
 function belongsToDayDone(item, activeDate) {
-  if (!item.done) return false;
-  const compKey = item.completedAt ? toKey(item.completedAt) : null;
-  const dueKey = item.dueDate && String(item.dueDate).trim() ? String(item.dueDate).trim() : null;
-
-  // 1. If completed on this active date (e.g. finished on 31st August)
-  if (compKey && compKey === activeDate) return true;
-
-  // 2. If viewing the due date, and task was fulfilled on or before the due date (e.g. 2nd September)
-  if (dueKey && dueKey === activeDate) return true;
-
-  // 3. If standard task without future deadline, created on this date
-  if (!dueKey || dueKey <= item.dateKey) {
-    if (item.dateKey === activeDate) return true;
-  }
-
-  return false;
+  if (!item?.done) return false;
+  const compKey = item.completedAt ? toKey(item.completedAt) : (item.dateKey || item.dueDate);
+  return compKey === activeDate;
 }
 
 function taskWorkspaceId(task) {
@@ -201,26 +188,20 @@ function filterDayOpen(tasks, { activeDate, dayHasEnded, viewingToday }) {
     tasks.filter((t) => {
       if (t.done) return false;
 
-      // 1. If task has a dueDate:
-      // It is active and visible on EVERY DAY from its start date (dateKey) until its dueDate!
-      if (t.dueDate) {
-        const start = t.dateKey || t.dueDate;
-        const end = t.dueDate;
-        if (start <= end) {
-          if (start <= activeDate && activeDate <= end) return true;
-        } else {
-          // If dueDate is before dateKey, match either
-          if (activeDate === end || activeDate === start) return true;
-        }
-      } else {
-        // 2. Standard daily task without dueDate belongs to its creation dateKey
+      // On historical closed past days, unfinished tasks belong in "Not completed", not in open list
+      if (dayHasEnded) return false;
+
+      // 1. If viewing today:
+      if (viewingToday) {
         if (t.dateKey === activeDate) return true;
+        if (t.dueDate && t.dueDate === activeDate) return true;
+        if (isDueCarry(t)) return true;
+        return false;
       }
 
-      // 3. If viewing today, carry over any uncompleted task that hasn't finished
-      if (viewingToday && isDueCarry(t)) return true;
-
-      return false;
+      // 2. If viewing a future date (activeDate > today):
+      // Only tasks scheduled for this date or due on this date
+      return t.dateKey === activeDate || t.dueDate === activeDate;
     })
   );
 }
@@ -250,9 +231,24 @@ function SnoozeMenu({ onSnooze, onClose, activeDate }) {
   const tomorrow = addDaysToKey(activeDate || todayKey(), 1);
   const weekend = getUpcomingWeekend(activeDate || todayKey());
   const nextWeek = getUpcomingMonday(activeDate || todayKey());
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        onClose?.();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [onClose]);
 
   return (
-    <div className="quick-task-snooze-menu" onClick={(e) => e.stopPropagation()}>
+    <div ref={menuRef} className="quick-task-snooze-menu" onClick={(e) => e.stopPropagation()}>
       <div className="quick-task-snooze-head">
         <Clock size={12} />
         <span>Reschedule</span>
@@ -910,7 +906,14 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     const combined = showWorkspaceMirrors
       ? [...filteredDayOpen, ...filteredMirrorOpen, ...filteredDayDone, ...filteredMirrorDone]
       : [...filteredDayOpen, ...filteredDayDone];
-    return sortDayItems(combined);
+    const seenIds = new Set();
+    const deduped = [];
+    combined.forEach((t) => {
+      if (!t?.id || seenIds.has(t.id)) return;
+      seenIds.add(t.id);
+      deduped.push(t);
+    });
+    return sortDayItems(deduped);
   }, [filteredDayOpen, filteredMirrorOpen, filteredDayDone, filteredMirrorDone, showWorkspaceMirrors]);
 
   const displayList = [...allDisplayTasks, ...filteredFlowMirrors];
