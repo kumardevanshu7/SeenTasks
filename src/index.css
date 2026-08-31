@@ -5673,6 +5673,95 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* Google Sync Modal Specifics */
+.google-icon-stage {
+  color: #2563eb;
+  background: color-mix(in srgb, #2563eb 10%, var(--canvas));
+}
+.google-icon-stage.is-completed {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.google-icon-stage.is-error {
+  color: #dc2626;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+.google-icon-pulse {
+  animation: googleCloudPulse 1.8s ease-in-out infinite;
+}
+@keyframes googleCloudPulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.85; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+.google-glow {
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.2), transparent 70%);
+}
+.google-bar-fill {
+  background: linear-gradient(90deg, #2563eb, #059669);
+}
+.google-sync-result-chips {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.sync-chip-stat {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--canvas) 60%, var(--card));
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+}
+.reset-progress-status.is-error-text {
+  color: #dc2626;
+}
+
+/* ==========================================================================
+   8. Mobile Responsiveness Polish for New Features & Modals
+   ========================================================================== */
+@media (max-width: 640px) {
+  .reset-progress-backdrop {
+    padding: 12px;
+  }
+  .reset-progress-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+    max-width: 100%;
+  }
+  .reset-progress-title {
+    font-size: 22px;
+  }
+  .reset-progress-status {
+    font-size: 12.5px;
+    margin-bottom: 18px;
+  }
+  .reset-checkpoints-row {
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .reset-checkpoint-chip {
+    font-size: 10px;
+    padding: 3px 7px;
+  }
+  .google-sync-result-chips {
+    gap: 6px;
+  }
+  .sync-chip-stat {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+}
+
+
 
 
 

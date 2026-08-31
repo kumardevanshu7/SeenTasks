@@ -5,6 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "../components/OnePasswordGate";
 import ResetProgressModal from "../components/ResetProgressModal";
+import GoogleSyncModal from "../components/GoogleSyncModal";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 import { authorizeGoogleTasks, twoWaySyncGoogleTasks } from "../lib/googleTasksService";
 import { formatFriendly } from "../lib/date";
@@ -43,14 +44,34 @@ export default function SettingsPage() {
   const [googleMsg, setGoogleMsg] = useState("");
   const [googleErr, setGoogleErr] = useState("");
 
+  const [gModalOpen, setGModalOpen] = useState(false);
+  const [gStage, setGStage] = useState(0);
+  const [gStatusText, setGStatusText] = useState("");
+  const [gCompleted, setGCompleted] = useState(false);
+  const [gStats, setGStats] = useState(null);
+  const [gModalErr, setGModalErr] = useState("");
+
   async function handleConnectGoogle() {
     setGoogleBusy(true);
     setGoogleErr("");
     setGoogleMsg("");
+    setGModalErr("");
+    setGStats(null);
+    setGCompleted(false);
+    setGStage(15);
+    setGStatusText("Opening Google OAuth popup & authenticating permissions...");
+    setGModalOpen(true);
+
     try {
       const { accessToken, expiresIn } = await authorizeGoogleTasks();
       setGoogleTasksAuth(accessToken, expiresIn);
-      setGoogleMsg("Connected to Google Tasks! Performing initial sync...");
+
+      setGStage(45);
+      setGStatusText("Mapping SeenTasks workspaces to Google Task Lists...");
+      await new Promise((r) => setTimeout(r, 450));
+
+      setGStage(75);
+      setGStatusText("Reconciling tasks, deadlines, subtasks, and labels...");
 
       const state = useTaskStore.getState();
       const res = await twoWaySyncGoogleTasks(
@@ -66,12 +87,19 @@ export default function SettingsPage() {
           setQuickTasks,
         }
       );
+
+      setGStage(100);
+      setGStatusText("Connected & 2-way synced with Google Tasks!");
+      setGStats(res);
+      setGCompleted(true);
       setGoogleMsg(`Successfully synced with Google Tasks! (${res.pulledCount} imported, ${res.pushedCount} exported)`);
       if (soundEnabled) playTickSound();
       triggerConfetti();
     } catch (err) {
       console.error(err);
-      setGoogleErr(err.message || "Failed to connect to Google Tasks. Check popup permissions.");
+      const errMsg = err.message || "Failed to connect to Google Tasks. Check popup permissions.";
+      setGModalErr(errMsg);
+      setGoogleErr(errMsg);
     } finally {
       setGoogleBusy(false);
     }
@@ -82,7 +110,16 @@ export default function SettingsPage() {
     setGoogleBusy(true);
     setGoogleErr("");
     setGoogleMsg("");
+    setGModalErr("");
+    setGStats(null);
+    setGCompleted(false);
+    setGStage(25);
+    setGStatusText("Contacting Google Tasks API...");
+    setGModalOpen(true);
+
     try {
+      setGStage(65);
+      setGStatusText("Synchronizing tasks, statuses, and deadlines...");
       const state = useTaskStore.getState();
       const res = await twoWaySyncGoogleTasks(
         googleToken,
@@ -97,15 +134,24 @@ export default function SettingsPage() {
           setQuickTasks,
         }
       );
+
+      setGStage(100);
+      setGStatusText("Sync complete! Everything is up to date.");
+      setGStats(res);
+      setGCompleted(true);
       setGoogleMsg(`Sync complete! (${res.pulledCount} items pulled, ${res.pushedCount} items pushed)`);
       if (soundEnabled) playTickSound();
+      triggerConfetti();
     } catch (err) {
       console.error(err);
       if (err.message === "TOKEN_EXPIRED") {
         disconnectGoogleTasks();
+        setGModalErr("Google session expired. Please reconnect.");
         setGoogleErr("Google session expired. Please reconnect.");
       } else {
-        setGoogleErr(err.message || "Sync failed. Check internet connection.");
+        const errMsg = err.message || "Sync failed. Check internet connection.";
+        setGModalErr(errMsg);
+        setGoogleErr(errMsg);
       }
     } finally {
       setGoogleBusy(false);
@@ -569,6 +615,16 @@ export default function SettingsPage() {
         statusText={resetStatusText}
         completed={resetCompleted}
         onFinish={handleFinishReset}
+      />
+
+      <GoogleSyncModal
+        open={gModalOpen}
+        stage={gStage}
+        statusText={gStatusText}
+        completed={gCompleted}
+        stats={gStats}
+        error={gModalErr}
+        onClose={() => setGModalOpen(false)}
       />
     </div>
   );
