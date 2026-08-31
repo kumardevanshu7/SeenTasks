@@ -35,6 +35,23 @@ export async function authorizeGoogleTasks() {
   }
 }
 
+async function parseGoogleApiError(res, defaultMsg = "Google Tasks API error") {
+  if (res.status === 401) return new Error("TOKEN_EXPIRED");
+  try {
+    const data = await res.json();
+    if (data?.error?.message) {
+      const msg = data.error.message;
+      if (msg.includes("Tasks API has not been used") || msg.includes("is disabled") || msg.includes("Enable it by visiting")) {
+        return new Error("Google Tasks API is not enabled in your Firebase / Google Cloud project. Click the link to enable it in Google Cloud Console.");
+      }
+      return new Error(msg);
+    }
+  } catch {
+    // ignore json parse error
+  }
+  return new Error(`${defaultMsg} (HTTP ${res.status}${res.statusText ? `: ${res.statusText}` : ""})`);
+}
+
 /**
  * Fetch all Google Task Lists for the user.
  */
@@ -47,10 +64,7 @@ export async function fetchGoogleTaskLists(token) {
   });
 
   if (!res.ok) {
-    if (res.status === 401) {
-      throw new Error("TOKEN_EXPIRED");
-    }
-    throw new Error(`Failed to fetch Google task lists: ${res.statusText}`);
+    throw await parseGoogleApiError(res, "Failed to fetch Google task lists");
   }
 
   const data = await res.json();
@@ -71,7 +85,7 @@ export async function createGoogleTaskList(token, title) {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to create Google task list '${title}': ${res.statusText}`);
+    throw await parseGoogleApiError(res, `Failed to create Google task list '${title}'`);
   }
 
   return res.json();
@@ -92,8 +106,7 @@ export async function fetchGoogleTasks(token, listId) {
   );
 
   if (!res.ok) {
-    if (res.status === 401) throw new Error("TOKEN_EXPIRED");
-    throw new Error(`Failed to fetch Google tasks: ${res.statusText}`);
+    throw await parseGoogleApiError(res, "Failed to fetch Google tasks");
   }
 
   const data = await res.json();
@@ -114,7 +127,7 @@ export async function createGoogleTask(token, listId, taskPayload) {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to create Google task: ${res.statusText}`);
+    throw await parseGoogleApiError(res, "Failed to create Google task");
   }
 
   return res.json();
@@ -134,7 +147,7 @@ export async function patchGoogleTask(token, listId, taskId, patchPayload) {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to update Google task: ${res.statusText}`);
+    throw await parseGoogleApiError(res, "Failed to update Google task");
   }
 
   return res.json();
