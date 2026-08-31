@@ -1166,6 +1166,11 @@ export const useTaskStore = create(
         streakShields: state.streakShields || { month: "", remaining: 2, usedDates: [] },
         customRewards: state.customRewards || {},
         dailyMoods: state.dailyMoods || {},
+        googleTasksConnected: Boolean(state.googleTasksConnected),
+        googleTasksToken: state.googleTasksToken || null,
+        googleTasksTokenExpiresAt: state.googleTasksTokenExpiresAt || null,
+        lastGoogleSyncAt: state.lastGoogleSyncAt || null,
+        googleTasksAutoSync: state.googleTasksAutoSync ?? true,
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {
