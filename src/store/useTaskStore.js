@@ -9,6 +9,7 @@ import { applyAchievementsToFlows } from "../lib/flowAchievements";
 import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 import { clearAllCollabDocs } from "../lib/collabService";
+import { deleteGoogleTask } from "../lib/googleTasksService";
 
 const MAX_ITERATION = 10;
 
@@ -147,6 +148,7 @@ export const useTaskStore = create(
       googleTasksSyncing: false,
       lastGoogleSyncAt: null,
       googleTasksAutoSync: true,
+      deletedGoogleTaskIds: [],
 
       setGoogleTasksAuth: (token, expiresInSeconds = 3600) => {
         const expiresAt = Date.now() + expiresInSeconds * 1000;
@@ -301,6 +303,9 @@ export const useTaskStore = create(
         };
         set((s) => ({ quickTasks: [item, ...s.quickTasks] }));
         syncQuickUpsert(item);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("trigger-google-sync"));
+        }
         return item;
       },
 
@@ -318,6 +323,9 @@ export const useTaskStore = create(
           }),
         }));
         if (next) syncQuickUpsert(next);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("trigger-google-sync"));
+        }
       },
 
       addQuickTaskLabel: (taskId, labelId) => {
@@ -447,11 +455,36 @@ export const useTaskStore = create(
           }),
         }));
         if (next) syncQuickUpsert(next);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("trigger-google-sync"));
+        }
       },
 
       deleteQuickTask: (id) => {
+        const state = get();
+        const task = (state.quickTasks || []).find((t) => t.id === id);
+        const gtId = task?.googleTaskId || (typeof id === "string" && id.startsWith("gt_") ? id.slice(3) : null);
+        const gtListId = task?.googleListId || "@default";
+        const token = state.googleTasksToken;
+        const connected = state.googleTasksConnected;
+
+        if (gtId) {
+          const deletedList = Array.from(new Set([...(state.deletedGoogleTaskIds || []), gtId]));
+          set({ deletedGoogleTaskIds: deletedList });
+
+          if (connected && token) {
+            deleteGoogleTask(token, gtListId, gtId).catch((err) =>
+              console.warn("Immediate Google Task delete failed:", err)
+            );
+          }
+        }
+
         set((s) => ({ quickTasks: s.quickTasks.filter((t) => t.id !== id) }));
         syncQuickRemove(id);
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("trigger-google-sync"));
+        }
       },
 
       addQuickWorkspace: ({ name, color }) => {
@@ -974,6 +1007,11 @@ export const useTaskStore = create(
           incomingRequests: [],
           assignedByMe: [],
           assignedToMe: [],
+          googleTasksConnected: false,
+          googleTasksToken: null,
+          googleTasksTokenExpiresAt: null,
+          googleTasksSyncing: false,
+          deletedGoogleTaskIds: [],
           dataClearedAt: clearedAt,
         };
         set(wipe);
@@ -1171,6 +1209,7 @@ export const useTaskStore = create(
         googleTasksTokenExpiresAt: state.googleTasksTokenExpiresAt || null,
         lastGoogleSyncAt: state.lastGoogleSyncAt || null,
         googleTasksAutoSync: state.googleTasksAutoSync ?? true,
+        deletedGoogleTaskIds: state.deletedGoogleTaskIds || [],
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {

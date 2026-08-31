@@ -154,6 +154,29 @@ export async function patchGoogleTask(token, listId, taskId, patchPayload) {
 }
 
 /**
+ * Delete a task from Google Tasks.
+ */
+export async function deleteGoogleTask(token, listId, taskId) {
+  if (!token || !listId || !taskId) return false;
+  try {
+    const res = await fetch(`${GOOGLE_TASKS_API_BASE}/lists/${listId}/tasks/${taskId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok && res.status !== 404) {
+      console.warn(`Failed to delete Google task ${taskId} (status ${res.status})`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`Error deleting Google task ${taskId}:`, err);
+    return false;
+  }
+}
+
+/**
  * Format a SeenTasks QuickTask into Google Tasks API format.
  */
 export function formatQuickTaskForGoogle(task, quickLabels = [], workspaceName = "General") {
@@ -279,7 +302,14 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
   storeActions.setGoogleTasksSyncing(true);
 
   try {
-    const { quickTasks = [], quickWorkspaces = [], quickLabels = [] } = storeState;
+    const {
+      quickTasks = [],
+      quickWorkspaces = [],
+      quickLabels = [],
+      deletedGoogleTaskIds = [],
+    } = storeState;
+
+    const deletedSet = new Set(deletedGoogleTaskIds || []);
 
     // 1. Fetch all Google Task Lists
     const gLists = await fetchGoogleTaskLists(token);
@@ -302,7 +332,16 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
       wsToListMap[ws.id] = matchedList.id;
     }
 
-    // 3. Fetch all tasks from Google across relevant lists
+    // 3. Purge any pending deleted tasks on Google Tasks directly
+    if (deletedSet.size > 0) {
+      for (const delId of Array.from(deletedSet)) {
+        for (const listId of Object.values(wsToListMap)) {
+          await deleteGoogleTask(token, listId, delId).catch(() => {});
+        }
+      }
+    }
+
+    // 4. Fetch all tasks from Google across relevant lists
     const allGoogleTasks = [];
     const listIdsToQuery = Array.from(new Set(Object.values(wsToListMap)));
 
@@ -317,25 +356,36 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
     let pulledCount = 0;
     let pushedCount = 0;
 
-    const updatedQuickTasks = [...quickTasks];
+    let updatedQuickTasks = [...quickTasks];
 
-    // 4. Inbound Sync: Google Tasks -> SeenTasks
+    // 5. Inbound Sync: Google Tasks -> SeenTasks
     for (const gt of allGoogleTasks) {
       if (!gt.title || gt.deleted) continue;
 
+      // DO NOT PULL BACK ANY TASK THAT WAS DELETED IN SEENTASKS!
+      if (deletedSet.has(gt.id)) {
+        await deleteGoogleTask(token, gt.listId, gt.id).catch(() => {});
+        continue;
+      }
+
       // Find if this task already exists in SeenTasks
       const matchIdx = updatedQuickTasks.findIndex(
-        (st) => st.googleTaskId === gt.id || st.id === `gt_${gt.id}` || (st.title === gt.title && st.dueDate === gt.due?.slice(0, 10))
+        (st) =>
+          st.googleTaskId === gt.id ||
+          st.id === `gt_${gt.id}` ||
+          (st.title === gt.title && st.dueDate === gt.due?.slice(0, 10))
       );
 
       // Find workspace for this task list
-      const targetWsId = Object.keys(wsToListMap).find((wsId) => wsToListMap[wsId] === gt.listId) || DEFAULT_WORKSPACE_ID;
+      const targetWsId =
+        Object.keys(wsToListMap).find((wsId) => wsToListMap[wsId] === gt.listId) ||
+        DEFAULT_WORKSPACE_ID;
 
       if (matchIdx >= 0) {
         // Update existing task if completion changed in Google
         const existing = updatedQuickTasks[matchIdx];
         const gDone = gt.status === "completed";
-        if (existing.done !== gDone) {
+        if (existing.done !== gDone || !existing.googleTaskId) {
           updatedQuickTasks[matchIdx] = {
             ...existing,
             done: gDone,
@@ -353,25 +403,30 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
       }
     }
 
-    // 5. Outbound Sync: SeenTasks -> Google Tasks (push new SeenTasks tasks or update completions)
+    // 6. Outbound Sync: SeenTasks -> Google Tasks (push new SeenTasks tasks or update completions/titles/notes/due)
     for (let i = 0; i < updatedQuickTasks.length; i++) {
       const stTask = updatedQuickTasks[i];
       const targetListId = wsToListMap[stTask.workspaceId || DEFAULT_WORKSPACE_ID] || defaultGList.id;
       const wsObj = quickWorkspaces.find((w) => w.id === stTask.workspaceId);
       const wsName = wsObj?.name || "General";
+      const payload = formatQuickTaskForGoogle(stTask, quickLabels, wsName);
 
       if (stTask.googleTaskId) {
-        // Check if completion status needs patching to Google
+        // Check if any attributes (status, title, notes, due date) need patching to Google
         const matchedGt = allGoogleTasks.find((g) => g.id === stTask.googleTaskId);
-        if (matchedGt && (matchedGt.status === "completed") !== stTask.done) {
-          await patchGoogleTask(token, stTask.googleListId || targetListId, stTask.googleTaskId, {
-            status: stTask.done ? "completed" : "needsAction",
-          });
-          pushedCount += 1;
+        if (matchedGt) {
+          const statusChanged = (matchedGt.status === "completed") !== stTask.done;
+          const titleChanged = (matchedGt.title || "").trim() !== payload.title;
+          const dueChanged = (matchedGt.due ? matchedGt.due.slice(0, 10) : null) !== (stTask.dueDate || stTask.dateKey);
+          const notesChanged = (matchedGt.notes || "").trim() !== payload.notes.trim();
+
+          if (statusChanged || titleChanged || dueChanged || notesChanged) {
+            await patchGoogleTask(token, stTask.googleListId || targetListId, stTask.googleTaskId, payload);
+            pushedCount += 1;
+          }
         }
       } else if (!stTask.flowRef) {
         // New task created in SeenTasks without Google link -> push to Google Tasks
-        const payload = formatQuickTaskForGoogle(stTask, quickLabels, wsName);
         const createdGt = await createGoogleTask(token, targetListId, payload);
         updatedQuickTasks[i] = {
           ...stTask,
