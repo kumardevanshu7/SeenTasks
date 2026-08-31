@@ -131,7 +131,9 @@ export function useQuickTasksSync() {
         uid,
         (items) => {
           if (!active) return;
-          setFollowFlows(items);
+          const cut = Math.max(useTaskStore.getState().dataClearedAt || 0, clearedAt || 0);
+          const cloud = (items || []).filter((f) => isCreatedAfterClear(f, cut));
+          setFollowFlows(cloud);
         },
         (error) => console.warn("Flows listener error:", error)
       );
