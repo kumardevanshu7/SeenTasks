@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, CheckCircle2, Cloud, KeyRound, LoaderCircle, LogOut, RefreshCw, RotateCcw, ShieldCheck, Volume2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "../components/OnePasswordGate";
+import ResetProgressModal from "../components/ResetProgressModal";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 import { authorizeGoogleTasks, twoWaySyncGoogleTasks } from "../lib/googleTasksService";
 import { formatFriendly } from "../lib/date";
@@ -110,6 +112,7 @@ export default function SettingsPage() {
     }
   }
 
+  const navigate = useNavigate();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [confirmAnswer, setConfirmAnswer] = useState("");
@@ -122,6 +125,11 @@ export default function SettingsPage() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
   const [resetError, setResetError] = useState("");
+
+  const [progressModalOpen, setProgressModalOpen] = useState(false);
+  const [resetStage, setResetStage] = useState(0);
+  const [resetStatusText, setResetStatusText] = useState("");
+  const [resetCompleted, setResetCompleted] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -240,17 +248,43 @@ export default function SettingsPage() {
   async function handleResetConfirm() {
     setResetError("");
     setResetMessage("");
-    setResetBusy(true);
+    setResetOpen(false);
+    setProgressModalOpen(true);
+    setResetCompleted(false);
+
+    setResetStage(15);
+    setResetStatusText("Purging local tasks, Everyday flows, and archives...");
+    await new Promise((r) => setTimeout(r, 400));
+
+    setResetStage(45);
+    setResetStatusText("Deep-cleaning cloud Firestore database collections...");
+    await new Promise((r) => setTimeout(r, 400));
+
     try {
       await resetAppData();
-      setResetOpen(false);
-      setResetMessage("App reset on this account. Other devices will clear when they open the app.");
+      setResetStage(75);
+      setResetStatusText("Resetting workspaces, labels, and routines...");
+      await new Promise((r) => setTimeout(r, 350));
+
+      setResetStage(95);
+      setResetStatusText("Seeding pristine fresh workspace canvas...");
+      await new Promise((r) => setTimeout(r, 350));
+
+      setResetStage(100);
+      setResetStatusText("Reset complete! Welcome to your fresh start ✨");
+      setResetCompleted(true);
+      if (soundEnabled) playTickSound();
+      triggerConfetti();
     } catch (err) {
       console.error(err);
+      setProgressModalOpen(false);
       setResetError("Reset failed — cloud wipe didn’t finish. Stay online and try again.");
-    } finally {
-      setResetBusy(false);
     }
+  }
+
+  function handleFinishReset() {
+    setProgressModalOpen(false);
+    navigate("/app");
   }
 
   return (
@@ -527,6 +561,14 @@ export default function SettingsPage() {
         description="Answer your One Password question to wipe all tasks and start fresh."
         onClose={() => !resetBusy && setResetOpen(false)}
         onConfirm={handleResetConfirm}
+      />
+
+      <ResetProgressModal
+        open={progressModalOpen}
+        stage={resetStage}
+        statusText={resetStatusText}
+        completed={resetCompleted}
+        onFinish={handleFinishReset}
       />
     </div>
   );

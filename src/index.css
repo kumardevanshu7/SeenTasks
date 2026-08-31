@@ -5477,5 +5477,202 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   to { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   7. Animated Reset Progress Experience
+   ========================================================================== */
+.reset-progress-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 16, 14, 0.65);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modalFadeIn .2s ease-out;
+}
+.reset-progress-card {
+  background: var(--card, #fff);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 460px;
+  padding: 32px 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: modalCardPop .25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalCardPop {
+  from { transform: scale(0.92) translateY(12px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.reset-icon-stage {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--canvas) 70%, #fff);
+  border: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: var(--primary, #ca8a04);
+}
+.reset-icon-stage.is-completed {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+.reset-icon-sparkle {
+  animation: resetPulse 1.8s ease-in-out infinite;
+}
+.reset-icon-success {
+  animation: popSuccess .35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes resetPulse {
+  0%, 100% { transform: rotate(0deg) scale(0.95); opacity: 0.85; }
+  50% { transform: rotate(18deg) scale(1.1); opacity: 1; }
+}
+@keyframes popSuccess {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.reset-icon-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(202, 138, 4, 0.15), transparent 70%);
+  pointer-events: none;
+  animation: glowPulse 2s ease-in-out infinite;
+}
+.reset-icon-stage.is-completed .reset-icon-glow {
+  background: radial-gradient(circle, rgba(22, 163, 74, 0.2), transparent 70%);
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.reset-progress-title {
+  margin: 0 0 6px;
+  font-family: "Cormorant Garamond", Garamond, serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.reset-progress-status {
+  margin: 0 0 24px;
+  font-size: 13.5px;
+  color: var(--muted);
+  min-height: 22px;
+  line-height: 1.4;
+}
+.reset-bar-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.reset-bar-track {
+  width: 100%;
+  height: 12px;
+  background: color-mix(in srgb, var(--canvas) 80%, var(--hairline));
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.reset-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d97706, #16a34a);
+  border-radius: 999px;
+  position: relative;
+  transition: width .35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+.reset-bar-fill.is-done {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+.reset-bar-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
+  animation: shimmerSweep 1.5s infinite;
+}
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.reset-bar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.reset-bar-stage-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+.reset-bar-pct {
+  color: var(--ink);
+  font-weight: 700;
+  font-family: inherit;
+}
+.reset-checkpoints-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.reset-checkpoint-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 550;
+  border-radius: 20px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+  transition: all .2s ease;
+}
+.reset-checkpoint-chip.is-active {
+  border-color: #d97706;
+  color: #b45309;
+  background: #fef3c7;
+}
+.reset-checkpoint-chip.is-passed {
+  border-color: #86efac;
+  color: #15803d;
+  background: #dcfce7;
+}
+.reset-finish-cta {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  animation: finishPop .25s ease-out;
+}
+@keyframes finishPop {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+
 
 
