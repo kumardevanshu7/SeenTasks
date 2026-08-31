@@ -21,6 +21,19 @@ export default function TodayPage() {
   const completed = dayTasks.filter((task) => task.status === "completed").length;
   const active = dayTasks.length - completed;
 
+  const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
+
+  useEffect(() => {
+    rollEverydayFlows();
+    const id = window.setInterval(() => rollEverydayFlows(), 30_000);
+    const onFocus = () => rollEverydayFlows();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [rollEverydayFlows]);
+
   useEffect(() => {
     const showComposer = () => { setSelectedDate(todayKey()); setOpen(true); };
     window.addEventListener("open-task-composer", showComposer);

@@ -13,6 +13,7 @@ import {
   REPORT_PERIODS,
 } from "../lib/flowService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
+import HabitHeatmap from "../components/HabitHeatmap";
 
 function yesterdayKey() {
   const d = new Date();
@@ -22,6 +23,8 @@ function yesterdayKey() {
 
 export default function ReportPage() {
   const followFlows = useTaskStore((s) => s.followFlows) || [];
+  const quickTasks = useTaskStore((s) => s.quickTasks) || [];
+  const dailyMoods = useTaskStore((s) => s.dailyMoods) || {};
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const [selectedDay, setSelectedDay] = useState(() => yesterdayKey());
   const [periodId, setPeriodId] = useState("week");
@@ -171,6 +174,13 @@ export default function ReportPage() {
               </div>
             </section>
           )}
+
+          {/* 365-Day Consistency Heatmap */}
+          <HabitHeatmap
+            quickTasks={quickTasks}
+            followFlows={followFlows}
+            dailyMoods={dailyMoods}
+          />
 
           {liveToday.length > 0 && (
             <section className="report-section" aria-label="Today live">

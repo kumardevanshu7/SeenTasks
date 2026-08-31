@@ -17,6 +17,7 @@ import { useTaskStore } from "../store/useTaskStore";
 import { computeAnalytics, ANALYTICS_RANGES } from "../lib/analyticsService";
 import { evaluateUnlockedIds } from "../lib/flowAchievements";
 import { todayKey } from "../lib/date";
+import HabitHeatmap from "../components/HabitHeatmap";
 
 export default function AnalyticsPage() {
   const [rangeId, setRangeId] = useState("7d");
@@ -156,6 +157,13 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </section>
+
+      {/* 365-Day Activity & Consistency Heatmap */}
+      <HabitHeatmap
+        quickTasks={quickTasks}
+        followFlows={followFlows}
+        dailyMoods={dailyMoods}
+      />
 
       {/* Chart 1: Daily Completion Velocity */}
       <section className="analytics-card" aria-label="Daily Completion Trend">

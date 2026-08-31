@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Check, ChevronDown, ListTodo, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, ListTodo, Share2, Sparkles, TriangleAlert } from "lucide-react";
+import ShareReportModal from "./ShareReportModal";
 import {
   activeFlowSteps,
   feedbackForGrade,
@@ -68,6 +69,7 @@ export function EverydayReportCard({
   to,
 }) {
   const [pendingOpen, setPendingOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const color = accent ? flowColorValue(accent) : flow.color;
   const ink = flowColorInk(accent || flow.color);
   const tone = gradeTone(report.grade);
@@ -102,10 +104,25 @@ export function EverydayReportCard({
           </p>
           <h2>{title || flow.name}</h2>
         </div>
-        <span className={`report-pro-grade grade-${String(report.grade || "F").replace("+", "p")}`}>
-          {report.grade}
-          <em>Grade</em>
-        </span>
+        <div className="report-pro-head-right">
+          <button
+            type="button"
+            className="report-share-chip-btn"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShareOpen(true);
+            }}
+            title="Share card as image"
+          >
+            <Share2 size={13} />
+            <span>Share</span>
+          </button>
+          <span className={`report-pro-grade grade-${String(report.grade || "F").replace("+", "p")}`}>
+            {report.grade}
+            <em>Grade</em>
+          </span>
+        </div>
       </header>
 
       <ProgressRing pct={report.pct} ink={ink} />
@@ -238,11 +255,22 @@ export function EverydayReportCard({
     </article>
   );
 
-  if (!to) return card;
   return (
-    <Link to={to} className="report-card-link">
-      {card}
-    </Link>
+    <>
+      {to ? (
+        <Link to={to} className="report-card-link">
+          {card}
+        </Link>
+      ) : (
+        card
+      )}
+      <ShareReportModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        flow={flow}
+        report={report}
+      />
+    </>
   );
 }
 

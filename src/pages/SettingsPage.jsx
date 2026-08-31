@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { KeyRound, RotateCcw, ShieldCheck, Volume2 } from "lucide-react";
+import { Check, CheckCircle2, Cloud, KeyRound, LoaderCircle, LogOut, RefreshCw, RotateCcw, ShieldCheck, Volume2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
+import { authorizeGoogleTasks, twoWaySyncGoogleTasks } from "../lib/googleTasksService";
+import { formatFriendly } from "../lib/date";
 import {
   clearOnePasswordDoc,
   isOnePasswordConfigured,
@@ -22,6 +24,91 @@ export default function SettingsPage() {
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
   const setSoundEnabled = useTaskStore((s) => s.setSoundEnabled);
   const configured = isOnePasswordConfigured(onePassword);
+
+  const googleConnected = useTaskStore((s) => s.googleTasksConnected);
+  const googleToken = useTaskStore((s) => s.googleTasksToken);
+  const googleSyncing = useTaskStore((s) => s.googleTasksSyncing);
+  const lastGoogleSyncAt = useTaskStore((s) => s.lastGoogleSyncAt);
+  const googleAutoSync = useTaskStore((s) => s.googleTasksAutoSync);
+  const setGoogleTasksAuth = useTaskStore((s) => s.setGoogleTasksAuth);
+  const disconnectGoogleTasks = useTaskStore((s) => s.disconnectGoogleTasks);
+  const setGoogleTasksSyncing = useTaskStore((s) => s.setGoogleTasksSyncing);
+  const recordGoogleSyncDone = useTaskStore((s) => s.recordGoogleSyncDone);
+  const setGoogleTasksAutoSync = useTaskStore((s) => s.setGoogleTasksAutoSync);
+  const setQuickTasks = useTaskStore((s) => s.setQuickTasks);
+
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleMsg, setGoogleMsg] = useState("");
+  const [googleErr, setGoogleErr] = useState("");
+
+  async function handleConnectGoogle() {
+    setGoogleBusy(true);
+    setGoogleErr("");
+    setGoogleMsg("");
+    try {
+      const { accessToken, expiresIn } = await authorizeGoogleTasks();
+      setGoogleTasksAuth(accessToken, expiresIn);
+      setGoogleMsg("Connected to Google Tasks! Performing initial sync...");
+
+      const state = useTaskStore.getState();
+      const res = await twoWaySyncGoogleTasks(
+        accessToken,
+        {
+          quickTasks: state.quickTasks,
+          quickWorkspaces: state.quickWorkspaces,
+          quickLabels: state.quickLabels,
+        },
+        {
+          setGoogleTasksSyncing,
+          recordGoogleSyncDone,
+          setQuickTasks,
+        }
+      );
+      setGoogleMsg(`Successfully synced with Google Tasks! (${res.pulledCount} imported, ${res.pushedCount} exported)`);
+      if (soundEnabled) playTickSound();
+      triggerConfetti();
+    } catch (err) {
+      console.error(err);
+      setGoogleErr(err.message || "Failed to connect to Google Tasks. Check popup permissions.");
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
+  async function handleManualSyncGoogle() {
+    if (!googleToken) return;
+    setGoogleBusy(true);
+    setGoogleErr("");
+    setGoogleMsg("");
+    try {
+      const state = useTaskStore.getState();
+      const res = await twoWaySyncGoogleTasks(
+        googleToken,
+        {
+          quickTasks: state.quickTasks,
+          quickWorkspaces: state.quickWorkspaces,
+          quickLabels: state.quickLabels,
+        },
+        {
+          setGoogleTasksSyncing,
+          recordGoogleSyncDone,
+          setQuickTasks,
+        }
+      );
+      setGoogleMsg(`Sync complete! (${res.pulledCount} items pulled, ${res.pushedCount} items pushed)`);
+      if (soundEnabled) playTickSound();
+    } catch (err) {
+      console.error(err);
+      if (err.message === "TOKEN_EXPIRED") {
+        disconnectGoogleTasks();
+        setGoogleErr("Google session expired. Please reconnect.");
+      } else {
+        setGoogleErr(err.message || "Sync failed. Check internet connection.");
+      }
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
 
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -310,6 +397,98 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Google Tasks & Google Calendar Integration */}
+      <section className="content-card">
+        <div className="card-heading">
+          <span className="heading-icon"><Cloud size={18} /></span>
+          <div>
+            <h2>Google Tasks & Calendar Sync</h2>
+            <p>
+              {googleConnected
+                ? "Connected · Live 2-Way Synchronization"
+                : "Sync tasks, deadlines, subtasks, and workspaces with Google Tasks"}
+            </p>
+          </div>
+          {googleConnected && (
+            <span className="one-password-status">
+              <CheckCircle2 size={15} /> Active
+            </span>
+          )}
+        </div>
+
+        <div className="one-password-form">
+          <p className="one-password-copy">
+            Connect your Google account to automatically sync tasks across SeenTasks, Gmail, Google Calendar, and the Google Tasks mobile app.
+          </p>
+
+          {googleErr && <p className="quick-delete-error">{googleErr}</p>}
+          {googleMsg && <p className="one-password-ok">{googleMsg}</p>}
+
+          {googleConnected ? (
+            <>
+              <div className="google-sync-meta-box">
+                <div className="google-sync-meta-row">
+                  <span>Status:</span>
+                  <strong>{googleSyncing ? "Syncing now..." : "Synced with Google"}</strong>
+                </div>
+                {lastGoogleSyncAt && (
+                  <div className="google-sync-meta-row">
+                    <span>Last synced:</span>
+                    <span>{new Date(lastGoogleSyncAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                  </div>
+                )}
+              </div>
+
+              <label className="toggle-setting-row">
+                <div className="toggle-setting-info">
+                  <strong>Automatic Background Sync</strong>
+                  <p>Sync tasks every 45 seconds and whenever this browser tab becomes active.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="toggle-checkbox"
+                  checked={googleAutoSync}
+                  onChange={(e) => setGoogleTasksAutoSync(e.target.checked)}
+                />
+              </label>
+
+              <div className="one-password-actions">
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={handleManualSyncGoogle}
+                  disabled={googleBusy || googleSyncing}
+                >
+                  {googleBusy || googleSyncing ? <LoaderCircle size={15} className="spin-slow" /> : <RefreshCw size={15} />}
+                  <span>{googleBusy || googleSyncing ? "Syncing..." : "Sync now"}</span>
+                </button>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={disconnectGoogleTasks}
+                  disabled={googleBusy || googleSyncing}
+                >
+                  <LogOut size={15} />
+                  <span>Disconnect</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="one-password-actions">
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={handleConnectGoogle}
+                disabled={googleBusy}
+              >
+                {googleBusy ? <LoaderCircle size={15} className="spin-slow" /> : <Cloud size={15} />}
+                <span>{googleBusy ? "Connecting..." : "Connect Google Tasks"}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="content-card">
         <div className="card-heading">
           <span className="heading-icon"><RotateCcw size={18} /></span>
@@ -321,8 +500,7 @@ export default function SettingsPage() {
 
         <div className="one-password-form">
           <p className="one-password-copy">
-            Clears Quick tasks (Firebase + this device), Today / AI tasks, abort bin, and persona.
-            Connections and One Password are not removed.
+            Completely wipes all data from the database and device (Quick tasks, Everyday flows, Workspaces, Labels, Board tasks, Mood logs, and Rewards) for a fresh start.
           </p>
           {resetError && <p className="quick-delete-error">{resetError}</p>}
           {resetMessage && <p className="one-password-ok">{resetMessage}</p>}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { CheckSquare, ClipboardList, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Timer, Trash2, TrendingUp, Users, X } from "lucide-react";
+import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Timer, Trash2, TrendingUp, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -88,11 +88,26 @@ export default function Navbar() {
 
         <button className="add-task-button" onClick={openComposer}><Plus size={17} /> Add task</button>
 
+        <button
+          type="button"
+          className="side-cmd-btn"
+          onClick={() => {
+            setOpen(false);
+            window.dispatchEvent(new CustomEvent("open-command-palette"));
+          }}
+          title="Open Command Palette (Ctrl+K)"
+        >
+          <Command size={14} />
+          <span>Search & actions</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+
         <nav className="side-nav" aria-label="Main navigation">
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app")}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
           <NavLink to="/app/flows" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/flows")}><GitBranch size={17} /><span>Follow Flow</span>{flowActiveCount > 0 && <em>{flowActiveCount}</em>}</NavLink>
           <NavLink to="/app/reports" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/reports")}><ClipboardList size={17} /><span>Report</span></NavLink>
           <NavLink to="/app/analytics" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/analytics")}><TrendingUp size={17} /><span>Analytics</span></NavLink>
+          <NavLink to="/app/guide" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/guide")}><BookOpen size={17} /><span>Guide</span></NavLink>
           
           <button
             type="button"

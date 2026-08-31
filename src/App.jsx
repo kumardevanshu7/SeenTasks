@@ -30,6 +30,7 @@ const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const DisclaimerPage = lazy(() => import("./pages/DisclaimerPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
+const GuidePage = lazy(() => import("./pages/GuidePage"));
 
 function RouteFallback() {
   return <div className="route-fallback" aria-hidden="true" />;
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
 
         <Route element={<LegalLayout />}>
+          <Route path="guide" element={<GuidePage />} />
           <Route path="about" element={<AboutPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
@@ -61,6 +63,7 @@ export default function App() {
             <Route path="quick" element={<Navigate to="/app" replace />} />
             <Route path="today" element={<TodayPage />} />
             <Route path="calendar" element={<CalendarPage />} />
+            <Route path="guide" element={<GuidePage inApp />} />
             <Route path="persona" element={<PersonaPage />} />
             <Route path="assistant" element={<AssistantPage />} />
             <Route path="bin" element={<BinPage />} />

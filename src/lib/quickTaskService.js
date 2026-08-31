@@ -110,6 +110,16 @@ export function normalizeQuickTask(id, data = {}) {
       ? [String(data.labelId)]
       : [];
 
+  const subtasks = Array.isArray(data.subtasks)
+    ? data.subtasks.map((st) => ({
+        id: st.id || `sub_${Math.random().toString(36).slice(2, 8)}`,
+        text: String(st.text || "").trim(),
+        done: Boolean(st.done),
+        createdAt: st.createdAt || new Date().toISOString(),
+        completedAt: st.completedAt || null,
+      }))
+    : [];
+
   return {
     id,
     title: data.title || "",
@@ -121,6 +131,7 @@ export function normalizeQuickTask(id, data = {}) {
     labelIds,
     // Back-compat: keep old single field too (first label only)
     labelId: data.labelId || labelIds[0] || null,
+    subtasks,
     createdAt: data.createdAt || new Date().toISOString(),
     completedAt: data.completedAt || null,
   };
@@ -283,6 +294,7 @@ export async function clearAllQuickTaskDocs(uid) {
   if (!left.empty) {
     throw new Error("Some quick tasks could not be deleted from Firestore.");
   }
+  await ensureDefaultWorkspace(uid);
   return total;
 }
 

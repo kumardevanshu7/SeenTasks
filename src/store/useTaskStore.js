@@ -8,6 +8,7 @@ import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultW
 import { applyAchievementsToFlows } from "../lib/flowAchievements";
 import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
+import { clearAllCollabDocs } from "../lib/collabService";
 
 const MAX_ITERATION = 10;
 
@@ -140,6 +141,36 @@ export const useTaskStore = create(
         taskId: null,
         taskTitle: "",
       },
+      googleTasksConnected: false,
+      googleTasksToken: null,
+      googleTasksTokenExpiresAt: null,
+      googleTasksSyncing: false,
+      lastGoogleSyncAt: null,
+      googleTasksAutoSync: true,
+
+      setGoogleTasksAuth: (token, expiresInSeconds = 3600) => {
+        const expiresAt = Date.now() + expiresInSeconds * 1000;
+        set({
+          googleTasksConnected: true,
+          googleTasksToken: token,
+          googleTasksTokenExpiresAt: expiresAt,
+        });
+      },
+
+      disconnectGoogleTasks: () => {
+        set({
+          googleTasksConnected: false,
+          googleTasksToken: null,
+          googleTasksTokenExpiresAt: null,
+          googleTasksSyncing: false,
+        });
+      },
+
+      setGoogleTasksSyncing: (googleTasksSyncing) => set({ googleTasksSyncing }),
+
+      recordGoogleSyncDone: () => set({ lastGoogleSyncAt: new Date().toISOString(), googleTasksSyncing: false }),
+
+      setGoogleTasksAutoSync: (googleTasksAutoSync) => set({ googleTasksAutoSync }),
 
       setPersona: (persona) => set({ persona: Array.isArray(persona) ? persona : [] }),
       setSoundEnabled: (val) => set({ soundEnabled: Boolean(val) }),
@@ -234,6 +265,14 @@ export const useTaskStore = create(
           followFlows: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
+          dailyMoods: {},
+          streakShields: { month: "", remaining: 2, usedDates: [] },
+          customRewards: {},
+          members: [],
+          connections: [],
+          incomingRequests: [],
+          assignedByMe: [],
+          assignedToMe: [],
         });
       },
 
@@ -337,6 +376,56 @@ export const useTaskStore = create(
           quickTasks: s.quickTasks.map((t) => {
             if (t.id !== id) return t;
             next = { ...t, ...patch };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      addSubtask: (taskId, text) => {
+        if (!taskId || !text?.trim()) return;
+        const clean = text.trim();
+        const subId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const curSubs = Array.isArray(t.subtasks) ? t.subtasks : [];
+            const newSub = { id: subId, text: clean, done: false, createdAt: new Date().toISOString() };
+            next = { ...t, subtasks: [...curSubs, newSub] };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      toggleSubtask: (taskId, subtaskId) => {
+        if (!taskId || !subtaskId) return;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const curSubs = Array.isArray(t.subtasks) ? t.subtasks : [];
+            const nextSubs = curSubs.map((st) =>
+              st.id === subtaskId
+                ? { ...st, done: !st.done, completedAt: !st.done ? new Date().toISOString() : null }
+                : st
+            );
+            next = { ...t, subtasks: nextSubs };
+            return next;
+          }),
+        }));
+        if (next) syncQuickUpsert(next);
+      },
+
+      deleteSubtask: (taskId, subtaskId) => {
+        if (!taskId || !subtaskId) return;
+        let next = null;
+        set((s) => ({
+          quickTasks: s.quickTasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const curSubs = Array.isArray(t.subtasks) ? t.subtasks : [];
+            next = { ...t, subtasks: curSubs.filter((st) => st.id !== subtaskId) };
             return next;
           }),
         }));
@@ -865,7 +954,7 @@ export const useTaskStore = create(
         if (next) syncFlowUpsert(next);
       },
 
-      /** Wipe local task data + cloud quick tasks. Keeps One Password, auth, collab. */
+      /** Wipe all task data, quick tasks, flows, mood logs, rewards, and cloud docs for a completely fresh start. */
       resetAppData: async () => {
         const uid = auth.currentUser?.uid;
         const clearedAt = Date.now();
@@ -877,14 +966,30 @@ export const useTaskStore = create(
           followFlows: [],
           activeWorkspaceId: DEFAULT_WORKSPACE_ID,
           persona: [],
+          dailyMoods: {},
+          streakShields: { month: "", remaining: 2, usedDates: [] },
+          customRewards: {},
+          members: [],
+          connections: [],
+          incomingRequests: [],
+          assignedByMe: [],
+          assignedToMe: [],
           dataClearedAt: clearedAt,
         };
         set(wipe);
+
+        try {
+          localStorage.removeItem("seentasks-qt-legacy-migrated");
+        } catch {
+          // ignore
+        }
+
         if (!uid) return;
         try {
           await markAppDataCleared(uid, clearedAt);
           await clearAllQuickTaskDocs(uid);
           await clearAllFollowFlowDocs(uid);
+          await clearAllCollabDocs(uid);
         } catch (err) {
           set(wipe);
           throw err;

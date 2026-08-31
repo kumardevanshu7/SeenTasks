@@ -13,6 +13,7 @@ import {
   startAt,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { normalizeUsername } from "./profileService";
@@ -161,3 +162,35 @@ export async function setAssignedStatus(taskId, status) {
 export async function deleteAssignedTask(taskId) {
   await deleteDoc(doc(db, "assignedTasks", taskId));
 }
+
+/** Clear all assigned tasks, requests, and friends for this user during app reset */
+export async function clearAllCollabDocs(uid) {
+  if (!uid) return;
+  try {
+    const [assignedSnap1, assignedSnap2, reqSnap1, reqSnap2, friendSnap] = await Promise.all([
+      getDocs(query(collection(db, "assignedTasks"), where("fromUid", "==", uid))),
+      getDocs(query(collection(db, "assignedTasks"), where("toUid", "==", uid))),
+      getDocs(query(collection(db, "connectionRequests"), where("fromUid", "==", uid))),
+      getDocs(query(collection(db, "connectionRequests"), where("toUid", "==", uid))),
+      getDocs(collection(db, "users", uid, "friends")),
+    ]);
+    const allDocs = [
+      ...assignedSnap1.docs,
+      ...assignedSnap2.docs,
+      ...reqSnap1.docs,
+      ...reqSnap2.docs,
+      ...friendSnap.docs,
+    ];
+    if (allDocs.length > 0) {
+      const CHUNK = 400;
+      for (let i = 0; i < allDocs.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        allDocs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+  } catch (err) {
+    console.warn("Could not clear collab docs:", err);
+  }
+}
+
