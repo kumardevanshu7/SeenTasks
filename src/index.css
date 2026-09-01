@@ -1088,14 +1088,15 @@ p, h1, h2, h3, h4 { margin: 0; }
   opacity: 1 !important;
 }
 .flow-step.is-done .flow-step-node {
-  background: #10b981 !important;
-  border-color: #10b981 !important;
+  background: var(--step-ink, var(--flow-ink, #10b981)) !important;
+  border-color: var(--step-ink, var(--flow-ink, #10b981)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--step-bg, var(--flow-bg, #bbf7d0)) 70%, transparent);
   color: #ffffff !important;
 }
 .flow-step.is-active .flow-step-node {
   background: #ffffff !important;
-  border-color: #10b981 !important;
-  box-shadow: 0 0 0 4px color-mix(in srgb, #bbf7d0 80%, white);
+  border-color: var(--step-ink, var(--flow-ink, #10b981)) !important;
+  box-shadow: 0 0 0 4.5px color-mix(in srgb, var(--step-bg, var(--flow-bg, #bbf7d0)) 85%, transparent);
 }
 .flow-step.is-locked .flow-step-node,
 .flow-step.is-scheduled .flow-step-node {
@@ -1121,7 +1122,7 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step.is-scheduled .flow-step-body { opacity: .72; }
 .flow-step.is-scheduled .flow-step-title { color: var(--muted); font-weight: 500; }
 .flow-step-status { color: var(--muted); font-size: 12px; }
-.flow-step.is-active .flow-step-status { color: var(--flow-ink, var(--primary)); font-weight: 600; }
+.flow-step.is-active .flow-step-status { color: var(--step-ink, var(--flow-ink, var(--primary))); font-weight: 600; }
 .flow-step-window { color: var(--muted-soft); font-size: 11px; }
 .flow-step-edit {
   display: inline-flex;

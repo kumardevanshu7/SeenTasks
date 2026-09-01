@@ -709,10 +709,18 @@ export default function FlowPage() {
               if (isFlowStepActiveOnDay(visibleSteps[i], day)) todayOrd += 1;
             }
           }
+          const catObj = categories.find((c) => c.id === (step.categoryId || activeCat)) || activeCatMeta;
+          const stepBg = flowColorValue(catObj?.color || flow.color);
+          const stepInk = flowColorInk(catObj?.color || flow.color);
+
           return (
             <li
               key={step.id}
               className={`flow-step${step.done && onToday ? " is-done" : ""}${isActive ? " is-active" : ""}${locked ? " is-locked" : ""}${scheduled ? " is-scheduled" : ""}`}
+              style={{
+                "--step-bg": stepBg,
+                "--step-ink": stepInk,
+              }}
             >
               <div className="flow-step-rail" aria-hidden="true">
                 <button
