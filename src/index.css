@@ -1377,10 +1377,12 @@ p, h1, h2, h3, h4 { margin: 0; }
 .page-workspace .quick-task-check {
   background: color-mix(in srgb, white 70%, var(--ws-color, transparent));
   border-color: var(--ws-ink, #b8aea1);
+  --ws-check-ink: var(--ws-ink, #b8aea1);
 }
 .page-workspace .quick-task-done .quick-task-check {
   background: var(--ws-ink, var(--primary));
   border-color: var(--ws-ink, var(--primary));
+  --ws-check-ink: var(--ws-ink, var(--primary));
   color: white;
 }
 .workspace-hero-delete {
@@ -1762,7 +1764,7 @@ p, h1, h2, h3, h4 { margin: 0; }
 .quick-task-row:last-child::after { bottom: 50%; }
 .quick-task-row:only-child::after { display: none; }
 .quick-task-rail { position: relative; z-index: 2; flex: 0 0 22px; display: flex; align-items: center; justify-content: center; align-self: center; }
-.quick-task-check { position: relative; z-index: 2; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 22px; width: 22px; height: 22px; padding: 0; margin: 0; color: #ffffff; background: #ffffff; border: 2px solid #cfc5b6; border-radius: 50%; box-sizing: border-box; line-height: 0; cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .18s ease; -webkit-tap-highlight-color: transparent; }
+.quick-task-check { position: relative; z-index: 2; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 22px; width: 22px; height: 22px; padding: 0; margin: 0; color: #ffffff; background: #ffffff; border: 2px solid var(--ws-check-ink, #cfc5b6); border-radius: 50%; box-sizing: border-box; line-height: 0; cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .18s ease; -webkit-tap-highlight-color: transparent; }
 .quick-task-check:focus { outline: none; }
 .quick-task-check:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
 .quick-task-check:active { transform: scale(.92); }
@@ -1770,18 +1772,18 @@ p, h1, h2, h3, h4 { margin: 0; }
   cursor: default;
   pointer-events: none;
   background: #ffffff;
-  border: 2px solid #cfc5b6;
+  border: 2px solid var(--ws-check-ink, #cfc5b6);
 }
 
-/* Green fill and white tick for all completed tasks */
+/* Workspace-colored fill for completed tasks */
 .quick-task-done .quick-task-check,
 .quick-task-check.is-done,
 .quick-task-check-locked.is-done {
-  background: #10b981 !important;
-  border-color: #10b981 !important;
+  background: var(--ws-check-ink, #10b981) !important;
+  border-color: var(--ws-check-ink, #10b981) !important;
   color: #ffffff !important;
 }
-.quick-task-missed:not(.quick-task-done) .quick-task-check { border-color: #c98972; }
+.quick-task-missed:not(.quick-task-done) .quick-task-check { border-color: var(--ws-check-ink, #c98972); }
 .quick-task-tick { display: block; width: 12px; height: 12px; overflow: visible; animation: quick-tick-in .22s ease-out; }
 .quick-task-tick path {
   stroke-dasharray: 16;

@@ -295,6 +295,8 @@ function QuickTaskRow({
   labels = [],
   workspaceRef = null,
   flowRef = null,
+  wsColor = null,
+  wsInk = null,
   hideMirrorChip = false,
   missed = false,
   dropReady = false,
@@ -384,6 +386,7 @@ function QuickTaskRow({
                 ? {
                     "--ws-color": mirrorRef.color,
                     "--ws-ink": mirrorInk,
+                    "--ws-check-ink": mirrorInk,
                   }
                 : undefined
             }
@@ -410,6 +413,7 @@ function QuickTaskRow({
             onClick={() => onToggle(item.id)}
             aria-label={item.done ? "Mark as not done" : "Mark as done"}
             aria-pressed={item.done}
+            style={wsInk ? { "--ws-check-ink": wsInk } : undefined}
           >
             {item.done && (
               <svg className="quick-task-tick" viewBox="0 0 12 12" aria-hidden="true">
@@ -1451,6 +1455,13 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                         : [];
                     const labels = labelIds.map((id) => labelsById[id]).filter(Boolean);
                     const isMirror = Boolean(workspaceRef);
+                    const taskWs = workspacesById[taskWorkspaceId(item)];
+                    const taskWsColor = workspaceRef?.color || taskWs?.color || null;
+                    const taskWsInk = workspaceRef
+                      ? workspaceColorInk(workspaceRef.color)
+                      : taskWs
+                        ? workspaceColorInk(taskWs.color)
+                        : null;
                     return (
                       <QuickTaskRow
                         key={item.id}
@@ -1458,6 +1469,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                         labels={labels}
                         workspaceRef={workspaceRef}
                         flowRef={null}
+                        wsColor={taskWsColor}
+                        wsInk={taskWsInk}
                         selectMode={selectMode}
                         isSelected={selectedTaskIds.has(item.id)}
                         onToggleSelect={toggleTaskSelection}
@@ -1526,6 +1539,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                             labels={[]}
                             workspaceRef={null}
                             flowRef={item.flowRef}
+                            wsColor={item.flowRef?.color || null}
+                            wsInk={item.flowRef?.color || null}
                             hideMirrorChip={true}
                             isDropTarget={false}
                             onToggle={handleToggle}
@@ -1602,6 +1617,13 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
               <ul className="quick-tasks-list">
                 {missedList.map((item) => {
                   const workspaceRef = workspaceRefFor(item);
+                  const missedWs = workspacesById[taskWorkspaceId(item)];
+                  const missedWsColor = workspaceRef?.color || missedWs?.color || null;
+                  const missedWsInk = workspaceRef
+                    ? workspaceColorInk(workspaceRef.color)
+                    : missedWs
+                      ? workspaceColorInk(missedWs.color)
+                      : null;
                   return (
                     <QuickTaskRow
                       key={item.id}
@@ -1617,6 +1639,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                           .filter(Boolean)
                       }
                       workspaceRef={workspaceRef}
+                      wsColor={missedWsColor}
+                      wsInk={missedWsInk}
                       missed
                       selectMode={selectMode}
                       isSelected={selectedTaskIds.has(item.id)}
