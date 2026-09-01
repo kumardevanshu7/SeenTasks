@@ -11,6 +11,7 @@ export function useGoogleTasksSync() {
   const setGoogleTasksSyncing = useTaskStore((s) => s.setGoogleTasksSyncing);
   const recordGoogleSyncDone = useTaskStore((s) => s.recordGoogleSyncDone);
   const setQuickTasks = useTaskStore((s) => s.setQuickTasks);
+  const setQuickWorkspaces = useTaskStore((s) => s.setQuickWorkspaces);
   const disconnectGoogleTasks = useTaskStore((s) => s.disconnectGoogleTasks);
 
   const syncingRef = useRef(false);
@@ -44,6 +45,7 @@ export function useGoogleTasksSync() {
             setGoogleTasksSyncing,
             recordGoogleSyncDone,
             setQuickTasks,
+            setQuickWorkspaces,
           }
         );
         window.dispatchEvent(new CustomEvent("google-tasks-synced"));
@@ -93,5 +95,6 @@ export function useGoogleTasksSync() {
     recordGoogleSyncDone,
     setGoogleTasksSyncing,
     setQuickTasks,
+    setQuickWorkspaces,
   ]);
 }

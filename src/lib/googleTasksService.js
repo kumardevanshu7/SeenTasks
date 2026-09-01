@@ -294,6 +294,12 @@ export function parseGoogleTaskToQuickTask(gtTask, workspaceId, quickLabels = []
 }
 
 /**
+ * Fixed workspace ID for tasks imported from Google Tasks.
+ */
+export const GOOGLE_TASKS_WORKSPACE_ID = "from-google-tasks";
+export const GOOGLE_TASKS_WORKSPACE_NAME = "From Google Tasks";
+
+/**
  * Orchestrate 2-Way Live Sync between SeenTasks and Google Tasks.
  */
 export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
@@ -311,6 +317,22 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
 
     const deletedSet = new Set(deletedGoogleTaskIds || []);
 
+    // 0. Ensure "From Google Tasks" workspace exists in the store
+    let updatedWorkspaces = [...quickWorkspaces];
+    const hasGoogleWs = updatedWorkspaces.some((w) => w.id === GOOGLE_TASKS_WORKSPACE_ID);
+    if (!hasGoogleWs) {
+      updatedWorkspaces.push({
+        id: GOOGLE_TASKS_WORKSPACE_ID,
+        name: GOOGLE_TASKS_WORKSPACE_NAME,
+        color: "#c9dff3", // blue
+        createdAt: new Date().toISOString(),
+      });
+      // Persist the new workspace to the store immediately
+      if (storeActions.setQuickWorkspaces) {
+        storeActions.setQuickWorkspaces(updatedWorkspaces);
+      }
+    }
+
     // 1. Fetch all Google Task Lists
     const gLists = await fetchGoogleTaskLists(token);
     const defaultGList = gLists.find((l) => l.title === "My Tasks" || l.id === "@default") || gLists[0];
@@ -322,14 +344,25 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
     // 2. Map SeenTasks Workspaces to Google Task Lists (Find or Create)
     const wsToListMap = {};
     wsToListMap[DEFAULT_WORKSPACE_ID] = defaultGList.id;
+    // Also map the Google Tasks workspace to the default Google list
+    wsToListMap[GOOGLE_TASKS_WORKSPACE_ID] = defaultGList.id;
 
-    for (const ws of quickWorkspaces) {
-      if (ws.id === DEFAULT_WORKSPACE_ID) continue;
+    for (const ws of updatedWorkspaces) {
+      if (ws.id === DEFAULT_WORKSPACE_ID || ws.id === GOOGLE_TASKS_WORKSPACE_ID) continue;
       let matchedList = gLists.find((l) => l.title.toLowerCase() === ws.name.toLowerCase());
       if (!matchedList) {
         matchedList = await createGoogleTaskList(token, ws.name);
       }
       wsToListMap[ws.id] = matchedList.id;
+    }
+
+    // Build a reverse map: Google List ID -> SeenTasks workspace ID (for outbound tasks created in SeenTasks)
+    const listToWsMap = {};
+    for (const [wsId, listId] of Object.entries(wsToListMap)) {
+      // Don't overwrite with GOOGLE_TASKS_WORKSPACE_ID if a real workspace already mapped
+      if (!listToWsMap[listId] || wsId !== GOOGLE_TASKS_WORKSPACE_ID) {
+        listToWsMap[listId] = wsId;
+      }
     }
 
     // 3. Purge any pending deleted tasks on Google Tasks directly
@@ -341,11 +374,15 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
       }
     }
 
-    // 4. Fetch all tasks from Google across relevant lists
+    // 4. Fetch all tasks from Google across ALL lists (not just mapped ones)
     const allGoogleTasks = [];
-    const listIdsToQuery = Array.from(new Set(Object.values(wsToListMap)));
+    const allListIds = new Set(Object.values(wsToListMap));
+    // Also query any Google lists that weren't mapped to a workspace
+    for (const gl of gLists) {
+      allListIds.add(gl.id);
+    }
 
-    for (const listId of listIdsToQuery) {
+    for (const listId of allListIds) {
       const tasks = await fetchGoogleTasks(token, listId);
       tasks.forEach((t) => {
         t.listId = listId;
@@ -353,12 +390,26 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
       });
     }
 
+    // Build a set of all live Google Task IDs for inbound delete detection
+    const liveGoogleTaskIds = new Set(allGoogleTasks.filter((g) => !g.deleted).map((g) => g.id));
+
     let pulledCount = 0;
     let pushedCount = 0;
 
     let updatedQuickTasks = [...quickTasks];
 
-    // 5. Inbound Sync: Google Tasks -> SeenTasks
+    // 5a. Inbound Delete Detection: tasks removed from Google should be removed from SeenTasks
+    updatedQuickTasks = updatedQuickTasks.filter((st) => {
+      // Only auto-remove tasks that were originally imported from Google (have googleTaskId)
+      // and are no longer present on Google's side
+      if (st.googleTaskId && !liveGoogleTaskIds.has(st.googleTaskId) && !deletedSet.has(st.googleTaskId)) {
+        pulledCount += 1;
+        return false; // Remove from SeenTasks
+      }
+      return true;
+    });
+
+    // 5b. Inbound Sync: Google Tasks -> SeenTasks
     for (const gt of allGoogleTasks) {
       if (!gt.title || gt.deleted) continue;
 
@@ -376,10 +427,9 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
           (st.title === gt.title && st.dueDate === gt.due?.slice(0, 10))
       );
 
-      // Find workspace for this task list
-      const targetWsId =
-        Object.keys(wsToListMap).find((wsId) => wsToListMap[wsId] === gt.listId) ||
-        DEFAULT_WORKSPACE_ID;
+      // For INBOUND (new) tasks: route to "From Google Tasks" workspace
+      // For tasks that were pushed FROM SeenTasks (already have a workspace), keep their workspace
+      const inboundWsId = GOOGLE_TASKS_WORKSPACE_ID;
 
       if (matchIdx >= 0) {
         // Update existing task if completion changed in Google
@@ -396,8 +446,8 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
           pulledCount += 1;
         }
       } else {
-        // Add new task imported from Google Tasks
-        const parsed = parseGoogleTaskToQuickTask(gt, targetWsId, quickLabels);
+        // Add new task imported from Google Tasks -> goes to "From Google Tasks" workspace
+        const parsed = parseGoogleTaskToQuickTask(gt, inboundWsId, quickLabels);
         updatedQuickTasks.unshift(parsed);
         pulledCount += 1;
       }
@@ -407,7 +457,7 @@ export async function twoWaySyncGoogleTasks(token, storeState, storeActions) {
     for (let i = 0; i < updatedQuickTasks.length; i++) {
       const stTask = updatedQuickTasks[i];
       const targetListId = wsToListMap[stTask.workspaceId || DEFAULT_WORKSPACE_ID] || defaultGList.id;
-      const wsObj = quickWorkspaces.find((w) => w.id === stTask.workspaceId);
+      const wsObj = updatedWorkspaces.find((w) => w.id === stTask.workspaceId);
       const wsName = wsObj?.name || "General";
       const payload = formatQuickTaskForGoogle(stTask, quickLabels, wsName);
 
