@@ -152,6 +152,7 @@ export function normalizeFlowStep(data = {}, index = 0) {
     startDate: isValidDateKey(data.startDate) ? data.startDate : null,
     endDate: isValidDateKey(data.endDate) ? data.endDate : null,
     categoryId: data.categoryId || DEFAULT_FLOW_CATEGORY_ID,
+    dateKey: isValidDateKey(data.dateKey) ? data.dateKey : null,
   };
 }
 
@@ -195,7 +196,16 @@ export function normalizeFollowFlow(id, data = {}) {
       : null;
   const categories = flowCategories({ categories: data.categories });
   const anyOrder = repeat === "daily" && Boolean(data.anyOrder);
-  const is1HrWork = Boolean(data.is1HrWork);
+  const is1HrWork = Boolean(data.is1HrWork || is1HrWorkFlowName(data.name));
+  const taskBank = Array.isArray(data.taskBank)
+    ? Array.from(
+        new Set(
+          data.taskBank
+            .map((t) => (typeof t === "string" ? t : t?.title || "").trim())
+            .filter(Boolean)
+        )
+      ).slice(0, 150)
+    : [];
   return {
     id,
     name: (data.name || "Flow").trim() || "Flow",
@@ -210,6 +220,7 @@ export function normalizeFollowFlow(id, data = {}) {
     anyOrder,
     repeat,
     is1HrWork,
+    taskBank,
     dayKey: data.dayKey || null,
     endDate,
     labelIds,
@@ -245,6 +256,9 @@ export function activeFlowSteps(flow, day = null) {
   const steps = flow?.steps || [];
   if (flow?.repeat !== "daily") return steps;
   const d = day || flow.dayKey || todayKey();
+  if (is1HrWorkFlow(flow)) {
+    return steps.filter((s) => s.dateKey === d);
+  }
   return steps.filter((s) => isFlowStepActiveOnDay(s, d));
 }
 
@@ -487,45 +501,76 @@ export function get1HrTaskSuggestions(flow) {
 export function rollEverydayFlow(flow, today = null) {
   if (!flow || flow.repeat !== "daily") return { flow, changed: false, report: null };
   const day = today || todayKey();
-  const dayKey = flow.dayKey || day;
-  if (dayKey >= day) {
-    if (flow.dayKey) return { flow, changed: false, report: null };
-    return { flow: { ...flow, dayKey: day }, changed: true, report: null };
+  const dayKey = flow.dayKey;
+  const is1Hr = is1HrWorkFlow(flow);
+
+  // 1-Hour Work flow: every single day is a clean fresh slate
+  if (is1Hr) {
+    const nonTodaySteps = (flow.steps || []).filter((s) => s.dateKey !== day);
+    const dateChanged = Boolean(dayKey && dayKey < day);
+
+    // If there are stale/legacy steps, date changed, or dayKey is not today
+    if (nonTodaySteps.length > 0 || dateChanged || flow.dayKey !== day) {
+      const taskBank = new Set(Array.isArray(flow.taskBank) ? flow.taskBank : []);
+      // Preserve ALL step titles in taskBank suggestions pool
+      (flow.steps || []).forEach((s) => {
+        const title = typeof s === "string" ? s : s?.title;
+        if (typeof title === "string" && title.trim()) {
+          taskBank.add(title.trim());
+        }
+      });
+
+      // If date changed, archive yesterday's report
+      const shouldReport = dateChanged && (!flow.endDate || dayKey <= flow.endDate);
+      const report = shouldReport ? buildEverydayReport(flow, dayKey) : null;
+      const reports = report
+        ? [report, ...(flow.reports || [])]
+            .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
+            .slice(0, 31)
+        : flow.reports || [];
+
+      // Keep strictly steps explicitly created today
+      const todaySteps = (flow.steps || []).filter((s) => s.dateKey === day);
+
+      return {
+        flow: {
+          ...flow,
+          steps: todaySteps,
+          taskBank: Array.from(taskBank),
+          dayKey: day,
+          reports,
+        },
+        changed: true,
+        report,
+      };
+    }
+    return { flow, changed: false, report: null };
   }
 
-  const shouldReport = !flow.endDate || dayKey <= flow.endDate;
-  const report = shouldReport ? buildEverydayReport(flow, dayKey) : null;
+  // Standard everyday flows (routines / habits)
+  if (dayKey && dayKey >= day) {
+    return { flow, changed: false, report: null };
+  }
+
+  const shouldReport = !flow.endDate || (dayKey && dayKey <= flow.endDate);
+  const report = shouldReport && dayKey ? buildEverydayReport(flow, dayKey) : null;
   const reports = report
     ? [report, ...(flow.reports || [])]
         .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
         .slice(0, 31)
     : flow.reports || [];
-  const is1Hr = is1HrWorkFlow(flow);
   const stillActive = isEverydayActive(flow, day);
 
-  let resetSteps = flow.steps || [];
-  let taskBank = Array.isArray(flow.taskBank) ? [...flow.taskBank] : [];
-
-  if (is1Hr) {
-    // For 1-Hour Work flows: save current steps into taskBank suggestions pool
-    (flow.steps || []).forEach((s) => {
-      const title = s?.title?.trim();
-      if (title && !taskBank.includes(title)) {
-        taskBank.push(title);
-      }
-    });
-    // Start today fresh with empty steps list
-    resetSteps = [];
-  } else if (stillActive) {
-    resetSteps = (flow.steps || []).map((s) => ({
-      ...s,
-      done: false,
-      completedAt: null,
-    }));
-  }
+  const resetSteps = stillActive
+    ? (flow.steps || []).map((s) => ({
+        ...s,
+        done: false,
+        completedAt: null,
+      }))
+    : flow.steps || [];
 
   return {
-    flow: { ...flow, steps: resetSteps, taskBank, dayKey: day, reports },
+    flow: { ...flow, steps: resetSteps, dayKey: day, reports },
     changed: true,
     report,
   };
@@ -612,6 +657,7 @@ export async function upsertFollowFlow(uid, flow) {
         startDate: isValidDateKey(s.startDate) ? s.startDate : null,
         endDate: isValidDateKey(s.endDate) ? s.endDate : null,
         categoryId: s.categoryId || DEFAULT_FLOW_CATEGORY_ID,
+        dateKey: isValidDateKey(s.dateKey) ? s.dateKey : null,
       })),
       categories: flowCategories(flow).map((c, i) => ({
         id: c.id || `cat-${i}`,
@@ -620,6 +666,16 @@ export async function upsertFollowFlow(uid, flow) {
       })),
       anyOrder: flow.repeat === "daily" && Boolean(flow.anyOrder),
       repeat: flow.repeat === "daily" ? "daily" : null,
+      is1HrWork: Boolean(flow.is1HrWork || is1HrWorkFlowName(flow.name)),
+      taskBank: Array.isArray(flow.taskBank)
+        ? Array.from(
+            new Set(
+              flow.taskBank
+                .map((t) => (typeof t === "string" ? t : t?.title || "").trim())
+                .filter(Boolean)
+            )
+          ).slice(0, 150)
+        : [],
       dayKey: flow.dayKey || null,
       endDate:
         flow.repeat === "daily" &&

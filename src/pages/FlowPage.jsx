@@ -194,6 +194,16 @@ export default function FlowPage() {
     }
   }, [editing, flow?.name, flow?.endDate]);
 
+  useEffect(() => {
+    if (flow && is1HrWorkFlow(flow)) {
+      const today = todayKey();
+      const hasStaleSteps = (flow.steps || []).some((s) => s.dateKey !== today);
+      if (hasStaleSteps || flow.dayKey !== today) {
+        rollEverydayFlows();
+      }
+    }
+  }, [flow, rollEverydayFlows]);
+
   if (followFlows?.length && !flow) {
     return <Navigate to="/app/flows" replace />;
   }
@@ -222,9 +232,11 @@ export default function FlowPage() {
     ? flowColorValue(activeCatMeta.color)
     : flow.color;
   const ink = flowColorInk(isEveryday && activeCatMeta ? activeCatMeta.color : flow.color);
-  const visibleSteps = isEveryday && activeCat
-    ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
-    : steps;
+  const visibleSteps = is1HrFlow
+    ? steps.filter((s) => s.dateKey === day)
+    : isEveryday && activeCat
+      ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
+      : steps;
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
     .filter(Boolean);

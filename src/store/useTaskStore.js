@@ -812,6 +812,7 @@ export const useTaskStore = create(
           typeof opts.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.endDate)
             ? opts.endDate
             : null;
+        const day = todayKey();
         const step = {
           id: uuid(),
           title: clean.slice(0, 120),
@@ -820,6 +821,7 @@ export const useTaskStore = create(
           startDate,
           endDate,
           categoryId: null,
+          dateKey: day,
         };
         set((s) => ({
           followFlows: (s.followFlows || []).map((f) => {
@@ -849,7 +851,8 @@ export const useTaskStore = create(
             if (f.id !== flowId) return f;
             const bank = new Set(Array.isArray(f.taskBank) ? f.taskBank : []);
             (f.steps || []).forEach((st) => {
-              if (st.title?.trim()) bank.add(st.title.trim());
+              const title = typeof st === "string" ? st : st?.title;
+              if (title && title.trim()) bank.add(title.trim());
             });
             next = { ...f, steps: [], taskBank: Array.from(bank) };
             return next;
