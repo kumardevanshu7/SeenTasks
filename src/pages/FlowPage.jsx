@@ -228,10 +228,7 @@ export default function FlowPage() {
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
     .filter(Boolean);
-  const suggestions = useMemo(
-    () => (is1HrFlow ? get1HrTaskSuggestions(flow) : []),
-    [is1HrFlow, flow]
-  );
+  const suggestions = is1HrFlow ? get1HrTaskSuggestions(flow) : [];
 
   function submitStep() {
     const added = addFlowStep(flow.id, draft, {

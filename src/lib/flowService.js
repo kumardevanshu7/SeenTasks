@@ -461,20 +461,23 @@ export function get1HrTaskSuggestions(flow) {
   const set = new Set();
   if (Array.isArray(flow.taskBank)) {
     flow.taskBank.forEach((t) => {
-      if (typeof t === "string" && t.trim()) set.add(t.trim());
-      else if (t?.title?.trim()) set.add(t.title.trim());
+      const val = typeof t === "string" ? t : t?.title;
+      if (typeof val === "string" && val.trim()) set.add(val.trim());
     });
   }
   if (Array.isArray(flow.reports)) {
     flow.reports.forEach((r) => {
-      if (Array.isArray(r.stepTitles)) {
-        r.stepTitles.forEach((t) => t && set.add(String(t).trim()));
+      if (Array.isArray(r?.stepTitles)) {
+        r.stepTitles.forEach((t) => {
+          const val = typeof t === "string" ? t : t?.title;
+          if (typeof val === "string" && val.trim()) set.add(val.trim());
+        });
       }
     });
   }
   if (Array.isArray(flow.steps)) {
     flow.steps.forEach((s) => {
-      if (s?.title?.trim()) set.add(s.title.trim());
+      if (typeof s?.title === "string" && s.title.trim()) set.add(s.title.trim());
     });
   }
   return Array.from(set);
