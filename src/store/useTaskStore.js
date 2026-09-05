@@ -6,7 +6,7 @@ import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
 import { applyAchievementsToFlows } from "../lib/flowAchievements";
-import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, is1HrWorkCategoryName, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 import { clearAllCollabDocs } from "../lib/collabService";
 import { deleteGoogleTask } from "../lib/googleTasksService";
@@ -1001,7 +1001,7 @@ export const useTaskStore = create(
         if (next) syncFlowUpsert(next);
       },
 
-      addFlowCategory: (flowId, name, color) => {
+      addFlowCategory: (flowId, name, color, opts = {}) => {
         const clean = name?.trim().slice(0, 32);
         if (!flowId || !clean) return null;
         let created = null;
@@ -1011,10 +1011,12 @@ export const useTaskStore = create(
             if (f.id !== flowId || f.repeat !== "daily") return f;
             const cats = flowCategories(f);
             const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
+            const is1Hr = Boolean(opts.is1HrWork) || is1HrWorkCategoryName(clean);
             created = {
               id: uuid(),
               name: clean,
               color: picked?.id || nextFlowCategoryColor(cats),
+              is1HrWork: is1Hr,
             };
             next = { ...f, categories: [...cats, created] };
             return next;
@@ -1053,7 +1055,31 @@ export const useTaskStore = create(
             next = {
               ...f,
               categories: flowCategories(f).map((c) =>
-                c.id === categoryId ? { ...c, name: clean } : c
+                c.id === categoryId
+                  ? {
+                      ...c,
+                      name: clean,
+                      is1HrWork: is1HrWorkCategoryName(clean) || Boolean(c.is1HrWork),
+                    }
+                  : c
+              ),
+            };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      setFlowCategory1HrWork: (flowId, categoryId, is1HrWork) => {
+        if (!flowId || !categoryId) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            next = {
+              ...f,
+              categories: flowCategories(f).map((c) =>
+                c.id === categoryId ? { ...c, is1HrWork: Boolean(is1HrWork) } : c
               ),
             };
             return next;

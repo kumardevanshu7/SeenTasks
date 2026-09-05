@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, is1HrWorkCategory, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
@@ -129,6 +129,7 @@ export default function FlowPage() {
   const renameFlowCategory = useTaskStore((s) => s.renameFlowCategory);
   const setFlowCategoryColor = useTaskStore((s) => s.setFlowCategoryColor);
   const deleteFlowCategory = useTaskStore((s) => s.deleteFlowCategory);
+  const setFlowCategory1HrWork = useTaskStore((s) => s.setFlowCategory1HrWork);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
@@ -215,6 +216,7 @@ export default function FlowPage() {
     ? activeCategoryId
     : categories[0]?.id || null;
   const activeCatMeta = categories.find((c) => c.id === activeCat) || null;
+  const isCurrentCategory1Hr = is1HrWorkCategory(activeCatMeta, flow);
   const themeBg = isEveryday && activeCatMeta
     ? flowColorValue(activeCatMeta.color)
     : flow.color;
@@ -619,7 +621,12 @@ export default function FlowPage() {
                     }}
                   />
                 ) : (
-                  <span>{cat.name}</span>
+                  <>
+                    {is1HrWorkCategory(cat, flow) && (
+                      <Timer size={12} style={{ marginRight: 4, flexShrink: 0, opacity: 0.8 }} />
+                    )}
+                    <span>{cat.name}</span>
+                  </>
                 )}
                 {catTotal > 0 && catDone === catTotal && (
                   <span className="flow-cat-winner" title="Winner — this tab is complete today">
@@ -672,20 +679,49 @@ export default function FlowPage() {
               </button>
             </form>
           ) : (
+            <>
+              <button
+                type="button"
+                className="flow-cat-add"
+                onClick={() => {
+                  if (!editing) {
+                    setGate({ type: "edit" });
+                    return;
+                  }
+                  setCatColorId(nextFlowCategoryColor(categories));
+                  setAddingCat(true);
+                }}
+                aria-label="Add category"
+              >
+                <Plus size={16} />
+              </button>
+              {!categories.some((c) => is1HrWorkCategory(c, flow)) && (
+                <button
+                  type="button"
+                  className="flow-cat-tab flow-cat-add-1hr"
+                  onClick={() => {
+                    const created = addFlowCategory(flow.id, "1 Hr Work", "orange", { is1HrWork: true });
+                    if (created?.id) {
+                      setActiveCategoryId(created.id);
+                    }
+                  }}
+                  title="Add dedicated 1-Hour Work category"
+                >
+                  <Timer size={13} />
+                  <span>+ 1 Hr Work</span>
+                </button>
+              )}
+            </>
+          )}
+          {editing && activeCat && (
             <button
               type="button"
-              className="flow-cat-add"
-              onClick={() => {
-                if (!editing) {
-                  setGate({ type: "edit" });
-                  return;
-                }
-                setCatColorId(nextFlowCategoryColor(categories));
-                setAddingCat(true);
-              }}
-              aria-label="Add category"
+              className={`flow-cat-toggle-1hr${isCurrentCategory1Hr ? " is-active" : ""}`}
+              onClick={() => setFlowCategory1HrWork(flow.id, activeCat, !isCurrentCategory1Hr)}
+              title={isCurrentCategory1Hr ? "1-Hour timer enabled for this category" : "Turn on 1-Hour timer for this category"}
             >
-              <Plus size={16} />
+              <Timer size={13} />
+              <span>{isCurrentCategory1Hr ? "1h Timer On" : "Enable 1h Timer"}</span>
             </button>
           )}
           {editing && categories.length > 1 && activeCat && (
@@ -748,6 +784,7 @@ export default function FlowPage() {
             }
           }
           const catObj = categories.find((c) => c.id === (step.categoryId || activeCat)) || activeCatMeta;
+          const isStep1Hr = is1HrWorkCategory(catObj, flow) || Boolean(step.is1HrWork);
           const stepBg = flowColorValue(catObj?.color || flow.color);
           const stepInk = flowColorInk(catObj?.color || flow.color);
 
@@ -834,7 +871,7 @@ export default function FlowPage() {
                   )}
                 </div>
 
-                {!editing && onToday && (
+                {!editing && onToday && isStep1Hr && (
                   <div className="flow-step-timer-wrap">
                     <button
                       type="button"
@@ -975,7 +1012,7 @@ export default function FlowPage() {
                 submitStep();
               }
             }}
-            placeholder={flow?.is1HrWork ? "Add a 1-hour task…" : "Add a step…"}
+            placeholder={isCurrentCategory1Hr || flow?.is1HrWork ? "Add a 1-hour focus task…" : "Add a step…"}
             maxLength={120}
             aria-label="Add a step"
           />

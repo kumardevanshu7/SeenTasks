@@ -5184,6 +5184,46 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   font-size: 11px;
   font-weight: 700;
 }
+
+.flow-cat-add-1hr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+  border: 1px dashed #f97316 !important;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.flow-cat-add-1hr:hover {
+  background: #fed7aa !important;
+  border-style: solid !important;
+  transform: translateY(-1px);
+}
+.flow-cat-toggle-1hr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all .15s ease;
+}
+.flow-cat-toggle-1hr.is-active {
+  background: #ffedd5;
+  color: #c2410c;
+  border-color: #fdba74;
+}
+.flow-cat-toggle-1hr:hover {
+  border-color: #f97316;
+}
 .habit-heatmap-footer {
   margin-top: 16px;
   padding-top: 14px;
