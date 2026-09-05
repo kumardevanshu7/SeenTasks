@@ -4,7 +4,7 @@ import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Timer, Trophy 
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_ACHIEVEMENTS, evaluateUnlockedIds } from "../lib/flowAchievements";
-import { flowColorInk, flowProgress, isEverydayActive } from "../lib/flowService";
+import { flowColorInk, flowProgress, is1HrWorkFlow, isEverydayActive } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
 
@@ -41,7 +41,7 @@ function FlowCard({ flow, everyday, labels }) {
       <div>
         <strong>
           {flow.name}
-          {flow.is1HrWork ? (
+          {is1HrWorkFlow(flow) ? (
             <em className="flow-everyday-badge flow-1hr-badge">
               <Timer size={11} /> 1 Hr Work
             </em>

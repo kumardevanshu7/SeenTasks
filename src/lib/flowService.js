@@ -74,48 +74,64 @@ export function nextFlowCategoryColor(categories = []) {
   return (free || FLOW_COLORS[categories.length % FLOW_COLORS.length]).id;
 }
 
-export function is1HrWorkCategoryName(name) {
+export function is1HrWorkFlowName(name) {
   if (!name || typeof name !== "string") return false;
   const n = name.trim().toLowerCase();
   return (
+    n === "1 hr work task" ||
     n === "1 hr work" ||
+    n === "1 hour work task" ||
     n === "1 hour work" ||
-    n === "1 hr" ||
-    n === "1 hour" ||
+    n === "1hr work task" ||
     n === "1hr work" ||
-    n === "1hour work" ||
-    n === "1hr" ||
-    n === "1hour" ||
-    n.includes("1 hr") ||
-    n.includes("1 hour") ||
-    n.includes("1hr")
+    n.includes("1 hr work") ||
+    n.includes("1 hour work") ||
+    n.includes("1hr work") ||
+    n.startsWith("1 hr") ||
+    n.startsWith("1 hour") ||
+    n.startsWith("1hr")
   );
 }
 
+export function is1HrWorkFlow(flow) {
+  if (!flow) return false;
+  if (flow.is1HrWork === true) return true;
+  return is1HrWorkFlowName(flow.name);
+}
+
+export function is1HrWorkCategoryName(name) {
+  return is1HrWorkFlowName(name);
+}
+
 export function is1HrWorkCategory(cat, flow = null) {
-  if (!cat) {
-    return Boolean(flow?.is1HrWork);
-  }
-  if (cat.is1HrWork === true) return true;
-  if (is1HrWorkCategoryName(cat.name)) return true;
-  if (flow?.is1HrWork && (!flow.categories || flow.categories.length <= 1)) return true;
-  return false;
+  return is1HrWorkFlow(flow);
 }
 
 export function normalizeFlowCategory(data = {}, index = 0) {
   const name = (data.name || (index === 0 ? "Main" : `Category ${index + 1}`)).trim().slice(0, 32);
   const hit = FLOW_COLORS.find((c) => c.id === data.color || c.value === data.color);
-  const is1Hr = Boolean(data.is1HrWork) || is1HrWorkCategoryName(name);
   return {
     id: data.id || (index === 0 ? DEFAULT_FLOW_CATEGORY_ID : `cat-${index}`),
     name: name || "Category",
     color: hit?.id || FLOW_COLORS[index % FLOW_COLORS.length].id,
-    is1HrWork: is1Hr,
+    is1HrWork: false,
   };
 }
 
 export function flowCategories(flow) {
-  const raw = Array.isArray(flow?.categories) ? flow.categories : [];
+  const is1Hr = is1HrWorkFlow(flow);
+  let raw = Array.isArray(flow?.categories) ? flow.categories : [];
+  if (!is1Hr && raw.length > 1) {
+    // If this is a regular everyday flow (e.g. Daily Fix Habits), remove any accidental empty "1 Hr Work" tab
+    const steps = Array.isArray(flow?.steps) ? flow.steps : [];
+    raw = raw.filter((c) => {
+      if (is1HrWorkFlowName(c?.name)) {
+        const hasSteps = steps.some((s) => (s.categoryId || DEFAULT_FLOW_CATEGORY_ID) === c.id);
+        return hasSteps;
+      }
+      return true;
+    });
+  }
   if (raw.length > 0) return raw.map((c, i) => normalizeFlowCategory(c, i));
   return [normalizeFlowCategory({ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main", color: "sky" }, 0)];
 }
