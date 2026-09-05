@@ -149,6 +149,7 @@ export function normalizeFollowFlow(id, data = {}) {
       : null;
   const categories = flowCategories({ categories: data.categories });
   const anyOrder = repeat === "daily" && Boolean(data.anyOrder);
+  const is1HrWork = Boolean(data.is1HrWork);
   return {
     id,
     name: (data.name || "Flow").trim() || "Flow",
@@ -162,6 +163,7 @@ export function normalizeFollowFlow(id, data = {}) {
     categories,
     anyOrder,
     repeat,
+    is1HrWork,
     dayKey: data.dayKey || null,
     endDate,
     labelIds,

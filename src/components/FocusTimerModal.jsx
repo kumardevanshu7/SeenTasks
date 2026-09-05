@@ -5,7 +5,8 @@ import { useTaskStore } from "../store/useTaskStore";
 import { playChimeSound, triggerConfetti } from "../lib/audioConfetti";
 
 const MODES = [
-  { id: "focus", label: "Focus", seconds: 25 * 60, icon: Flame, color: "#fecaca", ink: "#991b1b" },
+  { id: "focus", label: "Focus (25m)", seconds: 25 * 60, icon: Flame, color: "#fecaca", ink: "#991b1b" },
+  { id: "oneHour", label: "1 Hr Work", seconds: 60 * 60, icon: Timer, color: "#fed7aa", ink: "#9a3412" },
   { id: "shortBreak", label: "Short break", seconds: 5 * 60, icon: Coffee, color: "#bbf7d0", ink: "#166534" },
   { id: "longBreak", label: "Long break", seconds: 15 * 60, icon: Sparkles, color: "#bae6fd", ink: "#075985" },
 ];

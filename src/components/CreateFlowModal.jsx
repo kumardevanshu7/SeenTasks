@@ -1,32 +1,42 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { Timer, X } from "lucide-react";
 import { FLOW_COLORS } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { todayKey } from "../lib/date";
 import { useTaskStore } from "../store/useTaskStore";
 
-export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryday = false }) {
+export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryday = false, defaultMode = null }) {
   const quickLabels = useTaskStore((s) => s.quickLabels) || [];
-  const [name, setName] = useState("");
-  const [colorId, setColorId] = useState(FLOW_COLORS[0].id);
-  const [everyday, setEveryday] = useState(defaultEveryday);
+  const effectiveMode = defaultMode || (defaultEveryday ? "everyday" : "oneshot");
+  const is1Hr = effectiveMode === "1hr";
+  const [name, setName] = useState(is1Hr ? "1 Hr Work" : "");
+  const [colorId, setColorId] = useState(is1Hr ? FLOW_COLORS[4].id : FLOW_COLORS[0].id);
+  const [everyday, setEveryday] = useState(is1Hr || defaultEveryday);
+  const [is1HrWork, setIs1HrWork] = useState(is1Hr);
   const [endDate, setEndDate] = useState("");
   const [labelIds, setLabelIds] = useState([]);
-  const [anyOrder, setAnyOrder] = useState(false);
+  const [anyOrder, setAnyOrder] = useState(is1Hr);
 
   useEffect(() => {
     if (!open) {
       setName("");
       setColorId(FLOW_COLORS[0].id);
       setEveryday(defaultEveryday);
+      setIs1HrWork(false);
       setEndDate("");
       setLabelIds([]);
       setAnyOrder(false);
     } else {
-      setEveryday(defaultEveryday);
+      const mode = defaultMode || (defaultEveryday ? "everyday" : "oneshot");
+      const is1HrSelected = mode === "1hr";
+      setIs1HrWork(is1HrSelected);
+      setEveryday(is1HrSelected || defaultEveryday);
+      setAnyOrder(is1HrSelected);
+      setName(is1HrSelected ? "1 Hr Work" : "");
+      setColorId(is1HrSelected ? FLOW_COLORS[4].id : FLOW_COLORS[0].id);
     }
-  }, [open, defaultEveryday]);
+  }, [open, defaultEveryday, defaultMode]);
 
   function toggleLabel(id) {
     setLabelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -39,10 +49,11 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
     onCreate?.({
       name: clean,
       color: colorId,
-      repeat: everyday ? "daily" : null,
-      endDate: everyday && endDate ? endDate : null,
-      labelIds: everyday ? labelIds : [],
-      anyOrder: everyday && anyOrder,
+      repeat: everyday || is1HrWork ? "daily" : null,
+      endDate: (everyday || is1HrWork) && endDate ? endDate : null,
+      labelIds: (everyday || is1HrWork) ? labelIds : [],
+      anyOrder: (everyday || is1HrWork) && anyOrder,
+      is1HrWork: Boolean(is1HrWork),
     });
   }
 
@@ -66,8 +77,8 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
           >
             <div className="quick-delete-head">
               <div>
-                <p className="eyebrow">{everyday ? "Everyday" : "Follow Flow"}</p>
-                <h2>{everyday ? "Create everyday flow" : "Create flow"}</h2>
+                <p className="eyebrow">{is1HrWork ? "1 Hr Work Focus" : everyday ? "Everyday" : "Follow Flow"}</p>
+                <h2>{is1HrWork ? "Create 1 Hr Work flow" : everyday ? "Create everyday flow" : "Create flow"}</h2>
               </div>
               <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
                 <X size={16} />
@@ -75,6 +86,16 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
             </div>
 
             <div className="quick-delete-body workspace-create-body">
+              {is1HrWork && (
+                <div className="flow-1hr-banner">
+                  <Timer size={18} className="flow-1hr-banner-icon" />
+                  <div>
+                    <strong>1-Hour Focus Sprints</strong>
+                    <p>Each task gets a 1-hour Pomodoro timer. Start the timer, focus for 60 mins, and tick it complete!</p>
+                  </div>
+                </div>
+              )}
+
               <label>
                 Flow name
                 <input
@@ -82,9 +103,11 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={
-                    everyday
-                      ? "e.g. Morning habits, Phone detox"
-                      : "e.g. Launch checklist, Client onboarding"
+                    is1HrWork
+                      ? "e.g. 1 Hr Work, Daily 1-Hour Blocks"
+                      : everyday
+                        ? "e.g. Morning habits, Phone detox"
+                        : "e.g. Launch checklist, Client onboarding"
                   }
                   maxLength={48}
                   autoFocus
@@ -92,19 +115,21 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                 />
               </label>
 
-              <label className="flow-everyday-toggle">
-                <input
-                  type="checkbox"
-                  checked={everyday}
-                  onChange={(e) => setEveryday(e.target.checked)}
-                />
-                <span>
-                  <strong>Everyday — repeat daily</strong>
-                  <small>Resets at 12:00 AM. Yesterday becomes a report card.</small>
-                </span>
-              </label>
+              {!is1HrWork && (
+                <label className="flow-everyday-toggle">
+                  <input
+                    type="checkbox"
+                    checked={everyday}
+                    onChange={(e) => setEveryday(e.target.checked)}
+                  />
+                  <span>
+                    <strong>Everyday — repeat daily</strong>
+                    <small>Resets at 12:00 AM. Yesterday becomes a report card.</small>
+                  </span>
+                </label>
+              )}
 
-              {everyday && (
+              {(everyday || is1HrWork) && (
                 <>
                   <label>
                     End date <span className="flow-field-optional">(optional)</span>
@@ -129,6 +154,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                       <small>Skip the lock — complete in any order and the list reorders.</small>
                     </span>
                   </label>
+
 
                   <div className="flow-label-field">
                     <span className="workspace-color-label">Labels</span>
@@ -189,7 +215,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                 Cancel
               </button>
               <button type="submit" className="button button-primary" disabled={!name.trim()}>
-                {everyday ? "Create everyday" : "Create flow"}
+                {is1HrWork ? "Create 1 Hr flow" : everyday ? "Create everyday" : "Create flow"}
               </button>
             </div>
           </motion.form>

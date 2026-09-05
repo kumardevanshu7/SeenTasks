@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pencil, Plus, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pause, Pencil, Play, Plus, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
@@ -132,6 +132,8 @@ export default function FlowPage() {
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
+  const focusTimer = useTaskStore((s) => s.focusTimer);
+  const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -249,6 +251,28 @@ export default function FlowPage() {
     if (step.startDate && step.startDate === day) bits.push("Starts today");
     if (step.endDate) bits.push(`Until ${formatFriendly(step.endDate)}`);
     return bits.length ? bits.join(" · ") : null;
+  }
+
+  function handleStepTimerToggle(step) {
+    if (!step || !flow) return;
+    const isStepTimer = focusTimer?.taskId === step.id && focusTimer?.flowId === flow.id;
+    if (isStepTimer) {
+      setFocusTimer((prev) => ({ ...prev, running: !prev.running }));
+      if (soundEnabled) playTickSound();
+      return;
+    }
+
+    setFocusTimer({
+      active: true,
+      taskId: step.id,
+      taskTitle: step.title,
+      flowId: flow.id,
+      secondsLeft: 60 * 60,
+      mode: "oneHour",
+      running: true,
+    });
+    if (soundEnabled) playTickSound();
+    window.dispatchEvent(new CustomEvent("open-focus-timer"));
   }
 
   function saveTitle() {
@@ -383,7 +407,7 @@ export default function FlowPage() {
 
       <header className="flow-page-head">
         <div>
-          <p className="eyebrow">{isEveryday ? "Everyday" : "Follow Flow"}</p>
+          <p className="eyebrow">{flow?.is1HrWork ? "1 Hr Work Focus" : isEveryday ? "Everyday" : "Follow Flow"}</p>
           {editing ? (
             <input
               className="flow-title-input"
@@ -407,8 +431,14 @@ export default function FlowPage() {
           ) : (
             <h1>
               {flow.name}
-              {isEveryday && (
-                <em className="flow-everyday-badge">{everydayActive ? "Everyday" : "Ended"}</em>
+              {flow?.is1HrWork ? (
+                <em className="flow-everyday-badge flow-1hr-badge">
+                  <Timer size={12} /> 1 Hr Work
+                </em>
+              ) : (
+                isEveryday && (
+                  <em className="flow-everyday-badge">{everydayActive ? "Everyday" : "Ended"}</em>
+                )
               )}
             </h1>
           )}
@@ -713,6 +743,16 @@ export default function FlowPage() {
           const stepBg = flowColorValue(catObj?.color || flow.color);
           const stepInk = flowColorInk(catObj?.color || flow.color);
 
+          const isStepTimer = focusTimer?.taskId === step.id && focusTimer?.flowId === flow.id;
+          const isTimerRunning = isStepTimer && Boolean(focusTimer?.running);
+          const isTimerActive = isStepTimer && Boolean(focusTimer?.active || focusTimer?.running || (focusTimer?.secondsLeft < 3600));
+          let timerTimeStr = "1h";
+          if (isStepTimer) {
+            const m = Math.floor(focusTimer.secondsLeft / 60);
+            const s = focusTimer.secondsLeft % 60;
+            timerTimeStr = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+          }
+
           return (
             <li
               key={step.id}
@@ -734,6 +774,9 @@ export default function FlowPage() {
                       if (willBeDone) {
                         if (soundEnabled) playTickSound();
                         triggerConfetti();
+                        if (focusTimer?.taskId === step.id) {
+                          setFocusTimer((prev) => ({ ...prev, running: false, active: false }));
+                        }
                       }
                     }
                   }}
@@ -778,6 +821,47 @@ export default function FlowPage() {
                     <span className="flow-step-window">{windowLabel}</span>
                   )}
                 </div>
+
+                {!editing && onToday && (
+                  <div className="flow-step-timer-wrap">
+                    <button
+                      type="button"
+                      className={`flow-step-timer-btn${isTimerActive ? " is-active" : ""}${isTimerRunning ? " is-running" : ""}${step.done ? " is-done" : ""}`}
+                      disabled={step.done || locked || scheduled}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStepTimerToggle(step);
+                      }}
+                      title={
+                        step.done
+                          ? "Task complete"
+                          : isTimerRunning
+                            ? "Pause 1-hour focus timer"
+                            : isTimerActive
+                              ? "Resume 1-hour focus timer"
+                              : "Start 1-hour focus timer"
+                      }
+                    >
+                      {isTimerRunning ? (
+                        <>
+                          <span className="flow-timer-pulse" />
+                          <Pause size={12} />
+                          <strong>{timerTimeStr}</strong>
+                        </>
+                      ) : isTimerActive ? (
+                        <>
+                          <Play size={12} />
+                          <strong>{timerTimeStr}</strong>
+                        </>
+                      ) : (
+                        <>
+                          <Timer size={13} />
+                          <span>{flow?.is1HrWork ? "Start 1h" : "1h"}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 {editing && (
                   <div className="flow-step-edit">
@@ -872,7 +956,7 @@ export default function FlowPage() {
                 submitStep();
               }
             }}
-            placeholder="Add a step…"
+            placeholder={flow?.is1HrWork ? "Add a 1-hour task…" : "Add a step…"}
             maxLength={120}
             aria-label="Add a step"
           />

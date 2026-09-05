@@ -589,11 +589,11 @@ export const useTaskStore = create(
         syncLabelRemove(id);
       },
 
-      addFollowFlow: ({ name, color, repeat, endDate, labelIds, anyOrder }) => {
+      addFollowFlow: ({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork }) => {
         const clean = name?.trim();
         if (!clean) return null;
         const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
-        const isDaily = repeat === "daily";
+        const isDaily = repeat === "daily" || Boolean(is1HrWork);
         const labels = Array.isArray(labelIds)
           ? labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
           : [];
@@ -609,8 +609,9 @@ export const useTaskStore = create(
           categories: isDaily
             ? [{ id: DEFAULT_FLOW_CATEGORY_ID, name: "Main", color: "sky" }]
             : [],
-          anyOrder: isDaily && Boolean(anyOrder),
+          anyOrder: isDaily && (anyOrder !== undefined ? Boolean(anyOrder) : Boolean(is1HrWork)),
           repeat: isDaily ? "daily" : null,
+          is1HrWork: Boolean(is1HrWork),
           dayKey: isDaily ? todayKey() : null,
           endDate: end,
           labelIds: labels,
@@ -633,6 +634,9 @@ export const useTaskStore = create(
             if (typeof patch.name === "string") {
               const clean = patch.name.trim();
               if (clean) updates.name = clean.slice(0, 48);
+            }
+            if (Object.prototype.hasOwnProperty.call(patch, "is1HrWork")) {
+              updates.is1HrWork = Boolean(patch.is1HrWork);
             }
             if (Object.prototype.hasOwnProperty.call(patch, "endDate")) {
               const raw = patch.endDate;

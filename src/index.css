@@ -1124,6 +1124,123 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step-status { color: var(--muted); font-size: 12px; }
 .flow-step.is-active .flow-step-status { color: var(--step-ink, var(--flow-ink, var(--primary))); font-weight: 600; }
 .flow-step-window { color: var(--muted-soft); font-size: 11px; }
+
+/* 1 Hr Work & Step Timer actions */
+.flow-step-timer-wrap {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  flex-shrink: 0;
+}
+.flow-step-timer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 8px;
+  border: 1px solid #ded6c8;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all .16s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.flow-step-timer-btn:hover:not(:disabled) {
+  background: #faf7f2;
+  border-color: #cfc5b6;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+}
+.flow-step-timer-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.flow-step-timer-btn.is-active {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+.flow-step-timer-btn.is-running {
+  background: #ffedd5;
+  border-color: #f97316;
+  color: #9a3412;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+.flow-step-timer-btn.is-done {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+.flow-step-timer-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.flow-timer-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ea580c;
+  animation: flow-timer-pulse 1.3s infinite ease-in-out;
+}
+@keyframes flow-timer-pulse {
+  0% { transform: scale(0.85); opacity: 0.6; }
+  50% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0.6; }
+}
+
+.flow-1hr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+.flow-btn-1hr {
+  border-color: #fdba74;
+  color: #9a3412;
+  background: #fff7ed;
+}
+.flow-btn-1hr:hover {
+  background: #ffedd5;
+  border-color: #fb923c;
+  color: #7c2d12;
+}
+.flow-1hr-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+.flow-1hr-banner strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+  color: #7c2d12;
+}
+.flow-1hr-banner p {
+  margin: 0;
+  opacity: 0.9;
+}
+.flow-1hr-banner-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #ea580c;
+}
+
 .flow-step-edit {
   display: inline-flex;
   flex-wrap: wrap;

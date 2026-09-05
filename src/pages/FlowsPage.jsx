@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Trophy } from "lucide-react";
+import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Timer, Trophy } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_ACHIEVEMENTS, evaluateUnlockedIds } from "../lib/flowAchievements";
@@ -41,7 +41,13 @@ function FlowCard({ flow, everyday, labels }) {
       <div>
         <strong>
           {flow.name}
-          {everyday && <em className="flow-everyday-badge">{ended ? "Ended" : "Everyday"}</em>}
+          {flow.is1HrWork ? (
+            <em className="flow-everyday-badge flow-1hr-badge">
+              <Timer size={11} /> 1 Hr Work
+            </em>
+          ) : (
+            everyday && <em className="flow-everyday-badge">{ended ? "Ended" : "Everyday"}</em>
+          )}
         </strong>
         {labels.length > 0 && (
           <div className="flow-card-labels">
@@ -92,7 +98,7 @@ export default function FlowsPage() {
   const addFollowFlow = useTaskStore((s) => s.addFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createEveryday, setCreateEveryday] = useState(false);
+  const [createMode, setCreateMode] = useState("oneshot");
 
   useEffect(() => {
     rollEverydayFlows();
@@ -138,13 +144,13 @@ export default function FlowsPage() {
   const unlocked = useMemo(() => evaluateUnlockedIds(followFlows), [followFlows]);
   const earnedCount = FLOW_ACHIEVEMENTS.filter((a) => unlocked.has(a.id)).length;
 
-  function openCreate(everyday = false) {
-    setCreateEveryday(everyday);
+  function openCreate(mode = "oneshot") {
+    setCreateMode(mode);
     setCreateOpen(true);
   }
 
-  function handleCreate({ name, color, repeat, endDate, labelIds, anyOrder }) {
-    const created = addFollowFlow({ name, color, repeat, endDate, labelIds, anyOrder });
+  function handleCreate({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork }) {
+    const created = addFollowFlow({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork });
     setCreateOpen(false);
     if (created?.id) navigate(`/app/flows/${created.id}`);
   }
@@ -167,11 +173,14 @@ export default function FlowsPage() {
           <h2>Create flow</h2>
           <p>One-time path, or Everyday that repeats and grades you each night.</p>
           <div className="flow-empty-actions">
-            <button type="button" className="button button-primary" onClick={() => openCreate(false)}>
+            <button type="button" className="button button-primary" onClick={() => openCreate("oneshot")}>
               <Plus size={16} /> Create flow
             </button>
-            <button type="button" className="button button-secondary" onClick={() => openCreate(true)}>
+            <button type="button" className="button button-secondary" onClick={() => openCreate("everyday")}>
               <RefreshCw size={16} /> Everyday flow
+            </button>
+            <button type="button" className="button button-secondary flow-btn-1hr" onClick={() => openCreate("1hr")}>
+              <Timer size={16} /> 1 Hr Work
             </button>
           </div>
         </div>
@@ -187,7 +196,10 @@ export default function FlowsPage() {
                 <Link to="/app/achievements" className="button button-secondary">
                   <Trophy size={15} /> Achievements
                 </Link>
-                <button type="button" className="button button-secondary" onClick={() => openCreate(true)}>
+                <button type="button" className="button button-secondary flow-btn-1hr" onClick={() => openCreate("1hr")}>
+                  <Timer size={15} /> 1 Hr Work
+                </button>
+                <button type="button" className="button button-secondary" onClick={() => openCreate("everyday")}>
                   <Plus size={15} /> Create everyday
                 </button>
               </div>
@@ -285,7 +297,8 @@ export default function FlowsPage() {
 
       <CreateFlowModal
         open={createOpen}
-        defaultEveryday={createEveryday}
+        defaultMode={createMode}
+        defaultEveryday={createMode === "everyday" || createMode === "1hr"}
         onClose={() => setCreateOpen(false)}
         onCreate={handleCreate}
       />
