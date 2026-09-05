@@ -6,7 +6,7 @@ import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
 import { applyAchievementsToFlows } from "../lib/flowAchievements";
-import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, is1HrWorkCategoryName, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, is1HrWorkCategoryName, is1HrWorkFlow, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 import { clearAllCollabDocs } from "../lib/collabService";
 import { deleteGoogleTask } from "../lib/googleTasksService";
@@ -829,12 +829,49 @@ export const useTaskStore = create(
               opts.categoryId && cats.some((c) => c.id === opts.categoryId)
                 ? opts.categoryId
                 : cats[0]?.id || DEFAULT_FLOW_CATEGORY_ID;
-            next = { ...f, steps: [...(f.steps || []), { ...step, categoryId }] };
+            const is1Hr = is1HrWorkFlow(f);
+            const taskBank = is1Hr
+              ? Array.from(new Set([...(Array.isArray(f.taskBank) ? f.taskBank : []), clean.slice(0, 120)]))
+              : f.taskBank;
+            next = { ...f, steps: [...(f.steps || []), { ...step, categoryId }], taskBank };
             return next;
           }),
         }));
         if (next) syncFlowUpsert(next);
         return step;
+      },
+
+      clearToday1HrSteps: (flowId) => {
+        if (!flowId) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const bank = new Set(Array.isArray(f.taskBank) ? f.taskBank : []);
+            (f.steps || []).forEach((st) => {
+              if (st.title?.trim()) bank.add(st.title.trim());
+            });
+            next = { ...f, steps: [], taskBank: Array.from(bank) };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+      },
+
+      remove1HrTaskSuggestion: (flowId, title) => {
+        if (!flowId || !title) return;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const target = title.trim().toLowerCase();
+            const currentBank = Array.isArray(f.taskBank) ? f.taskBank : [];
+            const filteredBank = currentBank.filter((t) => (typeof t === "string" ? t : t?.title || "").trim().toLowerCase() !== target);
+            next = { ...f, taskBank: filteredBank };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
       },
 
       updateFlowStep: (flowId, stepId, patch = {}) => {

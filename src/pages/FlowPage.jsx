@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, Timer, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
@@ -129,7 +129,8 @@ export default function FlowPage() {
   const renameFlowCategory = useTaskStore((s) => s.renameFlowCategory);
   const setFlowCategoryColor = useTaskStore((s) => s.setFlowCategoryColor);
   const deleteFlowCategory = useTaskStore((s) => s.deleteFlowCategory);
-  const setFlowCategory1HrWork = useTaskStore((s) => s.setFlowCategory1HrWork);
+  const clearToday1HrSteps = useTaskStore((s) => s.clearToday1HrSteps);
+  const remove1HrTaskSuggestion = useTaskStore((s) => s.remove1HrTaskSuggestion);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
@@ -227,6 +228,10 @@ export default function FlowPage() {
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
     .filter(Boolean);
+  const suggestions = useMemo(
+    () => (is1HrFlow ? get1HrTaskSuggestions(flow) : []),
+    [is1HrFlow, flow]
+  );
 
   function submitStep() {
     const added = addFlowStep(flow.id, draft, {
@@ -961,9 +966,16 @@ export default function FlowPage() {
       </ol>
 
       {visibleSteps.length === 0 && !editing && (
-        <p className="flow-steps-empty">
-          {isEveryday ? "No steps in this tab — add one below." : "No steps yet — add the first one below."}
-        </p>
+        <div className="flow-steps-empty">
+          {is1HrFlow ? (
+            <div className="flow-1hr-empty-content">
+              <strong>Plan today’s 1-hour focus sprints</strong>
+              <p>Type your tasks below, or tap previous tasks from the suggestions tray.</p>
+            </div>
+          ) : (
+            <p>{isEveryday ? "No steps in this tab — add one below." : "No steps yet — add the first one below."}</p>
+          )}
+        </div>
       )}
 
       <div className="flow-add-block">
@@ -991,7 +1003,7 @@ export default function FlowPage() {
             Add
           </button>
         </div>
-        {isEveryday && (
+        {isEveryday && !is1HrFlow && (
           <div className="flow-add-dates">
             <label>
               Start <span className="flow-field-optional">(optional)</span>
@@ -1014,6 +1026,61 @@ export default function FlowPage() {
                 aria-label="Step end date"
               />
             </label>
+          </div>
+        )}
+        {is1HrFlow && suggestions.length > 0 && (
+          <div className="flow-suggestions-tray">
+            <div className="flow-suggestions-head">
+              <span className="flow-suggestions-label">
+                <Sparkles size={13} className="flow-suggestions-icon" />
+                Previous 1-hour tasks (tap to add for today):
+              </span>
+              {visibleSteps.length > 0 && (
+                <button
+                  type="button"
+                  className="flow-fresh-btn"
+                  onClick={() => clearToday1HrSteps(flow.id)}
+                  title="Clear today's steps and start fresh (tasks remain saved in suggestions)"
+                >
+                  <RotateCcw size={12} />
+                  <span>Start fresh today</span>
+                </button>
+              )}
+            </div>
+            <div className="flow-suggestions-chips">
+              {suggestions.map((title) => {
+                const isAdded = visibleSteps.some((s) => s.title.toLowerCase() === title.toLowerCase());
+                return (
+                  <button
+                    key={title}
+                    type="button"
+                    className={`flow-suggestion-chip${isAdded ? " is-added" : ""}`}
+                    disabled={isAdded}
+                    onClick={() => {
+                      addFlowStep(flow.id, title, { categoryId: activeCat });
+                      if (soundEnabled) playTickSound();
+                    }}
+                    title={isAdded ? "Already added today" : `Add "${title}" to today`}
+                  >
+                    <span className="flow-suggestion-plus">{isAdded ? "✓" : "+"}</span>
+                    <span className="flow-suggestion-title">{title}</span>
+                    <span
+                      className="flow-suggestion-remove"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Remove suggestion ${title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        remove1HrTaskSuggestion(flow.id, title);
+                      }}
+                      title="Remove from suggestions"
+                    >
+                      ×
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

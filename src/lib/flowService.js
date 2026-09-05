@@ -456,6 +456,30 @@ export function buildEverydayReport(flow, dateKey) {
   };
 }
 
+export function get1HrTaskSuggestions(flow) {
+  if (!flow) return [];
+  const set = new Set();
+  if (Array.isArray(flow.taskBank)) {
+    flow.taskBank.forEach((t) => {
+      if (typeof t === "string" && t.trim()) set.add(t.trim());
+      else if (t?.title?.trim()) set.add(t.title.trim());
+    });
+  }
+  if (Array.isArray(flow.reports)) {
+    flow.reports.forEach((r) => {
+      if (Array.isArray(r.stepTitles)) {
+        r.stepTitles.forEach((t) => t && set.add(String(t).trim()));
+      }
+    });
+  }
+  if (Array.isArray(flow.steps)) {
+    flow.steps.forEach((s) => {
+      if (s?.title?.trim()) set.add(s.title.trim());
+    });
+  }
+  return Array.from(set);
+}
+
 /** If an Everyday flow’s dayKey is before today, archive a report and reset steps. */
 export function rollEverydayFlow(flow, today = null) {
   if (!flow || flow.repeat !== "daily") return { flow, changed: false, report: null };
@@ -473,16 +497,32 @@ export function rollEverydayFlow(flow, today = null) {
         .filter((r, i, arr) => r.dateKey && arr.findIndex((x) => x.dateKey === r.dateKey) === i)
         .slice(0, 31)
     : flow.reports || [];
+  const is1Hr = is1HrWorkFlow(flow);
   const stillActive = isEverydayActive(flow, day);
-  const resetSteps = stillActive
-    ? (flow.steps || []).map((s) => ({
-        ...s,
-        done: false,
-        completedAt: null,
-      }))
-    : flow.steps || [];
+
+  let resetSteps = flow.steps || [];
+  let taskBank = Array.isArray(flow.taskBank) ? [...flow.taskBank] : [];
+
+  if (is1Hr) {
+    // For 1-Hour Work flows: save current steps into taskBank suggestions pool
+    (flow.steps || []).forEach((s) => {
+      const title = s?.title?.trim();
+      if (title && !taskBank.includes(title)) {
+        taskBank.push(title);
+      }
+    });
+    // Start today fresh with empty steps list
+    resetSteps = [];
+  } else if (stillActive) {
+    resetSteps = (flow.steps || []).map((s) => ({
+      ...s,
+      done: false,
+      completedAt: null,
+    }));
+  }
+
   return {
-    flow: { ...flow, steps: resetSteps, dayKey: day, reports },
+    flow: { ...flow, steps: resetSteps, taskBank, dayKey: day, reports },
     changed: true,
     report,
   };
