@@ -355,6 +355,8 @@ export default function FlowPage() {
     } else if (gate.type === "delete-category" && gate.categoryId) {
       deleteFlowCategory(flow.id, gate.categoryId);
       if (activeCategoryId === gate.categoryId) setActiveCategoryId(null);
+    } else if (gate.type === "reset-1hr-today") {
+      clearToday1HrSteps(flow.id);
     }
     setGate(null);
   }
@@ -366,7 +368,9 @@ export default function FlowPage() {
         ? `Delete step “${gate.title || ""}”`
         : gate?.type === "delete-category"
           ? `Delete category “${gate.title || ""}”`
-          : `Delete flow “${flow.name}”`;
+          : gate?.type === "reset-1hr-today"
+            ? "Start fresh today?"
+            : `Delete flow “${flow.name}”`;
 
   const gateDescription =
     gate?.type === "edit"
@@ -377,7 +381,9 @@ export default function FlowPage() {
         ? "Answer your One Password question to delete this step."
         : gate?.type === "delete-category"
           ? "Steps in this tab move to another category. Answer your One Password question to continue."
-          : "This removes the whole step path. Answer your One Password question to continue.";
+          : gate?.type === "reset-1hr-today"
+            ? "This will clear today’s active steps so you can start fresh. Your tasks remain safely saved in the suggestions tray below. Answer your One Password question to continue."
+            : "This removes the whole step path. Answer your One Password question to continue.";
 
   return (
     <div
@@ -1048,11 +1054,12 @@ export default function FlowPage() {
                 <button
                   type="button"
                   className="flow-fresh-btn"
-                  onClick={() => clearToday1HrSteps(flow.id)}
-                  title="Clear today's steps and start fresh (tasks remain saved in suggestions)"
+                  onClick={() => setGate({ type: "reset-1hr-today" })}
+                  title="Protected: start fresh today (requires One Password confirmation)"
                 >
                   <RotateCcw size={12} />
                   <span>Start fresh today</span>
+                  <Lock size={10} className="flow-fresh-lock-icon" />
                 </button>
               )}
             </div>
