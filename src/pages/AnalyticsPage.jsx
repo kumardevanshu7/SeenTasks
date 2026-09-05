@@ -10,6 +10,7 @@ import {
   Moon,
   Sparkles,
   Target,
+  Timer,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import { computeAnalytics, ANALYTICS_RANGES } from "../lib/analyticsService";
 import { evaluateUnlockedIds } from "../lib/flowAchievements";
 import { todayKey } from "../lib/date";
 import HabitHeatmap from "../components/HabitHeatmap";
+import FocusHeatmap from "../components/FocusHeatmap";
 
 export default function AnalyticsPage() {
   const [rangeId, setRangeId] = useState("7d");
@@ -29,6 +31,7 @@ export default function AnalyticsPage() {
   const workspaces = useTaskStore((s) => s.workspaces) || [];
   const dailyMoods = useTaskStore((s) => s.dailyMoods) || {};
   const streakShields = useTaskStore((s) => s.streakShields) || null;
+  const focusHistory = useTaskStore((s) => s.focusHistory) || [];
 
   const unlockedAchievementCount = useMemo(() => {
     const unlocked = evaluateUnlockedIds(followFlows, todayKey(), streakShields?.usedDates || []);
@@ -42,12 +45,13 @@ export default function AnalyticsPage() {
         followFlows,
         workspaces,
         dailyMoods,
+        focusHistory,
         streakShields,
         unlockedAchievementCount,
       },
       rangeId
     );
-  }, [quickTasks, followFlows, workspaces, dailyMoods, streakShields, unlockedAchievementCount, rangeId]);
+  }, [quickTasks, followFlows, workspaces, dailyMoods, focusHistory, streakShields, unlockedAchievementCount, rangeId]);
 
   const {
     overview,
@@ -164,6 +168,79 @@ export default function AnalyticsPage() {
         followFlows={followFlows}
         dailyMoods={dailyMoods}
       />
+
+      {/* Dedicated Section: 1-Hour Work Sprints & Focus GitHub Heatmap */}
+      <section className="analytics-focus-section" aria-label="1-Hour Work & Deep Focus Activity">
+        <FocusHeatmap focusHistory={focusHistory} />
+
+        {/* Recent 1-Hour Work Sessions Log */}
+        <div className="analytics-card focus-sessions-log-card">
+          <div className="analytics-card-header">
+            <div>
+              <h2>Recent 1-Hour Work Sprints</h2>
+              <p>Completed deep focus blocks with automatic tick marks and extension records</p>
+            </div>
+          </div>
+
+          {focusHistory.length === 0 ? (
+            <div className="focus-sessions-empty">
+              <p>No 1-hour work sessions recorded yet.</p>
+              <small>Click the 1h timer icon on any step in your Everyday Flow to log deep focus blocks and build your focus map!</small>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="focus-sessions-table">
+                <thead>
+                  <tr>
+                    <th>Task / Step</th>
+                    <th>Base Time</th>
+                    <th>Extension</th>
+                    <th>Total Focus</th>
+                    <th>Completed At</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {focusHistory.slice(0, 8).map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <div className="focus-session-title-cell">
+                          <Timer size={14} style={{ color: "#f97316", flexShrink: 0 }} />
+                          <span>{s.taskTitle || "1 Hr Work"}</span>
+                        </div>
+                      </td>
+                      <td>{s.durationMinutes || 60}m</td>
+                      <td>
+                        {s.extendedMinutes > 0 ? (
+                          <span className="focus-session-ext-badge">+{s.extendedMinutes}m</span>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        <strong>{(s.durationMinutes || 60) + (s.extendedMinutes || 0)}m</strong>
+                      </td>
+                      <td>
+                        {s.completedAt ? new Date(s.completedAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        }) : s.dateKey}
+                      </td>
+                      <td>
+                        <span className="focus-session-done-badge">
+                          <CheckCircle2 size={12} /> Auto-Ticked
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Chart 1: Daily Completion Velocity */}
       <section className="analytics-card" aria-label="Daily Completion Trend">

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Coffee, Flame, Maximize2, Minimize2, Pause, Play, RotateCcw, SkipForward, Sparkles, Timer, X } from "lucide-react";
+import { CheckCircle2, Coffee, Flame, Maximize2, Minimize2, Pause, Play, RotateCcw, SkipForward, Sparkles, Timer, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { playChimeSound, triggerConfetti } from "../lib/audioConfetti";
+import { todayKey } from "../lib/date";
 
 const MODES = [
   { id: "focus", label: "Focus (25m)", seconds: 25 * 60, icon: Flame, color: "#fecaca", ink: "#991b1b" },
@@ -14,6 +15,7 @@ const MODES = [
 export default function FocusTimerModal({ open, onClose }) {
   const focusTimer = useTaskStore((s) => s.focusTimer);
   const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
+  const extendFocusTimer = useTaskStore((s) => s.extendFocusTimer);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
 
   const [minimized, setMinimized] = useState(false);
@@ -47,10 +49,44 @@ export default function FocusTimerModal({ open, onClose }) {
       if (remaining <= 0) {
         if (soundEnabled) playChimeSound();
         triggerConfetti();
+
+        const state = useTaskStore.getState();
+        const curTimer = state.focusTimer || {};
+        const { taskId, flowId, mode, taskTitle, sessionId, extendedMinutes } = curTimer;
+
+        // Auto-complete the linked step or task
+        if (taskId) {
+          if (flowId) {
+            state.completeFlowStepDirect(flowId, taskId);
+          } else {
+            const qTask = (state.quickTasks || []).find((t) => t.id === taskId);
+            if (qTask && !qTask.done) {
+              state.toggleQuickTask(taskId);
+            }
+          }
+        }
+
+        // Record focus session log
+        const curSessionId = sessionId || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+        const durMin = Math.round(totalSeconds / 60);
+        state.recordFocusSession({
+          id: curSessionId,
+          taskId: taskId || null,
+          taskTitle: taskTitle || (mode === "oneHour" ? "1 Hr Deep Work" : "Focus Session"),
+          flowId: flowId || null,
+          mode: mode || "oneHour",
+          durationMinutes: durMin,
+          extendedMinutes: extendedMinutes || 0,
+          completedAt: new Date().toISOString(),
+          dateKey: todayKey(),
+        });
+
         setFocusTimer({
           secondsLeft: 0,
           running: false,
           targetEndTime: null,
+          sessionId: curSessionId,
+          autoCompleted: true,
         });
       } else if (remaining !== timer.secondsLeft) {
         setFocusTimer((prev) => ({
@@ -145,31 +181,86 @@ export default function FocusTimerModal({ open, onClose }) {
         <div className={`focus-mini-pulse${!focusTimer.running ? " is-paused" : ""}`} />
         <currentMode.icon size={15} />
         <strong>{formattedTime}</strong>
-        <span className="focus-mini-label">{focusTimer.secondsLeft <= 0 ? "Completed" : focusTimer.running ? currentMode.label : "Paused"}</span>
-        <button
-          type="button"
-          className="focus-mini-action"
-          onClick={(e) => {
-            e.stopPropagation();
-            togglePlay();
-          }}
-          aria-label={focusTimer.running ? "Pause" : "Resume"}
-          title={focusTimer.running ? "Pause" : "Resume"}
-        >
-          {focusTimer.running ? <Pause size={13} /> : <Play size={13} />}
-        </button>
-        <button
-          type="button"
-          className="focus-mini-close"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleAbort();
-          }}
-          aria-label="Abort focus session"
-          title="Abort focus session"
-        >
-          <X size={12} />
-        </button>
+        <span className="focus-mini-label">
+          {focusTimer.secondsLeft <= 0
+            ? "Completed"
+            : focusTimer.running
+            ? focusTimer.extendedMinutes > 0
+              ? `+${focusTimer.extendedMinutes}m`
+              : currentMode.label
+            : "Paused"}
+        </span>
+
+        {focusTimer.secondsLeft <= 0 ? (
+          <div className="focus-mini-done-group" onClick={(e) => e.stopPropagation()}>
+            <span className="focus-mini-done-badge">✓ Ticked</span>
+            <div className="focus-mini-ext-chips">
+              <button
+                type="button"
+                className="focus-mini-ext-btn"
+                onClick={() => extendFocusTimer(5)}
+                title="Extend 5 minutes"
+              >
+                +5m
+              </button>
+              <button
+                type="button"
+                className="focus-mini-ext-btn"
+                onClick={() => extendFocusTimer(10)}
+                title="Extend 10 minutes"
+              >
+                +10m
+              </button>
+              <button
+                type="button"
+                className="focus-mini-ext-btn"
+                onClick={() => extendFocusTimer(20)}
+                title="Extend 20 minutes"
+              >
+                +20m
+              </button>
+            </div>
+            <button
+              type="button"
+              className="focus-mini-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAbort();
+              }}
+              aria-label="Dismiss"
+              title="Dismiss"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="focus-mini-action"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay();
+              }}
+              aria-label={focusTimer.running ? "Pause" : "Resume"}
+              title={focusTimer.running ? "Pause" : "Resume"}
+            >
+              {focusTimer.running ? <Pause size={13} /> : <Play size={13} />}
+            </button>
+            <button
+              type="button"
+              className="focus-mini-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAbort();
+              }}
+              aria-label="Abort focus session"
+              title="Abort focus session"
+            >
+              <X size={12} />
+            </button>
+          </>
+        )}
       </motion.div>
     );
   }
@@ -280,9 +371,52 @@ export default function FocusTimerModal({ open, onClose }) {
             </svg>
             <div className="focus-ring-content">
               <span className="focus-time-display">{formattedTime}</span>
-              <span className="focus-status-tag">{focusTimer.secondsLeft <= 0 ? "Completed!" : focusTimer.running ? "In session" : "Paused"}</span>
+              <span className="focus-status-tag">
+                {focusTimer.secondsLeft <= 0
+                  ? "Completed & Ticked!"
+                  : focusTimer.running
+                  ? focusTimer.extendedMinutes > 0
+                    ? `Extended (+${focusTimer.extendedMinutes}m)`
+                    : "In session"
+                  : "Paused"}
+              </span>
             </div>
           </div>
+
+          {focusTimer.secondsLeft <= 0 && (
+            <div className="focus-extend-card">
+              <div className="focus-extend-head">
+                <CheckCircle2 size={18} className="focus-extend-check" />
+                <div>
+                  <strong>Session Completed & Step Ticked! 🎉</strong>
+                  <p>Need more time to wrap up? Extend session:</p>
+                </div>
+              </div>
+              <div className="focus-extend-buttons">
+                <button
+                  type="button"
+                  className="focus-extend-chip"
+                  onClick={() => extendFocusTimer(5)}
+                >
+                  +5 min
+                </button>
+                <button
+                  type="button"
+                  className="focus-extend-chip"
+                  onClick={() => extendFocusTimer(10)}
+                >
+                  +10 min
+                </button>
+                <button
+                  type="button"
+                  className="focus-extend-chip"
+                  onClick={() => extendFocusTimer(20)}
+                >
+                  +20 min
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="focus-controls">
             <button

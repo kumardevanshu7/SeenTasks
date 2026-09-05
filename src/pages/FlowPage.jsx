@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Lock, Pause, Pencil, Play, Plus, Timer, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
@@ -262,6 +262,11 @@ export default function FlowPage() {
       return;
     }
 
+    if (isStepTimer && (focusTimer?.secondsLeft ?? 0) <= 0) {
+      window.dispatchEvent(new CustomEvent("open-focus-timer"));
+      return;
+    }
+
     setFocusTimer({
       active: true,
       taskId: step.id,
@@ -270,6 +275,9 @@ export default function FlowPage() {
       secondsLeft: 60 * 60,
       mode: "oneHour",
       running: true,
+      sessionId: null,
+      extendedMinutes: 0,
+      autoCompleted: false,
     });
     if (soundEnabled) playTickSound();
     window.dispatchEvent(new CustomEvent("open-focus-timer"));
@@ -831,13 +839,15 @@ export default function FlowPage() {
                     <button
                       type="button"
                       className={`flow-step-timer-btn${isTimerActive ? " is-active" : ""}${isTimerRunning ? " is-running" : ""}${step.done ? " is-done" : ""}`}
-                      disabled={step.done || locked || scheduled}
+                      disabled={locked || scheduled}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleStepTimerToggle(step);
                       }}
                       title={
-                        step.done
+                        step.done && isStepTimer
+                          ? "1-hour session completed! Click to view details or extend"
+                          : step.done
                           ? "Task complete"
                           : isTimerRunning
                             ? "Pause 1-hour focus timer"
@@ -846,7 +856,12 @@ export default function FlowPage() {
                               : "Start 1-hour focus timer"
                       }
                     >
-                      {isTimerRunning ? (
+                      {step.done && isStepTimer ? (
+                        <>
+                          <CheckCircle2 size={12} style={{ color: "#10b981" }} />
+                          <strong style={{ color: "#10b981" }}>Done</strong>
+                        </>
+                      ) : isTimerRunning ? (
                         <>
                           <span className="flow-timer-pulse" />
                           <Pause size={12} />

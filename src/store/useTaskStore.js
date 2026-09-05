@@ -10,6 +10,7 @@ import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCate
 import { markAppDataCleared } from "../lib/appStateService";
 import { clearAllCollabDocs } from "../lib/collabService";
 import { deleteGoogleTask } from "../lib/googleTasksService";
+import { upsertFocusSession } from "../lib/focusSessionService";
 
 const MAX_ITERATION = 10;
 
@@ -92,6 +93,14 @@ function syncFlowRemove(id) {
   });
 }
 
+function syncFocusSessionUpsert(session) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !session) return;
+  upsertFocusSession(uid, session).catch((err) => {
+    console.warn("Focus session upsert failed:", err);
+  });
+}
+
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
     id: uuid(),
@@ -143,7 +152,11 @@ export const useTaskStore = create(
         taskId: null,
         taskTitle: "",
         flowId: null,
+        sessionId: null,
+        extendedMinutes: 0,
+        autoCompleted: false,
       },
+      focusHistory: [],
       googleTasksConnected: false,
       googleTasksToken: null,
       googleTasksTokenExpiresAt: null,
@@ -246,6 +259,84 @@ export const useTaskStore = create(
 
           return { focusTimer: next };
         }),
+
+      recordFocusSession: (entry) => {
+        let recorded = null;
+        set((s) => {
+          const list = Array.isArray(s.focusHistory) ? s.focusHistory : [];
+          const existingIdx = entry.id ? list.findIndex((x) => x.id === entry.id) : -1;
+          const durMin = Number(entry.durationMinutes) || (entry.mode === "oneHour" ? 60 : 25);
+          const extMin = Number(entry.extendedMinutes) || 0;
+          const item = {
+            id: entry.id || uuid(),
+            taskId: entry.taskId || null,
+            taskTitle: entry.taskTitle || "1 Hr Deep Work",
+            flowId: entry.flowId || null,
+            mode: entry.mode || "oneHour",
+            durationMinutes: durMin,
+            extendedMinutes: extMin,
+            totalMinutes: durMin + extMin,
+            completedAt: entry.completedAt || new Date().toISOString(),
+            dateKey: entry.dateKey || todayKey(),
+          };
+          recorded = item;
+          if (existingIdx >= 0) {
+            const nextList = [...list];
+            nextList[existingIdx] = item;
+            return { focusHistory: nextList };
+          }
+          return { focusHistory: [item, ...list] };
+        });
+        if (recorded) syncFocusSessionUpsert(recorded);
+        return recorded;
+      },
+
+      extendFocusTimer: (additionalMinutes) => {
+        const mins = Number(additionalMinutes) || 5;
+        const addSec = mins * 60;
+        set((s) => {
+          const prev = s.focusTimer || {};
+          const currentLeft = typeof prev.secondsLeft === "number" && prev.secondsLeft > 0 ? prev.secondsLeft : 0;
+          const nextSec = currentLeft + addSec;
+          const newTargetEnd = Date.now() + nextSec * 1000;
+          const newExtended = (prev.extendedMinutes || 0) + mins;
+          const next = {
+            ...prev,
+            secondsLeft: nextSec,
+            running: true,
+            targetEndTime: newTargetEnd,
+            extendedMinutes: newExtended,
+            autoCompleted: true,
+          };
+
+          let updatedHistory = s.focusHistory;
+          if (prev.sessionId && Array.isArray(s.focusHistory)) {
+            updatedHistory = s.focusHistory.map((item) => {
+              if (item.id === prev.sessionId) {
+                const updated = {
+                  ...item,
+                  extendedMinutes: (item.extendedMinutes || 0) + mins,
+                  totalMinutes: (item.durationMinutes || 60) + (item.extendedMinutes || 0) + mins,
+                };
+                syncFocusSessionUpsert(updated);
+                return updated;
+              }
+              return item;
+            });
+          }
+
+          return { focusTimer: next, focusHistory: updatedHistory };
+        });
+      },
+
+      completeFlowStepDirect: (flowId, stepId) => {
+        if (!flowId || !stepId) return false;
+        const flow = (get().followFlows || []).find((f) => f.id === flowId);
+        const step = flow?.steps?.find((st) => st.id === stepId);
+        if (!step || step.done) return false;
+        get().toggleFlowStep(flowId, stepId);
+        return true;
+      },
 
       // ---------- Quick tasks (manual checklist, synced to Firestore) ----------
       setQuickTasks: (quickTasks) =>
@@ -1232,6 +1323,7 @@ export const useTaskStore = create(
         googleTasksAutoSync: state.googleTasksAutoSync ?? true,
         deletedGoogleTaskIds: state.deletedGoogleTaskIds || [],
         focusTimer: state.focusTimer,
+        focusHistory: state.focusHistory || [],
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {
@@ -1272,6 +1364,7 @@ export const useTaskStore = create(
           ...current,
           ...safe,
           focusTimer: restoredFocusTimer,
+          focusHistory: Array.isArray(safe.focusHistory) ? safe.focusHistory : (current.focusHistory || []),
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
           quickLabels: [],

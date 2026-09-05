@@ -286,10 +286,23 @@ export function computeAnalytics({
   // 6. Focus Sessions Analytics
   let totalFocusMins = 0;
   let totalFocusSessions = 0;
+  let totalExtendedMins = 0;
+  let oneHourSessionsCount = 0;
+  const focusDaysSet = new Set();
+
   if (Array.isArray(focusHistory)) {
     focusHistory.forEach((sess) => {
-      totalFocusMins += sess.minutes || 25;
+      const dur = Number(sess.durationMinutes) || (sess.mode === "oneHour" ? 60 : 25);
+      const ext = Number(sess.extendedMinutes) || 0;
+      const total = Number(sess.totalMinutes) || (dur + ext);
+      totalFocusMins += total;
+      totalExtendedMins += ext;
       totalFocusSessions += 1;
+      if (sess.mode === "oneHour" || dur >= 50) {
+        oneHourSessionsCount += 1;
+      }
+      const dKey = sess.dateKey || (sess.completedAt ? sess.completedAt.slice(0, 10) : null);
+      if (dKey) focusDaysSet.add(dKey);
     });
   }
 
@@ -368,6 +381,9 @@ export function computeAnalytics({
       achievementsCount: unlockedAchievementCount,
       totalFocusMins,
       totalFocusSessions,
+      totalExtendedMins,
+      oneHourSessionsCount,
+      focusDaysCount: focusDaysSet.size,
     },
     dailyTrend,
     hourlyDistribution,
