@@ -256,7 +256,7 @@ export default function FlowPage() {
   function handleStepTimerToggle(step) {
     if (!step || !flow) return;
     const isStepTimer = focusTimer?.taskId === step.id && focusTimer?.flowId === flow.id;
-    if (isStepTimer) {
+    if (isStepTimer && (focusTimer?.secondsLeft ?? 0) > 0) {
       setFocusTimer((prev) => ({ ...prev, running: !prev.running }));
       if (soundEnabled) playTickSound();
       return;
@@ -748,8 +748,12 @@ export default function FlowPage() {
           const isTimerActive = isStepTimer && Boolean(focusTimer?.active || focusTimer?.running || (focusTimer?.secondsLeft < 3600));
           let timerTimeStr = "1h";
           if (isStepTimer) {
-            const m = Math.floor(focusTimer.secondsLeft / 60);
-            const s = focusTimer.secondsLeft % 60;
+            let sec = focusTimer.secondsLeft ?? 3600;
+            if (focusTimer.running && focusTimer.targetEndTime) {
+              sec = Math.max(0, Math.ceil((focusTimer.targetEndTime - Date.now()) / 1000));
+            }
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
             timerTimeStr = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
           }
 

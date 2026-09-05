@@ -139,8 +139,10 @@ export const useTaskStore = create(
         secondsLeft: 1500,
         mode: "focus",
         running: false,
+        targetEndTime: null,
         taskId: null,
         taskTitle: "",
+        flowId: null,
       },
       googleTasksConnected: false,
       googleTasksToken: null,
@@ -223,12 +225,27 @@ export const useTaskStore = create(
         })),
 
       setFocusTimer: (updater) =>
-        set((s) => ({
-          focusTimer:
+        set((s) => {
+          const prev = s.focusTimer || {};
+          const next =
             typeof updater === "function"
-              ? updater(s.focusTimer)
-              : { ...s.focusTimer, ...updater },
-        })),
+              ? updater(prev)
+              : { ...prev, ...updater };
+
+          if (next.running) {
+            const taskChanged = next.taskId !== prev.taskId;
+            const modeChanged = next.mode !== prev.mode;
+            const justStarted = !prev.running && next.running;
+            if (!next.targetEndTime || justStarted || taskChanged || modeChanged) {
+              const sec = typeof next.secondsLeft === "number" ? next.secondsLeft : 1500;
+              next.targetEndTime = Date.now() + sec * 1000;
+            }
+          } else {
+            next.targetEndTime = null;
+          }
+
+          return { focusTimer: next };
+        }),
 
       // ---------- Quick tasks (manual checklist, synced to Firestore) ----------
       setQuickTasks: (quickTasks) =>
@@ -1214,6 +1231,7 @@ export const useTaskStore = create(
         lastGoogleSyncAt: state.lastGoogleSyncAt || null,
         googleTasksAutoSync: state.googleTasksAutoSync ?? true,
         deletedGoogleTaskIds: state.deletedGoogleTaskIds || [],
+        focusTimer: state.focusTimer,
       }),
       // Strip secrets / obsolete keys from older localStorage snapshots.
       merge: (persisted, current) => {
@@ -1231,9 +1249,29 @@ export const useTaskStore = create(
           followFlows: _ff,
           ...safe
         } = incoming;
+
+        let restoredFocusTimer = safe.focusTimer || current.focusTimer;
+        if (restoredFocusTimer && restoredFocusTimer.running && restoredFocusTimer.targetEndTime) {
+          const rem = Math.max(0, Math.ceil((restoredFocusTimer.targetEndTime - Date.now()) / 1000));
+          if (rem <= 0) {
+            restoredFocusTimer = {
+              ...restoredFocusTimer,
+              secondsLeft: 0,
+              running: false,
+              targetEndTime: null,
+            };
+          } else {
+            restoredFocusTimer = {
+              ...restoredFocusTimer,
+              secondsLeft: rem,
+            };
+          }
+        }
+
         return {
           ...current,
           ...safe,
+          focusTimer: restoredFocusTimer,
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
           quickLabels: [],

@@ -22,32 +22,59 @@ export default function FocusTimerModal({ open, onClose }) {
   const totalSeconds = currentMode.seconds;
   const progressPct = Math.max(0, Math.min(100, ((totalSeconds - focusTimer.secondsLeft) / totalSeconds) * 100));
 
-  // Ticking interval
+  // Screen WakeLock to prevent screen timeout while timer is running
   useEffect(() => {
-    let interval = null;
-    if (focusTimer.running && focusTimer.secondsLeft > 0) {
-      interval = setInterval(() => {
-        setFocusTimer((prev) => {
-          if (prev.secondsLeft <= 1) {
-            if (soundEnabled) playChimeSound();
-            triggerConfetti();
-            return {
-              ...prev,
-              secondsLeft: 0,
-              running: false,
-            };
-          }
-          return {
-            ...prev,
-            secondsLeft: prev.secondsLeft - 1,
-          };
-        });
-      }, 1000);
+    let wakeLock = null;
+    if (focusTimer.running && "wakeLock" in navigator) {
+      navigator.wakeLock.request("screen").then((lock) => {
+        wakeLock = lock;
+      }).catch(() => {});
     }
     return () => {
+      if (wakeLock) wakeLock.release().catch(() => {});
+    };
+  }, [focusTimer.running]);
+
+  // Timestamp-based synchronization that survives tab backgrounding, app switching, and sleep
+  useEffect(() => {
+    function syncTime() {
+      const timer = useTaskStore.getState().focusTimer;
+      if (!timer.running) return;
+
+      const targetEnd = timer.targetEndTime || (Date.now() + (timer.secondsLeft ?? totalSeconds) * 1000);
+      const remaining = Math.max(0, Math.ceil((targetEnd - Date.now()) / 1000));
+
+      if (remaining <= 0) {
+        if (soundEnabled) playChimeSound();
+        triggerConfetti();
+        setFocusTimer({
+          secondsLeft: 0,
+          running: false,
+          targetEndTime: null,
+        });
+      } else if (remaining !== timer.secondsLeft) {
+        setFocusTimer((prev) => ({
+          ...prev,
+          secondsLeft: remaining,
+        }));
+      }
+    }
+
+    syncTime();
+    window.addEventListener("focus", syncTime);
+    document.addEventListener("visibilitychange", syncTime);
+
+    let interval = null;
+    if (focusTimer.running && focusTimer.secondsLeft > 0) {
+      interval = setInterval(syncTime, 500);
+    }
+
+    return () => {
+      window.removeEventListener("focus", syncTime);
+      document.removeEventListener("visibilitychange", syncTime);
       if (interval) clearInterval(interval);
     };
-  }, [focusTimer.running, focusTimer.secondsLeft, setFocusTimer, soundEnabled]);
+  }, [focusTimer.running, focusTimer.targetEndTime, setFocusTimer, soundEnabled, totalSeconds]);
 
   function switchMode(modeId) {
     const target = MODES.find((m) => m.id === modeId) || MODES[0];
@@ -55,10 +82,18 @@ export default function FocusTimerModal({ open, onClose }) {
       mode: modeId,
       secondsLeft: target.seconds,
       running: false,
+      targetEndTime: null,
     });
   }
 
   function togglePlay() {
+    if (focusTimer.secondsLeft <= 0) {
+      setFocusTimer({
+        secondsLeft: totalSeconds,
+        running: true,
+      });
+      return;
+    }
     setFocusTimer((prev) => ({ ...prev, running: !prev.running }));
   }
 
@@ -66,6 +101,7 @@ export default function FocusTimerModal({ open, onClose }) {
     setFocusTimer({
       secondsLeft: currentMode.seconds,
       running: false,
+      targetEndTime: null,
     });
   }
 
@@ -109,7 +145,7 @@ export default function FocusTimerModal({ open, onClose }) {
         <div className={`focus-mini-pulse${!focusTimer.running ? " is-paused" : ""}`} />
         <currentMode.icon size={15} />
         <strong>{formattedTime}</strong>
-        <span className="focus-mini-label">{focusTimer.running ? currentMode.label : "Paused"}</span>
+        <span className="focus-mini-label">{focusTimer.secondsLeft <= 0 ? "Completed" : focusTimer.running ? currentMode.label : "Paused"}</span>
         <button
           type="button"
           className="focus-mini-action"
@@ -244,7 +280,7 @@ export default function FocusTimerModal({ open, onClose }) {
             </svg>
             <div className="focus-ring-content">
               <span className="focus-time-display">{formattedTime}</span>
-              <span className="focus-status-tag">{focusTimer.running ? "In session" : "Paused"}</span>
+              <span className="focus-status-tag">{focusTimer.secondsLeft <= 0 ? "Completed!" : focusTimer.running ? "In session" : "Paused"}</span>
             </div>
           </div>
 
@@ -270,7 +306,7 @@ export default function FocusTimerModal({ open, onClose }) {
                 </>
               ) : (
                 <>
-                  <Play size={18} /> {focusTimer.secondsLeft === totalSeconds ? "Start Focus" : "Resume"}
+                  <Play size={18} /> {focusTimer.secondsLeft <= 0 ? "Start Again" : focusTimer.secondsLeft === totalSeconds ? "Start Focus" : "Resume"}
                 </>
               )}
             </button>
