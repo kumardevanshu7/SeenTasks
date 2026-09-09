@@ -21,6 +21,9 @@ export const WORKSPACE_COLORS = [
   { id: "yellow", value: "#f3e6b8", ink: "#7a6520" },
   { id: "brown", value: "#e6d3c4", ink: "#6e4e38" },
   { id: "blue", value: "#c9dff3", ink: "#355f82" },
+  { id: "orange", value: "#fcd5b5", ink: "#8c4418" },
+  { id: "teal", value: "#c4ece4", ink: "#23655b" },
+  { id: "indigo", value: "#d4dcfa", ink: "#3b4887" },
 ];
 
 /** Distinct accent chips for custom labels (not workspace theme colors) */

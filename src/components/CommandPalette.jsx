@@ -14,7 +14,6 @@ import {
   Search,
   Settings,
   Sparkles,
-  Timer,
   Trash2,
   TrendingUp,
   Trophy,
@@ -203,18 +202,6 @@ export default function CommandPalette() {
       },
 
       // Instant Actions
-      {
-        id: "act-timer",
-        type: "action",
-        icon: <Timer size={16} className="cmd-icon-timer" />,
-        title: "Start 25-Min Focus Timer",
-        category: "Actions",
-        badge: "Focus",
-        action: () => {
-          setOpen(false);
-          window.dispatchEvent(new CustomEvent("open-focus-timer"));
-        },
-      },
       {
         id: "act-mood",
         type: "action",

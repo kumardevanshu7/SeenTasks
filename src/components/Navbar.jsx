@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Timer, Trash2, TrendingUp, Users, X } from "lucide-react";
+import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Trash2, TrendingUp, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -109,18 +109,6 @@ export default function Navbar() {
           <NavLink to="/app/analytics" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/analytics")}><TrendingUp size={17} /><span>Analytics</span></NavLink>
           <NavLink to="/app/guide" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/guide")}><BookOpen size={17} /><span>Guide</span></NavLink>
           
-          <button
-            type="button"
-            className="side-link side-link-btn"
-            onClick={() => {
-              setOpen(false);
-              setTimerOpen(true);
-            }}
-          >
-            <Timer size={17} />
-            <span>Focus timer</span>
-          </button>
-
           <button
             type="button"
             className="side-link side-link-btn"

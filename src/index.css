@@ -1609,15 +1609,23 @@ p, h1, h2, h3, h4 { margin: 0; }
 .quick-label-pill:not([style*="--label-bg"]) {
   color: var(--muted);
   background: #efe8dc;
+  border-color: rgba(0, 0, 0, 0.08);
 }
-.quick-label-pill.is-selected {
-  border-color: var(--label-ink, var(--ink));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--label-ink, var(--ink)) 25%, transparent);
+.quick-label-pill:not([style*="--label-bg"]).is-filtered,
+.quick-label-pill:not([style*="--label-bg"]).is-selected {
+  color: var(--ink, #1c1917);
+  background: #e4ddd0;
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-weight: 600;
 }
-.quick-label-pill.is-filtered {
-  border-color: var(--label-ink, var(--ink));
-  box-shadow: 0 0 0 2px var(--label-ink, var(--ink)), 0 2px 6px rgba(0, 0, 0, 0.08);
-  font-weight: 700;
+.quick-label-pill[style*="--label-bg"].is-selected {
+  border-color: color-mix(in srgb, var(--label-ink) 35%, transparent);
+}
+.quick-label-pill[style*="--label-bg"].is-filtered {
+  border-color: color-mix(in srgb, var(--label-ink) 55%, transparent);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--label-ink) 18%, transparent);
+  font-weight: 600;
 }
 .quick-label-filter-icon {
   margin-right: 4px;

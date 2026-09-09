@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CalendarRange, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, ListTree, Moon, Plus, Sunrise, Tag, Timer, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CalendarRange, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
-import FocusTimerModal from "./FocusTimerModal";
 import MoodTrackerModal from "./MoodTrackerModal";
 import { DEFAULT_WORKSPACE_ID, labelColorInk, workspaceColorInk } from "../lib/quickTaskService";
 import { flowColorInk, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked } from "../lib/flowService";
@@ -311,7 +310,6 @@ function QuickTaskRow({
   onDragLeaveRow,
   onDropLabel,
   onSnooze,
-  onStartFocus,
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
@@ -646,15 +644,6 @@ function QuickTaskRow({
               >
                 <ListTree size={13} />
               </button>
-              <button
-                type="button"
-                className="quick-task-action-btn"
-                onClick={() => onStartFocus?.(item.id, item.title)}
-                title="Start 25m Focus Timer"
-                aria-label="Focus timer"
-              >
-                <Timer size={13} />
-              </button>
               <div className="quick-task-snooze-wrap">
                 <button
                   type="button"
@@ -706,7 +695,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const inputRef = useRef(null);
   const lastTapRef = useRef({ time: 0, id: null });
   const lastDoubleActionRef = useRef(0);
-  const [timerModalOpen, setTimerModalOpen] = useState(false);
   const [moodModalOpen, setMoodModalOpen] = useState(false);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const quickLabels = useTaskStore((s) => s.quickLabels);
@@ -718,7 +706,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const deleteQuickLabel = useTaskStore((s) => s.deleteQuickLabel);
   const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
   const snoozeQuickTask = useTaskStore((s) => s.snoozeQuickTask);
-  const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
   const addQuickTaskLabel = useTaskStore((s) => s.addQuickTaskLabel);
   const removeQuickTaskLabel = useTaskStore((s) => s.removeQuickTaskLabel);
@@ -1164,18 +1151,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     if (soundEnabled) playTickSound();
   }
 
-  function handleStartFocus(id, title) {
-    setFocusTimer({
-      active: true,
-      taskId: id,
-      taskTitle: title,
-      secondsLeft: 25 * 60,
-      mode: "focus",
-      running: true,
-    });
-    window.dispatchEvent(new CustomEvent("open-focus-timer"));
-  }
-
   const rowDragProps = isWorkspace
     ? {
         dropReady: draggingLabel,
@@ -1207,15 +1182,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   )}
                 </button>
               )}
-              <button
-                type="button"
-                className="quick-head-tool-btn"
-                onClick={() => setTimerModalOpen(true)}
-                title="Open Focus Timer (25m Focus / 5m Break)"
-              >
-                <Timer size={14} />
-                <span>Focus timer</span>
-              </button>
               <button
                 type="button"
                 className="quick-head-tool-btn"
@@ -1478,7 +1444,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                         onToggle={handleToggle}
                         onRequestDelete={setDeleteRequest}
                         onSnooze={handleSnooze}
-                        onStartFocus={handleStartFocus}
                         onAddSubtask={handleAddSubtask}
                         onToggleSubtask={handleToggleSubtask}
                         onDeleteSubtask={handleDeleteSubtask}
@@ -1546,7 +1511,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                             onToggle={handleToggle}
                             onRequestDelete={setDeleteRequest}
                             onSnooze={handleSnooze}
-                            onStartFocus={handleStartFocus}
                           />
                         ))}
                       </ul>
@@ -1649,7 +1613,6 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                       onToggle={handleToggle}
                       onRequestDelete={setDeleteRequest}
                       onSnooze={handleSnooze}
-                      onStartFocus={handleStartFocus}
                       onAddSubtask={handleAddSubtask}
                       onToggleSubtask={handleToggleSubtask}
                       onDeleteSubtask={handleDeleteSubtask}
