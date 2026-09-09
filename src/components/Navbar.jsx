@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
-import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Trash2, TrendingUp, Users, X } from "lucide-react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Timer, Trash2, TrendingUp, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -8,7 +8,7 @@ import FocusTimerModal from "./FocusTimerModal";
 import MoodTrackerModal from "./MoodTrackerModal";
 import { isMoodWindowOpen } from "../lib/moodService";
 import { todayKey } from "../lib/date";
-import { flowProgress } from "../lib/flowService";
+import { flowProgress, is1HrWorkFlow } from "../lib/flowService";
 import { prefetchRoute } from "../lib/prefetchRoute";
 
 function warm(path) {
@@ -26,18 +26,54 @@ export default function Navbar() {
     return () => window.removeEventListener("open-focus-timer", onOpenTimer);
   }, []);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, signOut } = useAuth();
   const binCount = useTaskStore((state) => state.getBinTasks().length);
   const quickOpenCount = useTaskStore(
     (state) => state.quickTasks.filter((t) => t.dateKey === todayKey() && !t.done).length
   );
-  const flowActiveCount = useTaskStore(
-    (state) =>
-      (state.followFlows || []).filter((f) => {
-        const p = flowProgress(f, todayKey());
-        return p.total > 0 && p.done < p.total;
-      }).length
+  const followFlows = useTaskStore((state) => state.followFlows) || [];
+  const addFollowFlow = useTaskStore((state) => state.addFollowFlow);
+  const oneHourFlow = followFlows.find((f) => is1HrWorkFlow(f));
+  const oneHourOpenCount = oneHourFlow
+    ? (oneHourFlow.steps || []).filter((s) => s.dateKey === todayKey() && !s.done).length
+    : 0;
+  const focusTimer = useTaskStore((s) => s.focusTimer);
+  const is1HrTimerRunning = Boolean(
+    focusTimer?.running &&
+    (focusTimer?.flowId === oneHourFlow?.id || (!focusTimer?.flowId && focusTimer?.taskId))
   );
+
+  const flowActiveCount = followFlows.filter((f) => {
+    if (is1HrWorkFlow(f)) return false;
+    const p = flowProgress(f, todayKey());
+    return p.total > 0 && p.done < p.total;
+  }).length;
+
+  const is1HrActive = Boolean(
+    oneHourFlow?.id
+      ? location.pathname === `/app/flows/${oneHourFlow.id}` || location.pathname === "/app/1hr"
+      : location.pathname === "/app/1hr"
+  );
+  const isFlowsActive = location.pathname.startsWith("/app/flows") && !is1HrActive;
+
+  function handleOneHourClick(e) {
+    setOpen(false);
+    let target = (followFlows || []).find((f) => is1HrWorkFlow(f));
+    if (!target) {
+      e.preventDefault();
+      target = addFollowFlow({
+        name: "1 Hr Work",
+        color: "amber",
+        repeat: "daily",
+        anyOrder: true,
+        is1HrWork: true,
+      });
+      if (target?.id) {
+        navigate(`/app/flows/${target.id}`);
+      }
+    }
+  }
   const dailyMoods = useTaskStore((state) => state.dailyMoods) || {};
   const isTodayMoodLogged = !!dailyMoods[todayKey()];
   const showMoodLive = isMoodWindowOpen() && !isTodayMoodLogged;
@@ -104,7 +140,30 @@ export default function Navbar() {
 
         <nav className="side-nav" aria-label="Main navigation">
           <NavLink to="/app" end className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app")}><CheckSquare size={17} /><span>Quick tasks</span>{quickOpenCount > 0 && <em>{quickOpenCount}</em>}</NavLink>
-          <NavLink to="/app/flows" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/flows")}><GitBranch size={17} /><span>Follow Flow</span>{flowActiveCount > 0 && <em>{flowActiveCount}</em>}</NavLink>
+          <NavLink
+            to={oneHourFlow?.id ? `/app/flows/${oneHourFlow.id}` : "/app/1hr"}
+            className={`side-link${is1HrActive ? " side-link-active" : ""}`}
+            onClick={handleOneHourClick}
+            {...warmProps(oneHourFlow?.id ? `/app/flows/${oneHourFlow.id}` : "/app/flows")}
+          >
+            <Timer size={17} />
+            <span>1 Hour Task</span>
+            {is1HrTimerRunning ? (
+              <em className="em-live" title="1-Hour timer is actively running!">Live</em>
+            ) : (
+              oneHourOpenCount > 0 && <em>{oneHourOpenCount}</em>
+            )}
+          </NavLink>
+          <NavLink
+            to="/app/flows"
+            className={`side-link${isFlowsActive ? " side-link-active" : ""}`}
+            onClick={() => setOpen(false)}
+            {...warmProps("/app/flows")}
+          >
+            <GitBranch size={17} />
+            <span>Follow Flow</span>
+            {flowActiveCount > 0 && <em>{flowActiveCount}</em>}
+          </NavLink>
           <NavLink to="/app/reports" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/reports")}><ClipboardList size={17} /><span>Report</span></NavLink>
           <NavLink to="/app/analytics" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/analytics")}><TrendingUp size={17} /><span>Analytics</span></NavLink>
           <NavLink to="/app/guide" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/guide")}><BookOpen size={17} /><span>Guide</span></NavLink>

@@ -14,6 +14,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Timer,
   Trash2,
   TrendingUp,
   Trophy,
@@ -105,6 +106,18 @@ export default function CommandPalette() {
         shortcut: "G Q",
         action: () => {
           navigate("/app");
+          setOpen(false);
+        },
+      },
+      {
+        id: "nav-1hr",
+        type: "navigation",
+        icon: <Timer size={16} />,
+        title: "1 Hour Task (Daily Focus Sprints)",
+        category: "Pages",
+        shortcut: "G H",
+        action: () => {
+          navigate("/app/1hr");
           setOpen(false);
         },
       },

@@ -15,6 +15,7 @@ import ReportPage from "./pages/ReportPage";
 import FlowReportPage from "./pages/FlowReportPage";
 import AchievementsPage from "./pages/AchievementsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import OneHourPage from "./pages/OneHourPage";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const TodayPage = lazy(() => import("./pages/TodayPage"));
@@ -71,6 +72,9 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="explore" element={<ExplorePage />} />
             <Route path="workspace/:workspaceId" element={<WorkspacePage />} />
+            <Route path="1hr" element={<OneHourPage />} />
+            <Route path="1-hour" element={<Navigate to="/app/1hr" replace />} />
+            <Route path="one-hour" element={<Navigate to="/app/1hr" replace />} />
             <Route path="flows" element={<FlowsPage />} />
             <Route path="flows/:flowId" element={<FlowPage />} />
             <Route path="reports" element={<ReportPage />} />
