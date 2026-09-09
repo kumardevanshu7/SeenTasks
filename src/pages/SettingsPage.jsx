@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, CheckCircle2, Cloud, KeyRound, LoaderCircle, LogOut, RefreshCw, RotateCcw, ShieldCheck, Volume2 } from "lucide-react";
+import { Check, CheckCircle2, Cloud, KeyRound, LoaderCircle, LogOut, RefreshCw, RotateCcw, ShieldCheck, SunMedium, Trash2, Volume2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "../components/OnePasswordGate";
@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const setOnePassword = useTaskStore((s) => s.setOnePassword);
   const clearOnePassword = useTaskStore((s) => s.clearOnePassword);
   const resetAppData = useTaskStore((s) => s.resetAppData);
+  const shiftAppDataToToday = useTaskStore((s) => s.shiftAppDataToToday);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
   const setSoundEnabled = useTaskStore((s) => s.setSoundEnabled);
   const configured = isOnePasswordConfigured(onePassword);
@@ -168,6 +169,7 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resetOpen, setResetOpen] = useState(false);
+  const [resetMode, setResetMode] = useState("shift"); // "shift" | "wipe"
   const [resetBusy, setResetBusy] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
   const [resetError, setResetError] = useState("");
@@ -291,40 +293,84 @@ export default function SettingsPage() {
     }
   }
 
+  function handleOpenReset(mode) {
+    setResetMode(mode);
+    setResetError("");
+    setResetMessage("");
+    setResetOpen(true);
+  }
+
   async function handleResetConfirm() {
+    if (resetBusy) return;
+    setResetBusy(true);
     setResetError("");
     setResetMessage("");
     setResetOpen(false);
     setProgressModalOpen(true);
     setResetCompleted(false);
 
-    setResetStage(15);
-    setResetStatusText("Purging local tasks, Everyday flows, and archives...");
-    await new Promise((r) => setTimeout(r, 400));
+    if (resetMode === "shift") {
+      setResetStage(20);
+      setResetStatusText("Scanning previous tasks, calendar schedules, and flows...");
+      await new Promise((r) => setTimeout(r, 450));
 
-    setResetStage(45);
-    setResetStatusText("Deep-cleaning cloud Firestore database collections...");
-    await new Promise((r) => setTimeout(r, 400));
+      setResetStage(50);
+      setResetStatusText("Shifting all past tasks into Today as a fresh start...");
+      await new Promise((r) => setTimeout(r, 450));
 
-    try {
-      await resetAppData();
-      setResetStage(75);
-      setResetStatusText("Resetting workspaces, labels, and routines...");
-      await new Promise((r) => setTimeout(r, 350));
+      setResetStage(80);
+      setResetStatusText("Clearing past backlogs and syncing refresh to database...");
+      await new Promise((r) => setTimeout(r, 400));
 
-      setResetStage(95);
-      setResetStatusText("Seeding pristine fresh workspace canvas...");
-      await new Promise((r) => setTimeout(r, 350));
+      try {
+        const res = await shiftAppDataToToday();
+        setResetStage(100);
+        setResetStatusText(
+          res?.shiftedCount
+            ? `Refresh complete! ${res.shiftedCount} tasks shifted to start fresh today ✨`
+            : "Refresh complete! All tasks now start fresh today ✨"
+        );
+        setResetCompleted(true);
+        if (soundEnabled) playTickSound();
+        triggerConfetti();
+      } catch (err) {
+        console.error(err);
+        setProgressModalOpen(false);
+        setResetError("Shift on Today failed. Check your connection and try again.");
+      } finally {
+        setResetBusy(false);
+      }
+    } else {
+      setResetStage(15);
+      setResetStatusText("Purging local tasks, Everyday flows, and archives...");
+      await new Promise((r) => setTimeout(r, 400));
 
-      setResetStage(100);
-      setResetStatusText("Reset complete! Welcome to your fresh start ✨");
-      setResetCompleted(true);
-      if (soundEnabled) playTickSound();
-      triggerConfetti();
-    } catch (err) {
-      console.error(err);
-      setProgressModalOpen(false);
-      setResetError("Reset failed — cloud wipe didn’t finish. Stay online and try again.");
+      setResetStage(45);
+      setResetStatusText("Deep-cleaning cloud Firestore database collections...");
+      await new Promise((r) => setTimeout(r, 400));
+
+      try {
+        await resetAppData();
+        setResetStage(75);
+        setResetStatusText("Resetting workspaces, labels, and routines...");
+        await new Promise((r) => setTimeout(r, 350));
+
+        setResetStage(95);
+        setResetStatusText("Seeding pristine fresh workspace canvas...");
+        await new Promise((r) => setTimeout(r, 350));
+
+        setResetStage(100);
+        setResetStatusText("Reset complete! Welcome to your fresh start ✨");
+        setResetCompleted(true);
+        if (soundEnabled) playTickSound();
+        triggerConfetti();
+      } catch (err) {
+        console.error(err);
+        setProgressModalOpen(false);
+        setResetError("Reset failed — cloud wipe didn’t finish. Stay online and try again.");
+      } finally {
+        setResetBusy(false);
+      }
     }
   }
 
@@ -573,38 +619,87 @@ export default function SettingsPage() {
         <div className="card-heading">
           <span className="heading-icon"><RotateCcw size={18} /></span>
           <div>
-            <h2>Reset your app</h2>
-            <p>Wipe tasks and start fresh — account and One Password stay</p>
+            <h2>Reset & Refresh App</h2>
+            <p>Choose between a fresh daily start or a complete account wipe</p>
           </div>
         </div>
 
-        <div className="one-password-form">
-          <p className="one-password-copy">
-            Completely wipes all data from the database and device (Quick tasks, Everyday flows, Workspaces, Labels, Board tasks, Mood logs, and Rewards) for a fresh start.
-          </p>
-          {resetError && <p className="quick-delete-error">{resetError}</p>}
-          {resetMessage && <p className="one-password-ok">{resetMessage}</p>}
-          <div className="one-password-actions">
-            <button
-              type="button"
-              className="button button-secondary"
-              disabled={!user || resetBusy || loading}
-              onClick={() => {
-                setResetError("");
-                setResetMessage("");
-                setResetOpen(true);
-              }}
-            >
-              Reset app
-            </button>
+        <div className="reset-options-container">
+          <div className="reset-options-grid">
+            {/* Option 1: Shift on Today */}
+            <div className="reset-option-card is-shift">
+              <div className="reset-option-header">
+                <div className="reset-option-icon shift-icon">
+                  <SunMedium size={20} />
+                </div>
+                <div className="reset-option-title-group">
+                  <div className="reset-option-title-row">
+                    <h3>Shift on Today</h3>
+                    <span className="reset-badge reset-badge-green">Refresh Day</span>
+                  </div>
+                  <p className="reset-option-sub">Move all tasks to start fresh today</p>
+                </div>
+              </div>
+              <p className="reset-option-desc">
+                All tasks start fresh from today. Any tasks from before today are moved to Today, and previous backlog data is cleared so today becomes your clean Day 1.
+              </p>
+              <div className="reset-option-action">
+                <button
+                  type="button"
+                  className="button button-fresh reset-action-btn"
+                  disabled={!user || resetBusy || loading}
+                  onClick={() => handleOpenReset("shift")}
+                >
+                  <SunMedium size={14} />
+                  <span>Shift on Today</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Option 2: Completely Wipe Out */}
+            <div className="reset-option-card is-wipe">
+              <div className="reset-option-header">
+                <div className="reset-option-icon wipe-icon">
+                  <Trash2 size={20} />
+                </div>
+                <div className="reset-option-title-group">
+                  <div className="reset-option-title-row">
+                    <h3>Completely Wipe Out</h3>
+                    <span className="reset-badge reset-badge-red">Full Purge</span>
+                  </div>
+                  <p className="reset-option-sub">Permanent total data wipe</p>
+                </div>
+              </div>
+              <p className="reset-option-desc">
+                Completely wipes all data from the database and device (Quick tasks, Everyday flows, Workspaces, Labels, Board tasks, Mood logs, and Rewards) for a pristine canvas.
+              </p>
+              <div className="reset-option-action">
+                <button
+                  type="button"
+                  className="button button-danger reset-action-btn"
+                  disabled={!user || resetBusy || loading}
+                  onClick={() => handleOpenReset("wipe")}
+                >
+                  <Trash2 size={14} />
+                  <span>Completely Wipe Out</span>
+                </button>
+              </div>
+            </div>
           </div>
+
+          {resetError && <p className="quick-delete-error" style={{ marginTop: 14 }}>{resetError}</p>}
+          {resetMessage && <p className="one-password-ok" style={{ marginTop: 14 }}>{resetMessage}</p>}
         </div>
       </section>
 
       <OnePasswordGate
         open={resetOpen}
-        title="Reset your app"
-        description="Answer your One Password question to wipe all tasks and start fresh."
+        title={resetMode === "shift" ? "Shift all tasks to Today?" : "Completely wipe out all data?"}
+        description={
+          resetMode === "shift"
+            ? "Answer your One Password question to shift all previous tasks to today and refresh your workspace without losing your tasks."
+            : "Answer your One Password question to permanently wipe all tasks, flows, workspaces, and records."
+        }
         onClose={() => !resetBusy && setResetOpen(false)}
         onConfirm={handleResetConfirm}
       />
@@ -614,6 +709,7 @@ export default function SettingsPage() {
         stage={resetStage}
         statusText={resetStatusText}
         completed={resetCompleted}
+        mode={resetMode}
         onFinish={handleFinishReset}
       />
 

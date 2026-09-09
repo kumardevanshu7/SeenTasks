@@ -4,7 +4,7 @@ import { v4 as uuid } from "uuid";
 import { personaGuidance } from "../lib/persona";
 import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
-import { clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
+import { batchShiftQuickTasksToToday, clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
 import { applyAchievementsToFlows } from "../lib/flowAchievements";
 import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, is1HrWorkCategoryName, is1HrWorkFlow, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
@@ -1185,6 +1185,127 @@ export const useTaskStore = create(
           throw err;
         }
         set(wipe);
+      },
+
+      /**
+       * Shift all tasks to start fresh on Today (Refresh Day).
+       * - Incomplete tasks before today have their date shifted to todayKey().
+       * - Past completed tasks before today are purged so previous days have no clutter.
+       * - Everyday flows have their past reports cleared and daily routines active for today.
+       * - 1-hour work flows start with empty steps for today while preserving suggestions.
+       * - Today becomes Day 1 / Refresh Day.
+       */
+      shiftAppDataToToday: async () => {
+        const today = todayKey();
+        const uid = auth.currentUser?.uid;
+
+        // 1. Process quickTasks
+        const currentQuickTasks = get().quickTasks || [];
+        const updatedQuickTasks = [];
+        const removedQuickTaskIds = [];
+
+        currentQuickTasks.forEach((t) => {
+          const isPast = !t.dateKey || isBeforeToday(t.dateKey) || t.dateKey < today;
+          if (isPast) {
+            if (t.done) {
+              removedQuickTaskIds.push(t.id);
+            } else {
+              updatedQuickTasks.push({
+                ...t,
+                dateKey: today,
+                dueDate: null,
+                completedAt: null,
+              });
+            }
+          } else {
+            updatedQuickTasks.push(t);
+          }
+        });
+
+        // 2. Process board tasks
+        const currentTasks = get().tasks || [];
+        const updatedTasks = currentTasks
+          .filter((t) => {
+            const isPast = !t.dateKey || isBeforeToday(t.dateKey) || t.dateKey < today;
+            if (isPast && t.status !== "active") return false;
+            return true;
+          })
+          .map((t) => {
+            const isPast = !t.dateKey || isBeforeToday(t.dateKey) || t.dateKey < today;
+            if (isPast && t.status === "active") {
+              return {
+                ...t,
+                dateKey: today,
+                firstDateKey: today,
+                iteration: 0,
+              };
+            }
+            return t;
+          });
+
+        // 3. Process followFlows
+        const currentFlows = get().followFlows || [];
+        const updatedFlows = currentFlows.map((f) => {
+          const is1Hr = is1HrWorkFlow(f);
+          if (is1Hr) {
+            const bank = new Set(Array.isArray(f.taskBank) ? f.taskBank : []);
+            (f.steps || []).forEach((s) => {
+              const val = typeof s === "string" ? s : s?.title;
+              if (val && val.trim()) bank.add(val.trim());
+            });
+            return {
+              ...f,
+              steps: [],
+              taskBank: Array.from(bank),
+              reports: [],
+              dayKey: today,
+            };
+          }
+          const resetSteps = (f.steps || []).map((s) => ({
+            ...s,
+            done: false,
+            completedAt: null,
+          }));
+          return {
+            ...f,
+            steps: resetSteps,
+            reports: [],
+            dayKey: today,
+          };
+        });
+
+        // 4. Daily moods: keep only today's mood
+        const currentMoods = get().dailyMoods || {};
+        const updatedMoods = currentMoods[today] ? { [today]: currentMoods[today] } : {};
+
+        // 5. Focus history: keep today
+        const currentFocus = get().focusHistory || [];
+        const updatedFocus = currentFocus.filter((h) => h.dateKey === today);
+
+        // Update local state in Zustand immediately
+        set({
+          quickTasks: updatedQuickTasks,
+          tasks: updatedTasks,
+          followFlows: updatedFlows,
+          dailyMoods: updatedMoods,
+          focusHistory: updatedFocus,
+        });
+
+        // Sync with Firestore
+        if (uid) {
+          const shiftedTasksForCloud = updatedQuickTasks.filter((t) => t.dateKey === today);
+          await batchShiftQuickTasksToToday(uid, shiftedTasksForCloud, removedQuickTaskIds).catch((err) => {
+            console.warn("Batch shift quick tasks error:", err);
+          });
+          for (const f of updatedFlows) {
+            syncFlowUpsert(f);
+          }
+        }
+
+        return {
+          shiftedCount: updatedQuickTasks.filter((t) => t.dateKey === today).length,
+          purgedCount: removedQuickTaskIds.length,
+        };
       },
 
       // One Password — Firebase only; memory holds { question, answerHash, updatedAt }
