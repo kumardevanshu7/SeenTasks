@@ -132,8 +132,38 @@ export function useQuickTasksSync() {
         (items) => {
           if (!active) return;
           const cut = Math.max(useTaskStore.getState().dataClearedAt || 0, clearedAt || 0);
-          const cloud = (items || []).filter((f) => isCreatedAfterClear(f, cut));
-          setFollowFlows(cloud);
+          const cloud = (items || []).filter((f) => {
+            if (!cut) return true;
+            if (isCreatedAfterClear(f, cut)) return true;
+            const updated = new Date(f.updatedAt || f.createdAt || 0).getTime();
+            if (!Number.isNaN(updated) && updated > cut) return true;
+            if (Array.isArray(f.steps) && f.steps.length > 0) return true;
+            return false;
+          });
+
+          const localFlows = useTaskStore.getState().followFlows || [];
+          const cloudMap = new Map(cloud.map((f) => [f.id, f]));
+          const merged = cloud.map((cloudFlow) => {
+            const local = localFlows.find((l) => l.id === cloudFlow.id);
+            if (!local) return cloudFlow;
+            const cloudStepIds = new Set((cloudFlow.steps || []).map((s) => s.id));
+            const pendingSteps = (local.steps || []).filter((s) => s?.id && !cloudStepIds.has(s.id));
+            if (pendingSteps.length > 0) {
+              return {
+                ...cloudFlow,
+                steps: [...(cloudFlow.steps || []), ...pendingSteps],
+              };
+            }
+            return cloudFlow;
+          });
+
+          localFlows.forEach((local) => {
+            if (local?.id && !cloudMap.has(local.id)) {
+              merged.push(local);
+            }
+          });
+
+          setFollowFlows(merged);
         },
         (error) => console.warn("Flows listener error:", error)
       );

@@ -136,68 +136,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSelf(userId);
-      allow delete: if false;
-      allow create, update: if isSelf(userId)
-        && request.resource.data.keys().hasOnly([
-          'uid', 'username', 'usernameLower', 'displayName', 'email',
-          'photoURL', 'createdAt', 'updatedAt'
-        ])
-        && request.resource.data.uid == userId;
+      allow read, write: if isSelf(userId);
 
-      match /tasks/{taskId} {
-        allow read, delete: if isSelf(userId);
-        allow create: if isSelf(userId) && validUserTask(userId);
-        allow update: if isSelf(userId)
-          && validUserTask(userId)
-          && request.resource.data.ownerId == resource.data.ownerId
-          && request.resource.data.createdAt == resource.data.createdAt;
-      }
-
-      match /quickTasks/{taskId} {
-        allow read, write: if isSelf(userId);
-      }
-
-      match /quickWorkspaces/{workspaceId} {
-        allow read, write: if isSelf(userId);
-      }
-
-      match /quickLabels/{labelId} {
-        allow read, write: if isSelf(userId);
-      }
-
-      match /followFlows/{flowId} {
-        allow read, write: if isSelf(userId);
-      }
-
-      match /focusSessions/{sessionId} {
-        allow read, write: if isSelf(userId);
-      }
-
-      // One Password + other owner settings. onePassword must store hashed answer only.
-      match /settings/{settingId} {
-        allow read: if isSelf(userId);
-        allow delete: if isSelf(userId);
-        allow create, update: if isSelf(userId) && (
-          (
-            settingId == "onePassword"
-            && request.resource.data.keys().hasOnly(["question", "answerHash", "updatedAt"])
-            && request.resource.data.question is string
-            && request.resource.data.answerHash is string
-            && request.resource.data.question.size() > 0
-            && request.resource.data.answerHash.size() > 0
-          )
-          || (
-            settingId == "appState"
-            && request.resource.data.keys().hasOnly(["dataClearedAt", "updatedAt"])
-            && request.resource.data.dataClearedAt is number
-            && request.resource.data.dataClearedAt > 0
-          )
-          || (settingId != "onePassword" && settingId != "appState")
-        );
-      }
-
-      match /friends/{friendId} {
+      match /{subcollection=**} {
         allow read, write: if isSelf(userId);
       }
     }

@@ -257,6 +257,15 @@ export async function upsertQuickTask(uid, task) {
       dueDate: task.dueDate || null,
       labelIds,
       labelId,
+      subtasks: Array.isArray(task.subtasks)
+        ? task.subtasks.map((st) => ({
+            id: st.id || `sub_${Math.random().toString(36).slice(2, 8)}`,
+            text: String(st.text || "").trim(),
+            done: Boolean(st.done),
+            createdAt: st.createdAt || new Date().toISOString(),
+            completedAt: st.completedAt || null,
+          }))
+        : [],
       createdAt: task.createdAt || new Date().toISOString(),
       completedAt: task.completedAt || null,
       updatedAt: serverTimestamp(),
@@ -377,6 +386,7 @@ export async function batchShiftQuickTasksToToday(uid, shiftedTasks = [], remove
           dueDate: task.dueDate || null,
           labelIds,
           labelId: task.labelId || labelIds[0] || null,
+          subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
           createdAt: task.createdAt || new Date().toISOString(),
           completedAt: task.completedAt || null,
           updatedAt: serverTimestamp(),

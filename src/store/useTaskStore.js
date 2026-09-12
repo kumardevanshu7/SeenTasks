@@ -1469,6 +1469,7 @@ export const useTaskStore = create(
       // Quick tasks live in Firestore only — do not mirror them in localStorage.
       partialize: (state) => ({
         tasks: state.tasks,
+        followFlows: state.followFlows || [],
         members: state.members,
         persona: state.persona,
         dataClearedAt: state.dataClearedAt || 0,
@@ -1499,7 +1500,6 @@ export const useTaskStore = create(
           quickTasks: _qt,
           quickWorkspaces: _qw,
           quickLabels: _ql,
-          followFlows: _ff,
           ...safe
         } = incoming;
 
@@ -1529,7 +1529,7 @@ export const useTaskStore = create(
           quickTasks: [],
           quickWorkspaces: [makeDefaultWorkspace()],
           quickLabels: [],
-          followFlows: [],
+          followFlows: Array.isArray(safe.followFlows) ? safe.followFlows : (current.followFlows || []),
           onePassword: null,
           activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
         };

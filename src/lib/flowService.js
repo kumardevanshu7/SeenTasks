@@ -257,7 +257,7 @@ export function activeFlowSteps(flow, day = null) {
   if (flow?.repeat !== "daily") return steps;
   const d = day || flow.dayKey || todayKey();
   if (is1HrWorkFlow(flow)) {
-    return steps.filter((s) => s.dateKey === d);
+    return steps.filter((s) => s.dateKey === d || !s.dateKey || !s.done);
   }
   return steps.filter((s) => isFlowStepActiveOnDay(s, d));
 }
@@ -504,13 +504,13 @@ export function rollEverydayFlow(flow, today = null) {
   const dayKey = flow.dayKey;
   const is1Hr = is1HrWorkFlow(flow);
 
-  // 1-Hour Work flow: every single day is a clean fresh slate
+  // 1-Hour Work flow: archive completed steps, carry forward open tasks, keep bank updated
   if (is1Hr) {
-    const nonTodaySteps = (flow.steps || []).filter((s) => s.dateKey !== day);
     const dateChanged = Boolean(dayKey && dayKey < day);
+    const hasUntaggedSteps = (flow.steps || []).some((s) => !s.dateKey);
 
-    // If there are stale/legacy steps, date changed, or dayKey is not today
-    if (nonTodaySteps.length > 0 || dateChanged || flow.dayKey !== day) {
+    // If date changed or dayKey is not today or there are untagged steps
+    if (dateChanged || flow.dayKey !== day || hasUntaggedSteps) {
       const taskBank = new Set(Array.isArray(flow.taskBank) ? flow.taskBank : []);
       // Preserve ALL step titles in taskBank suggestions pool
       (flow.steps || []).forEach((s) => {
@@ -529,13 +529,21 @@ export function rollEverydayFlow(flow, today = null) {
             .slice(0, 31)
         : flow.reports || [];
 
-      // Keep strictly steps explicitly created today
-      const todaySteps = (flow.steps || []).filter((s) => s.dateKey === day);
+      // Keep:
+      // 1. Steps explicitly created today
+      // 2. Open / incomplete steps from previous days (carried forward to today so work is never lost!)
+      // 3. Steps without dateKey (assigned to today)
+      const rolledSteps = (flow.steps || [])
+        .filter((s) => s.dateKey === day || !s.dateKey || !s.done)
+        .map((s) => ({
+          ...s,
+          dateKey: day,
+        }));
 
       return {
         flow: {
           ...flow,
-          steps: todaySteps,
+          steps: rolledSteps,
           taskBank: Array.from(taskBank),
           dayKey: day,
           reports,
@@ -657,7 +665,7 @@ export async function upsertFollowFlow(uid, flow) {
         startDate: isValidDateKey(s.startDate) ? s.startDate : null,
         endDate: isValidDateKey(s.endDate) ? s.endDate : null,
         categoryId: s.categoryId || DEFAULT_FLOW_CATEGORY_ID,
-        dateKey: isValidDateKey(s.dateKey) ? s.dateKey : null,
+        dateKey: isValidDateKey(s.dateKey) ? s.dateKey : (is1HrWorkFlow(flow) ? todayKey() : null),
       })),
       categories: flowCategories(flow).map((c, i) => ({
         id: c.id || `cat-${i}`,

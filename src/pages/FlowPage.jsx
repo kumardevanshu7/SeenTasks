@@ -197,8 +197,8 @@ export default function FlowPage() {
   useEffect(() => {
     if (flow && is1HrWorkFlow(flow)) {
       const today = todayKey();
-      const hasStaleSteps = (flow.steps || []).some((s) => s.dateKey !== today);
-      if (hasStaleSteps || flow.dayKey !== today) {
+      const hasUntaggedSteps = (flow.steps || []).some((s) => !s.dateKey);
+      if (hasUntaggedSteps || flow.dayKey !== today) {
         rollEverydayFlows();
       }
     }
@@ -232,8 +232,11 @@ export default function FlowPage() {
     ? flowColorValue(activeCatMeta.color)
     : flow.color;
   const ink = flowColorInk(isEveryday && activeCatMeta ? activeCatMeta.color : flow.color);
+  const is1HrStepActive = (s) => (s.dateKey === day || !s.dateKey || !s.done);
   const visibleSteps = is1HrFlow
-    ? steps.filter((s) => s.dateKey === day)
+    ? (categories.length > 1 && activeCat
+        ? steps.filter((s) => is1HrStepActive(s) && stepCategoryId(s, flow) === activeCat)
+        : steps.filter(is1HrStepActive))
     : isEveryday && activeCat
       ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
       : steps;
@@ -606,10 +609,15 @@ export default function FlowPage() {
           {categories.map((cat) => {
             const selected = cat.id === activeCat;
             const catDone = steps.filter(
-              (s) => stepCategoryId(s, flow) === cat.id && isFlowStepActiveOnDay(s, day) && s.done
+              (s) =>
+                stepCategoryId(s, flow) === cat.id &&
+                (is1HrFlow ? is1HrStepActive(s) : isFlowStepActiveOnDay(s, day)) &&
+                s.done
             ).length;
             const catTotal = steps.filter(
-              (s) => stepCategoryId(s, flow) === cat.id && isFlowStepActiveOnDay(s, day)
+              (s) =>
+                stepCategoryId(s, flow) === cat.id &&
+                (is1HrFlow ? is1HrStepActive(s) : isFlowStepActiveOnDay(s, day))
             ).length;
             const catBg = flowColorValue(cat.color);
             const catInk = flowColorInk(cat.color);
@@ -754,9 +762,11 @@ export default function FlowPage() {
       <ol className="flow-stepper" aria-label="Flow steps">
         {visibleSteps.map((step, visIndex) => {
           const index = steps.findIndex((s) => s.id === step.id);
-          const onToday = !isEveryday || isFlowStepActiveOnDay(step, day);
+          const onToday = is1HrFlow
+            ? is1HrStepActive(step)
+            : (!isEveryday || isFlowStepActiveOnDay(step, day));
           const unlocked = isFlowStepUnlocked(steps, index, day, isEveryday, {
-            anyOrder,
+            anyOrder: is1HrFlow ? true : anyOrder,
             categoryId: activeCat || step.categoryId,
           });
           const isActive = onToday && unlocked && !step.done;
@@ -766,7 +776,8 @@ export default function FlowPage() {
           let todayOrd = 0;
           if (onToday && isEveryday) {
             for (let i = 0; i <= visIndex; i += 1) {
-              if (isFlowStepActiveOnDay(visibleSteps[i], day)) todayOrd += 1;
+              const prev = visibleSteps[i];
+              if (is1HrFlow ? is1HrStepActive(prev) : isFlowStepActiveOnDay(prev, day)) todayOrd += 1;
             }
           }
           const catObj = categories.find((c) => c.id === (step.categoryId || activeCat)) || activeCatMeta;
