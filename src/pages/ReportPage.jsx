@@ -10,6 +10,7 @@ import {
   flowColorValue,
   isEverydayActive,
   periodReportForFlow,
+  pruneDuplicate1HrFlows,
   REPORT_PERIODS,
 } from "../lib/flowService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
@@ -40,9 +41,13 @@ export default function ReportPage() {
     };
   }, [rollEverydayFlows]);
 
-  const everydayFlows = useMemo(
-    () => followFlows.filter((f) => f.repeat === "daily"),
+  const cleanFlows = useMemo(
+    () => pruneDuplicate1HrFlows(followFlows),
     [followFlows]
+  );
+  const everydayFlows = useMemo(
+    () => cleanFlows.filter((f) => f.repeat === "daily"),
+    [cleanFlows]
   );
 
   const dayOptions = useMemo(() => {
@@ -178,7 +183,7 @@ export default function ReportPage() {
           {/* 365-Day Consistency Heatmap */}
           <HabitHeatmap
             quickTasks={quickTasks}
-            followFlows={followFlows}
+            followFlows={cleanFlows}
             dailyMoods={dailyMoods}
           />
 

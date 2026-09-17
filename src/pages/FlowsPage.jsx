@@ -4,7 +4,7 @@ import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Timer, Trophy 
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_ACHIEVEMENTS, evaluateUnlockedIds } from "../lib/flowAchievements";
-import { flowColorInk, flowProgress, is1HrWorkFlow, isEverydayActive } from "../lib/flowService";
+import { flowColorInk, flowProgress, is1HrWorkFlow, is1HrWorkFlowName, isEverydayActive, pruneDuplicate1HrFlows } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, toKey, todayKey } from "../lib/date";
 
@@ -121,13 +121,17 @@ export default function FlowsPage() {
     return map;
   }, [quickLabels]);
 
-  const everydayFlows = useMemo(
-    () => followFlows.filter((f) => f.repeat === "daily"),
+  const cleanFlows = useMemo(
+    () => pruneDuplicate1HrFlows(followFlows),
     [followFlows]
   );
+  const everydayFlows = useMemo(
+    () => cleanFlows.filter((f) => f.repeat === "daily"),
+    [cleanFlows]
+  );
   const oneShotFlows = useMemo(
-    () => followFlows.filter((f) => f.repeat !== "daily"),
-    [followFlows]
+    () => cleanFlows.filter((f) => f.repeat !== "daily"),
+    [cleanFlows]
   );
 
   const yKey = yesterdayKey();
@@ -141,15 +145,30 @@ export default function FlowsPage() {
       .filter(Boolean);
   }, [everydayFlows, yKey]);
 
-  const unlocked = useMemo(() => evaluateUnlockedIds(followFlows), [followFlows]);
+  const unlocked = useMemo(() => evaluateUnlockedIds(cleanFlows), [cleanFlows]);
   const earnedCount = FLOW_ACHIEVEMENTS.filter((a) => unlocked.has(a.id)).length;
 
   function openCreate(mode = "oneshot") {
+    if (mode === "1hr") {
+      const existing = (followFlows || []).find((f) => is1HrWorkFlow(f));
+      if (existing) {
+        navigate(`/app/flows/${existing.id}`);
+        return;
+      }
+    }
     setCreateMode(mode);
     setCreateOpen(true);
   }
 
   function handleCreate({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork }) {
+    if (is1HrWork || is1HrWorkFlowName(name)) {
+      const existing = (followFlows || []).find((f) => is1HrWorkFlow(f));
+      if (existing) {
+        setCreateOpen(false);
+        navigate(`/app/flows/${existing.id}`);
+        return;
+      }
+    }
     const created = addFollowFlow({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork });
     setCreateOpen(false);
     if (created?.id) navigate(`/app/flows/${created.id}`);

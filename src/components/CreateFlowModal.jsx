@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Timer, X } from "lucide-react";
-import { FLOW_COLORS } from "../lib/flowService";
+import { FLOW_COLORS, is1HrWorkFlow } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { todayKey } from "../lib/date";
 import { useTaskStore } from "../store/useTaskStore";
 
 export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryday = false, defaultMode = null }) {
   const quickLabels = useTaskStore((s) => s.quickLabels) || [];
+  const followFlows = useTaskStore((s) => s.followFlows) || [];
+  const existing1HrFlow = followFlows.find((f) => is1HrWorkFlow(f));
   const effectiveMode = defaultMode || (defaultEveryday ? "everyday" : "oneshot");
   const is1Hr = effectiveMode === "1hr";
   const [name, setName] = useState(is1Hr ? "1 Hr Work" : "");
@@ -91,7 +93,11 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                   <Timer size={18} className="flow-1hr-banner-icon" />
                   <div>
                     <strong>1-Hour Focus Sprints</strong>
-                    <p>Each task gets a 1-hour Pomodoro timer. Start the timer, focus for 60 mins, and tick it complete!</p>
+                    <p>
+                      {existing1HrFlow
+                        ? "You already have a 1-Hour Work flow. Submitting will open your existing flow."
+                        : "Each task gets a 1-hour Pomodoro timer. Start the timer, focus for 60 mins, and tick it complete!"}
+                    </p>
                   </div>
                 </div>
               )}
@@ -215,7 +221,13 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                 Cancel
               </button>
               <button type="submit" className="button button-primary" disabled={!name.trim()}>
-                {is1HrWork ? "Create 1 Hr flow" : everyday ? "Create everyday" : "Create flow"}
+                {is1HrWork && existing1HrFlow
+                  ? "Open 1 Hr Work"
+                  : is1HrWork
+                    ? "Create 1 Hr flow"
+                    : everyday
+                      ? "Create everyday"
+                      : "Create flow"}
               </button>
             </div>
           </motion.form>

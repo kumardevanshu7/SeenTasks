@@ -9,7 +9,7 @@ import {
   listenQuickWorkspaces,
   migrateLocalQuickTasks,
 } from "../lib/quickTaskService";
-import { listenFollowFlows } from "../lib/flowService";
+import { listenFollowFlows, pruneDuplicate1HrFlows, removeFollowFlowDoc } from "../lib/flowService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
 
@@ -169,7 +169,12 @@ export function useQuickTasksSync() {
             }
           });
 
-          setFollowFlows(merged);
+          const deduped = pruneDuplicate1HrFlows(merged, (dupId) => {
+            removeFollowFlowDoc(uid, dupId).catch((err) =>
+              console.warn("Failed to remove duplicate 1hr flow doc:", err)
+            );
+          });
+          setFollowFlows(deduped);
         },
         (error) => console.warn("Flows listener error:", error)
       );

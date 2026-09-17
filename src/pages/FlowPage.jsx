@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Archive, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
@@ -162,7 +162,7 @@ export default function FlowPage() {
     [followFlows, flowId]
   );
 
-  const flowList = useMemo(() => followFlows || [], [followFlows]);
+  const flowList = useMemo(() => pruneDuplicate1HrFlows(followFlows || []), [followFlows]);
 
   useEffect(() => {
     rollEverydayFlows();
@@ -211,6 +211,10 @@ export default function FlowPage() {
   }, [flow, rollEverydayFlows]);
 
   if (followFlows?.length && !flow) {
+    const oneHr = followFlows.find((f) => is1HrWorkFlow(f));
+    if (oneHr && flowId && (flowId.toLowerCase().includes("1hr") || flowId.toLowerCase().includes("1-hr"))) {
+      return <Navigate to={`/app/flows/${oneHr.id}`} replace />;
+    }
     return <Navigate to="/app/flows" replace />;
   }
 
@@ -475,7 +479,9 @@ export default function FlowPage() {
         if (prev && (is1HrFlow ? is1HrStepActive(prev) : isFlowStepActiveOnDay(prev, day))) todayOrd += 1;
       }
     }
-    const catObj = categories.find((c) => c.id === (step.categoryId || activeCat)) || activeCatMeta;
+    const stepCatId = isEveryday ? stepCategoryId(step, flow) : null;
+    const catObj = isEveryday ? (categories.find((c) => c.id === stepCatId) || activeCatMeta) : null;
+    const stepCategoryName = catObj?.name || null;
     const isStep1Hr = is1HrFlow;
     const stepBg = flowColorValue(catObj?.color || flow.color);
     const stepInk = flowColorInk(catObj?.color || flow.color);
@@ -566,26 +572,46 @@ export default function FlowPage() {
             onClick={editing && isEveryday && !is1HrFlow ? () => toggleSelectStep(step.id) : undefined}
             style={editing && isEveryday && !is1HrFlow ? { cursor: "pointer" } : undefined}
           >
-            <span className="flow-step-index">
-              {isArchived
-                ? `Archived`
-                : isEveryday && onToday
-                  ? `Today ${todayOrd}`
-                  : `Step ${visIndex + 1}`}
-            </span>
+            <div className="flow-step-meta-row">
+              <span className="flow-step-index">
+                {isArchived
+                  ? "Archived"
+                  : isEveryday && onToday
+                    ? `Today ${todayOrd}`
+                    : `Step ${visIndex + 1}`}
+              </span>
+              {isArchived && stepCategoryName && (
+                <span
+                  className="flow-step-cat-chip"
+                  style={{
+                    background: catObj?.color ? flowColorValue(catObj.color) : "#f1f5f9",
+                    color: catObj?.color ? flowColorInk(catObj.color) : "#0f172a",
+                  }}
+                >
+                  {stepCategoryName}
+                </span>
+              )}
+            </div>
             <strong className="flow-step-title">{step.title}</strong>
             <span className="flow-step-status">
-              {isArchived
-                ? `Ended ${step.endDate ? formatFriendly(step.endDate) : ""}`
-                : scheduled
-                  ? windowLabel || "Not today"
-                  : step.done
-                    ? "Done"
-                    : locked
-                      ? "Locked"
-                      : anyOrder
-                        ? "Open"
-                        : "Do this next"}
+              {isArchived ? (
+                <>
+                  <span>Ended {step.endDate ? formatFriendly(step.endDate) : ""}</span>
+                  {stepCategoryName && (
+                    <span className="flow-step-status-cat"> · Tab: {stepCategoryName}</span>
+                  )}
+                </>
+              ) : scheduled ? (
+                windowLabel || "Not today"
+              ) : step.done ? (
+                "Done"
+              ) : locked ? (
+                "Locked"
+              ) : anyOrder ? (
+                "Open"
+              ) : (
+                "Do this next"
+              )}
             </span>
             {!isArchived && onToday && windowLabel && !scheduled && (
               <span className="flow-step-window">{windowLabel}</span>

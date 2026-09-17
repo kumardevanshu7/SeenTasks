@@ -107,6 +107,98 @@ export function is1HrWorkCategory(cat, flow = null) {
   return is1HrWorkFlow(flow);
 }
 
+/**
+ * Deduplicates multiple 1-Hour Work flows (e.g. "1 Hr Work" and "1 Hr Work Task")
+ * into a single unified flow. Preserves all steps, taskBank suggestions, and reports.
+ * Calls onPruneDup(dupId) for each removed duplicate flow to sync deletion with Firestore.
+ */
+export function pruneDuplicate1HrFlows(flows, onPruneDup = null) {
+  if (!Array.isArray(flows)) return [];
+  const oneHrFlows = flows.filter((f) => is1HrWorkFlow(f));
+  if (oneHrFlows.length <= 1) return flows;
+
+  // We have 2 or more 1-hr flows! Pick primary flow
+  const sorted = [...oneHrFlows].sort((a, b) => {
+    const aSteps = Array.isArray(a.steps) ? a.steps.length : 0;
+    const bSteps = Array.isArray(b.steps) ? b.steps.length : 0;
+    if (aSteps !== bSteps) return bSteps - aSteps;
+
+    const aExact = a.name?.trim().toLowerCase() === "1 hr work";
+    const bExact = b.name?.trim().toLowerCase() === "1 hr work";
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+
+    const aReports = Array.isArray(a.reports) ? a.reports.length : 0;
+    const bReports = Array.isArray(b.reports) ? b.reports.length : 0;
+    if (aReports !== bReports) return bReports - aReports;
+
+    const aBank = Array.isArray(a.taskBank) ? a.taskBank.length : 0;
+    const bBank = Array.isArray(b.taskBank) ? b.taskBank.length : 0;
+    if (aBank !== bBank) return bBank - aBank;
+
+    return (a.createdAt || "") < (b.createdAt || "") ? -1 : 1;
+  });
+
+  const primary = { ...sorted[0] };
+  const duplicates = sorted.slice(1);
+
+  const existingStepTitles = new Set(
+    (primary.steps || []).map((s) => (typeof s === "string" ? s : s?.title || "").trim().toLowerCase())
+  );
+  const mergedSteps = [...(primary.steps || [])];
+
+  const mergedBank = new Set(
+    (Array.isArray(primary.taskBank) ? primary.taskBank : [])
+      .map((t) => (typeof t === "string" ? t.trim() : t?.title?.trim()))
+      .filter(Boolean)
+  );
+
+  const mergedReports = [...(primary.reports || [])];
+
+  duplicates.forEach((dup) => {
+    (dup.steps || []).forEach((s) => {
+      const title = (typeof s === "string" ? s : s?.title || "").trim();
+      if (title && !existingStepTitles.has(title.toLowerCase())) {
+        mergedSteps.push(s);
+        existingStepTitles.add(title.toLowerCase());
+      }
+      if (title) mergedBank.add(title);
+    });
+
+    (Array.isArray(dup.taskBank) ? dup.taskBank : []).forEach((t) => {
+      const val = typeof t === "string" ? t.trim() : t?.title?.trim();
+      if (val) mergedBank.add(val);
+    });
+
+    (dup.reports || []).forEach((r) => {
+      if (r?.dateKey && !mergedReports.some((mr) => mr.dateKey === r.dateKey)) {
+        mergedReports.push(r);
+      }
+    });
+
+    if (typeof onPruneDup === "function" && dup.id) {
+      try {
+        onPruneDup(dup.id);
+      } catch (err) {
+        console.warn("Failed to prune duplicate 1-hr flow:", err);
+      }
+    }
+  });
+
+  primary.name = "1 Hr Work";
+  primary.is1HrWork = true;
+  primary.repeat = "daily";
+  primary.anyOrder = true;
+  primary.steps = mergedSteps;
+  primary.taskBank = Array.from(mergedBank);
+  primary.reports = mergedReports.slice(0, 31);
+
+  const dupIdSet = new Set(duplicates.map((d) => d.id));
+  return flows
+    .filter((f) => !dupIdSet.has(f.id))
+    .map((f) => (f.id === primary.id ? primary : f));
+}
+
 export function normalizeFlowCategory(data = {}, index = 0) {
   const name = (data.name || (index === 0 ? "Main" : `Category ${index + 1}`)).trim().slice(0, 32);
   const hit = FLOW_COLORS.find((c) => c.id === data.color || c.value === data.color);

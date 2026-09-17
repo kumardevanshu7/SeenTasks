@@ -1441,6 +1441,27 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step.is-archived .flow-step-title {
   color: #64748b;
 }
+.flow-step-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.flow-step-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1.5px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.flow-step-status-cat {
+  font-weight: 600;
+  color: #334155;
+}
 
 .flow-archived-empty {
   padding: 18px 20px;

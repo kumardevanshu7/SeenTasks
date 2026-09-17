@@ -6,7 +6,7 @@ import { todayKey, isBeforeToday } from "../lib/date";
 import { auth } from "../lib/firebase";
 import { batchShiftQuickTasksToToday, clearAllQuickTaskDocs, DEFAULT_WORKSPACE_ID, LABEL_COLORS, makeDefaultWorkspace, removeQuickLabelDoc, removeQuickTaskDoc, removeQuickWorkspaceDoc, upsertQuickLabel, upsertQuickTask, upsertQuickWorkspace, WORKSPACE_COLORS } from "../lib/quickTaskService";
 import { applyAchievementsToFlows } from "../lib/flowAchievements";
-import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, is1HrWorkCategoryName, is1HrWorkFlow, isFlowStepActiveOnDay, nextFlowCategoryColor, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
+import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCategories, flowColorValue, is1HrWorkCategoryName, is1HrWorkFlow, is1HrWorkFlowName, isFlowStepActiveOnDay, nextFlowCategoryColor, pruneDuplicate1HrFlows, reorderAnyOrderInCategory, removeFollowFlowDoc, rollEverydayFlow, stepCategoryId, upsertFollowFlow } from "../lib/flowService";
 import { markAppDataCleared } from "../lib/appStateService";
 import { clearAllCollabDocs } from "../lib/collabService";
 import { deleteGoogleTask } from "../lib/googleTasksService";
@@ -442,8 +442,19 @@ export const useTaskStore = create(
       setQuickLabels: (quickLabels) =>
         set({ quickLabels: Array.isArray(quickLabels) ? quickLabels : [] }),
 
-      setFollowFlows: (followFlows) =>
-        set({ followFlows: Array.isArray(followFlows) ? followFlows : [] }),
+      setFollowFlows: (followFlows) => {
+        const raw = Array.isArray(followFlows) ? followFlows : [];
+        let prunedAny = false;
+        const pruned = pruneDuplicate1HrFlows(raw, (dupId) => {
+          prunedAny = true;
+          syncFlowRemove(dupId);
+        });
+        set({ followFlows: pruned });
+        if (prunedAny) {
+          const primary = pruned.find((f) => is1HrWorkFlow(f));
+          if (primary) syncFlowUpsert(primary);
+        }
+      },
 
       setActiveWorkspaceId: (id) =>
         set({ activeWorkspaceId: id || DEFAULT_WORKSPACE_ID }),
@@ -784,8 +795,15 @@ export const useTaskStore = create(
       addFollowFlow: ({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork }) => {
         const clean = name?.trim();
         if (!clean) return null;
+        const is1Hr = Boolean(is1HrWork || is1HrWorkFlowName(clean));
+        if (is1Hr) {
+          const existing = (get().followFlows || []).find((f) => is1HrWorkFlow(f));
+          if (existing) {
+            return existing;
+          }
+        }
         const picked = FLOW_COLORS.find((c) => c.id === color || c.value === color);
-        const isDaily = repeat === "daily" || Boolean(is1HrWork);
+        const isDaily = repeat === "daily" || is1Hr;
         const labels = Array.isArray(labelIds)
           ? labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
           : [];
@@ -795,7 +813,7 @@ export const useTaskStore = create(
             : null;
         const item = {
           id: uuid(),
-          name: clean.slice(0, 48),
+          name: is1Hr ? "1 Hr Work" : clean.slice(0, 48),
           color: flowColorValue(picked?.value || color || FLOW_COLORS[0].value),
           steps: [],
           categories: isDaily
@@ -803,7 +821,7 @@ export const useTaskStore = create(
             : [],
           anyOrder: isDaily && (anyOrder !== undefined ? Boolean(anyOrder) : Boolean(is1HrWork)),
           repeat: isDaily ? "daily" : null,
-          is1HrWork: Boolean(is1HrWork),
+          is1HrWork: is1Hr,
           dayKey: isDaily ? todayKey() : null,
           endDate: end,
           labelIds: labels,
@@ -860,7 +878,8 @@ export const useTaskStore = create(
         const day = todayKey();
         const changedIds = new Set();
         set((s) => {
-          const rolled = (s.followFlows || []).map((f) => {
+          const cleanFlows = pruneDuplicate1HrFlows(s.followFlows || [], (dupId) => syncFlowRemove(dupId));
+          const rolled = cleanFlows.map((f) => {
             const result = rollEverydayFlow(f, day);
             if (result.changed) changedIds.add(result.flow.id);
             return result.flow;
@@ -1356,7 +1375,7 @@ export const useTaskStore = create(
           });
 
         // 3. Process followFlows
-        const currentFlows = get().followFlows || [];
+        const currentFlows = pruneDuplicate1HrFlows(get().followFlows || [], (dupId) => syncFlowRemove(dupId));
         const updatedFlows = currentFlows.map((f) => {
           const is1Hr = is1HrWorkFlow(f);
           if (is1Hr) {
@@ -1642,7 +1661,9 @@ export const useTaskStore = create(
             ? safe.quickWorkspaces
             : (current.quickWorkspaces?.length ? current.quickWorkspaces : [makeDefaultWorkspace()]),
           quickLabels: Array.isArray(safe.quickLabels) ? safe.quickLabels : (current.quickLabels || []),
-          followFlows: Array.isArray(safe.followFlows) ? safe.followFlows : (current.followFlows || []),
+          followFlows: pruneDuplicate1HrFlows(
+            Array.isArray(safe.followFlows) ? safe.followFlows : (current.followFlows || [])
+          ),
           onePassword: null,
           activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
         };
