@@ -502,59 +502,67 @@ export default function FlowPage() {
           "--step-ink": stepInk,
         }}
       >
-        {editing && isEveryday && !is1HrFlow && (
-          <div className="flow-step-select-col">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => toggleSelectStep(step.id)}
-              aria-label={`Select ${step.title}`}
-            />
-          </div>
-        )}
-
         <div className="flow-step-rail" aria-hidden="true">
-          <button
-            type="button"
-            className="flow-step-node"
-            disabled={locked || editing || scheduled || isArchived || (isEveryday && !everydayActive)}
-            onClick={() => {
-              if (!editing && !isArchived && onToday && unlocked && (!isEveryday || everydayActive)) {
-                const willBeDone = !step.done;
-                toggleFlowStep(flow.id, step.id);
-                if (willBeDone) {
-                  if (soundEnabled) playTickSound();
-                  triggerConfetti();
-                  if (focusTimer?.taskId === step.id) {
-                    setFocusTimer((prev) => ({ ...prev, running: false, active: false }));
+          {editing && isEveryday && !is1HrFlow ? (
+            <button
+              type="button"
+              className={`flow-step-node flow-step-select-node${isSelected ? " is-selected" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSelectStep(step.id);
+              }}
+              title={isSelected ? "Deselect this step" : "Select step to batch change dates"}
+              aria-label={`Select ${step.title}`}
+            >
+              {isSelected && <Check size={13} strokeWidth={3} />}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="flow-step-node"
+              disabled={locked || editing || scheduled || isArchived || (isEveryday && !everydayActive)}
+              onClick={() => {
+                if (!editing && !isArchived && onToday && unlocked && (!isEveryday || everydayActive)) {
+                  const willBeDone = !step.done;
+                  toggleFlowStep(flow.id, step.id);
+                  if (willBeDone) {
+                    if (soundEnabled) playTickSound();
+                    triggerConfetti();
+                    if (focusTimer?.taskId === step.id) {
+                      setFocusTimer((prev) => ({ ...prev, running: false, active: false }));
+                    }
                   }
                 }
+              }}
+              aria-label={
+                isArchived
+                  ? `Archived: ${step.title}`
+                  : scheduled
+                    ? windowLabel || "Not active today"
+                    : locked
+                      ? "Locked until previous step is done"
+                      : step.done
+                        ? "Mark as not done"
+                        : "Mark as done"
               }
-            }}
-            aria-label={
-              isArchived
-                ? `Archived: ${step.title}`
-                : scheduled
-                  ? windowLabel || "Not active today"
-                  : locked
-                    ? "Locked until previous step is done"
-                    : step.done
-                      ? "Mark as not done"
-                      : "Mark as done"
-            }
-          >
-            {onToday && step.done ? (
-              <Check size={14} />
-            ) : isArchived ? (
-              <Archive size={12} />
-            ) : locked || scheduled ? (
-              <Lock size={12} />
-            ) : null}
-          </button>
+            >
+              {onToday && step.done ? (
+                <Check size={14} />
+              ) : isArchived ? (
+                <Archive size={12} />
+              ) : locked || scheduled ? (
+                <Lock size={12} />
+              ) : null}
+            </button>
+          )}
         </div>
 
         <div className="flow-step-body">
-          <div className="flow-step-main">
+          <div
+            className="flow-step-main"
+            onClick={editing && isEveryday && !is1HrFlow ? () => toggleSelectStep(step.id) : undefined}
+            style={editing && isEveryday && !is1HrFlow ? { cursor: "pointer" } : undefined}
+          >
             <span className="flow-step-index">
               {isArchived
                 ? `Archived`

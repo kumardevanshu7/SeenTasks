@@ -1347,23 +1347,36 @@ p, h1, h2, h3, h4 { margin: 0; }
   font-size: 12px;
   border-radius: 8px;
 }
-.flow-step-select-col {
-  display: flex;
-  align-items: flex-start;
+/* Multi-Select Checkbox Node on the Stepper Rail in Edit Mode */
+.flow-step-node.flow-step-select-node {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 6px !important;
+  border: 2px solid #94a3b8 !important;
+  background: #ffffff !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  padding-top: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-.flow-step-select-col input[type="checkbox"] {
-  cursor: pointer;
-  width: 16px;
-  height: 16px;
-  accent-color: #000;
+.flow-step-node.flow-step-select-node:hover {
+  border-color: #0f172a !important;
+  transform: scale(1.08);
+}
+.flow-step-node.flow-step-select-node.is-selected {
+  background: #0f172a !important;
+  border-color: #0f172a !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.15);
 }
 .flow-step.is-selected {
-  background: #f1f5f9;
+  background: #f8fafc;
   border-radius: 10px;
-  padding: 8px 10px;
-  margin: -4px -6px 4px;
+  padding: 6px 10px;
+  margin: -6px -10px;
 }
 
 /* Archived Section for Ended Steps (Image 2) */
