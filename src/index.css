@@ -1442,6 +1442,37 @@ p, h1, h2, h3, h4 { margin: 0; }
   color: #64748b;
 }
 
+.flow-archived-empty {
+  padding: 18px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.flow-archived-empty p {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 13.5px;
+}
+.flow-archived-empty small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.flow-cat-tab-archived {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  border: 1px dashed #cbd5e1 !important;
+}
+.flow-cat-tab-archived:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
 .flow-add-block {
   margin-top: 8px;
   padding-top: 16px;

@@ -251,6 +251,9 @@ export default function FlowPage() {
 
   const activeVisibleSteps = visibleSteps.filter((s) => !isStepArchived(s));
   const archivedSteps = visibleSteps.filter((s) => isStepArchived(s));
+  const allFlowArchivedSteps = isEveryday && !is1HrFlow
+    ? steps.filter((s) => isStepArchived(s))
+    : [];
 
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
@@ -1029,10 +1032,29 @@ export default function FlowPage() {
               </button>
             </form>
           ) : (
-            <button
-              type="button"
-              className="flow-cat-add"
-              onClick={() => {
+            <>
+              {allFlowArchivedSteps.length > 0 && (
+                <button
+                  type="button"
+                  className="flow-cat-tab flow-cat-tab-archived"
+                  onClick={() => {
+                    setArchivedOpen(true);
+                    setTimeout(() => {
+                      const el = document.querySelector(".flow-archived-container");
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    }, 50);
+                  }}
+                  title="View all past ended steps"
+                >
+                  <Archive size={13} aria-hidden="true" />
+                  <span>Archived</span>
+                  <em>{allFlowArchivedSteps.length}</em>
+                </button>
+              )}
+              <button
+                type="button"
+                className="flow-cat-add"
+                onClick={() => {
                 if (!editing) {
                   setGate({ type: "edit" });
                   return;
@@ -1044,6 +1066,7 @@ export default function FlowPage() {
             >
               <Plus size={16} />
             </button>
+            </>
           )}
           {editing && categories.length > 1 && activeCat && (
             <button
@@ -1170,7 +1193,7 @@ export default function FlowPage() {
       )}
 
       {/* Archived Section for Ended Steps (Image 2) */}
-      {archivedSteps.length > 0 && (
+      {isEveryday && !is1HrFlow && (
         <div className="flow-archived-container">
           <button
             type="button"
@@ -1180,8 +1203,12 @@ export default function FlowPage() {
           >
             <div className="flow-archived-toggle-left">
               <Archive size={15} />
-              <strong>Archived ({archivedSteps.length})</strong>
-              <span className="flow-archived-hint">Past ended steps</span>
+              <strong>Archived ({allFlowArchivedSteps.length})</strong>
+              <span className="flow-archived-hint">
+                {allFlowArchivedSteps.length === 0
+                  ? "Past ended steps automatically move here"
+                  : `${allFlowArchivedSteps.length} past ended ${allFlowArchivedSteps.length === 1 ? "step" : "steps"}`}
+              </span>
             </div>
             <ChevronDown
               size={15}
@@ -1190,9 +1217,16 @@ export default function FlowPage() {
           </button>
 
           {archivedOpen && (
-            <ol className="flow-stepper flow-stepper-archived">
-              {archivedSteps.map((step, idx) => renderStepItem(step, idx, true))}
-            </ol>
+            allFlowArchivedSteps.length === 0 ? (
+              <div className="flow-archived-empty">
+                <p>No archived steps yet.</p>
+                <small>Steps whose End Date has passed automatically move here so your active stepper stays clean.</small>
+              </div>
+            ) : (
+              <ol className="flow-stepper flow-stepper-archived">
+                {allFlowArchivedSteps.map((step, idx) => renderStepItem(step, idx, true))}
+              </ol>
+            )
           )}
         </div>
       )}
