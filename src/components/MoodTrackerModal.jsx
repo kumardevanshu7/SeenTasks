@@ -166,19 +166,49 @@ export default function MoodTrackerModal({ open, onClose }) {
 
                 <p className="mood-confirmed-meaning">{todaySavedMood.meaning}</p>
 
+                {(todaySavedMood.whenToChoose || todaySavedMood.exampleScene) && (
+                  <div className="mood-showcase-details mood-confirmed-details">
+                    {todaySavedMood.whenToChoose && (
+                      <div className="mood-showcase-detail-box">
+                        <span className="mood-showcase-detail-label">🎯 Kab choose karein:</span>
+                        <p>{todaySavedMood.whenToChoose}</p>
+                      </div>
+                    )}
+                    {todaySavedMood.exampleScene && (
+                      <div className="mood-showcase-detail-box">
+                        <span className="mood-showcase-detail-label">🎬 Real Scene / Example:</span>
+                        <p>{todaySavedMood.exampleScene}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {todayEntry.note && (
                   <div className="mood-confirmed-quote">
                     <span>“{todayEntry.note}”</span>
                   </div>
                 )}
+
+                <div className="mood-confirmed-actions">
+                  <button
+                    type="button"
+                    className="button button-sm button-secondary"
+                    onClick={() => {
+                      setIsEditing(true);
+                      if (!selectedMoodId) setSelectedMoodId(todaySavedMood.id);
+                    }}
+                  >
+                    <Edit3 size={14} /> Change / Explore Library
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* VIEW 2: Active Logging Form (When window is open and user is choosing/editing) */}
-          {showForm && (
+          {/* VIEW 2: Active Logging Form & Exploration */}
+          {(!isLoggedToday || isEditing) && (
             <>
-              {/* Selected mood preview */}
+              {/* Selected mood preview with Kab choose karein & Real Scene */}
               {activeMood && (
                 <div
                   className="mood-active-showcase"
@@ -186,14 +216,33 @@ export default function MoodTrackerModal({ open, onClose }) {
                     "--mood-bg": activeMood.color,
                   }}
                 >
-                  <span className="mood-showcase-emoji">{activeMood.emoji}</span>
-                  <div className="mood-showcase-info">
-                    <div className="mood-showcase-head">
-                      <h3>{activeMood.label}</h3>
-                      <span className="mood-showcase-tag">{activeMood.vibeTag}</span>
+                  <div className="mood-showcase-top">
+                    <span className="mood-showcase-emoji">{activeMood.emoji}</span>
+                    <div className="mood-showcase-info">
+                      <div className="mood-showcase-head">
+                        <h3>{activeMood.label}</h3>
+                        <span className="mood-showcase-tag">{activeMood.vibeTag}</span>
+                      </div>
+                      <p className="mood-showcase-meaning">{activeMood.meaning}</p>
                     </div>
-                    <p>{activeMood.meaning}</p>
                   </div>
+
+                  {(activeMood.whenToChoose || activeMood.exampleScene) && (
+                    <div className="mood-showcase-details">
+                      {activeMood.whenToChoose && (
+                        <div className="mood-showcase-detail-box">
+                          <span className="mood-showcase-detail-label">🎯 Kab choose karein:</span>
+                          <p>{activeMood.whenToChoose}</p>
+                        </div>
+                      )}
+                      {activeMood.exampleScene && (
+                        <div className="mood-showcase-detail-box">
+                          <span className="mood-showcase-detail-label">🎬 Real Scene / Example:</span>
+                          <p>{activeMood.exampleScene}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -221,12 +270,17 @@ export default function MoodTrackerModal({ open, onClose }) {
                   <button
                     type="button"
                     className="button button-primary mood-lock-btn"
-                    disabled={!selectedMoodId}
+                    disabled={!selectedMoodId || !isWindowOpen}
                     onClick={handleSave}
+                    title={!isWindowOpen ? "Window opens strictly at 11:00 PM" : undefined}
                   >
                     {savedSuccess ? (
                       <>
                         <Check size={16} /> Saved for Today!
+                      </>
+                    ) : !isWindowOpen ? (
+                      <>
+                        <Lock size={14} /> Opens at 11:00 PM
                       </>
                     ) : isLoggedToday ? (
                       "Update Today's Mood"
@@ -241,7 +295,7 @@ export default function MoodTrackerModal({ open, onClose }) {
               <div className="mood-lib-section">
                 <div className="mood-lib-head">
                   <h3>Expression Library ({MOOD_EXPRESSIONS.length})</h3>
-                  <span>Tap an expression to choose your mood</span>
+                  <span>Tap any mood to preview its scene and select</span>
                 </div>
 
                 <div className="mood-grid">
@@ -262,6 +316,11 @@ export default function MoodTrackerModal({ open, onClose }) {
                         </div>
                         <strong className="mood-title">{expr.label}</strong>
                         <p className="mood-meaning">{expr.meaning}</p>
+                        {selected && expr.whenToChoose && (
+                          <div className="mood-card-active-hint">
+                            <span>Scene: {expr.whenToChoose}</span>
+                          </div>
+                        )}
                       </article>
                     );
                   })}

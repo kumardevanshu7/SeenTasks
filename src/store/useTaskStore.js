@@ -27,77 +27,161 @@ function isTaskAfterClear(task, clearedAt) {
   return created > cut;
 }
 
+async function getAuthenticatedUid() {
+  if (auth.currentUser?.uid) return auth.currentUser.uid;
+  if (typeof auth.authStateReady === "function") {
+    try {
+      await auth.authStateReady();
+      return auth.currentUser?.uid || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 function syncQuickUpsert(task) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !task) return;
-  // Block writes that belong to a wiped generation (reset / remote clear).
+  if (!task) return;
   if (!isTaskAfterClear(task, useTaskStore.getState().dataClearedAt)) return;
-  upsertQuickTask(uid, task).catch((err) => {
-    console.warn("Quick task upsert failed:", err);
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertQuickTask(directUid, task).catch((err) => {
+      console.warn("Quick task upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertQuickTask(uid, task).catch((err) => console.warn("Deferred quick task upsert failed:", err));
+    }
   });
 }
 
 function syncQuickRemove(id) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !id) return;
-  removeQuickTaskDoc(uid, id).catch((err) => {
-    console.warn("Quick task delete failed:", err);
+  if (!id) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    removeQuickTaskDoc(directUid, id).catch((err) => {
+      console.warn("Quick task delete failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      removeQuickTaskDoc(uid, id).catch((err) => console.warn("Deferred quick task delete failed:", err));
+    }
   });
 }
 
 function syncWorkspaceUpsert(workspace) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !workspace) return;
-  upsertQuickWorkspace(uid, workspace).catch((err) => {
-    console.warn("Workspace upsert failed:", err);
+  if (!workspace) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertQuickWorkspace(directUid, workspace).catch((err) => {
+      console.warn("Workspace upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertQuickWorkspace(uid, workspace).catch((err) => console.warn("Deferred workspace upsert failed:", err));
+    }
   });
 }
 
 function syncWorkspaceRemove(id) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !id) return;
-  removeQuickWorkspaceDoc(uid, id).catch((err) => {
-    console.warn("Workspace delete failed:", err);
+  if (!id) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    removeQuickWorkspaceDoc(directUid, id).catch((err) => {
+      console.warn("Workspace delete failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      removeQuickWorkspaceDoc(uid, id).catch((err) => console.warn("Deferred workspace delete failed:", err));
+    }
   });
 }
 
 function syncLabelUpsert(label) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !label) return;
-  upsertQuickLabel(uid, label).catch((err) => {
-    console.warn("Label upsert failed:", err);
+  if (!label) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertQuickLabel(directUid, label).catch((err) => {
+      console.warn("Label upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertQuickLabel(uid, label).catch((err) => console.warn("Deferred label upsert failed:", err));
+    }
   });
 }
 
 function syncLabelRemove(id) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !id) return;
-  removeQuickLabelDoc(uid, id).catch((err) => {
-    console.warn("Label delete failed:", err);
+  if (!id) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    removeQuickLabelDoc(directUid, id).catch((err) => {
+      console.warn("Label delete failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      removeQuickLabelDoc(uid, id).catch((err) => console.warn("Deferred label delete failed:", err));
+    }
   });
 }
 
 function syncFlowUpsert(flow) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !flow) return;
-  upsertFollowFlow(uid, flow).catch((err) => {
-    console.warn("Flow upsert failed:", err);
+  if (!flow) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertFollowFlow(directUid, flow).catch((err) => {
+      console.warn("Flow upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertFollowFlow(uid, flow).catch((err) => console.warn("Deferred flow upsert failed:", err));
+    }
   });
 }
 
 function syncFlowRemove(id) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !id) return;
-  removeFollowFlowDoc(uid, id).catch((err) => {
-    console.warn("Flow delete failed:", err);
+  if (!id) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    removeFollowFlowDoc(directUid, id).catch((err) => {
+      console.warn("Flow delete failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      removeFollowFlowDoc(uid, id).catch((err) => console.warn("Deferred flow delete failed:", err));
+    }
   });
 }
 
 function syncFocusSessionUpsert(session) {
-  const uid = auth.currentUser?.uid;
-  if (!uid || !session) return;
-  upsertFocusSession(uid, session).catch((err) => {
-    console.warn("Focus session upsert failed:", err);
+  if (!session) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertFocusSession(directUid, session).catch((err) => {
+      console.warn("Focus session upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertFocusSession(uid, session).catch((err) => console.warn("Deferred focus session upsert failed:", err));
+    }
   });
 }
 
@@ -910,6 +994,34 @@ export const useTaskStore = create(
         return next;
       },
 
+      batchUpdateFlowStepsDates: (flowId, stepIds = [], { startDate, endDate }) => {
+        if (!flowId || !Array.isArray(stepIds) || stepIds.length === 0) return null;
+        const idSet = new Set(stepIds);
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const steps = (f.steps || []).map((st) => {
+              if (!idSet.has(st.id)) return st;
+              const updates = {};
+              if (startDate !== undefined) {
+                updates.startDate =
+                  typeof startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null;
+              }
+              if (endDate !== undefined) {
+                updates.endDate =
+                  typeof endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : null;
+              }
+              return { ...st, ...updates };
+            });
+            next = { ...f, steps };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return next;
+      },
+
       toggleFlowStep: (flowId, stepId) => {
         if (!flowId || !stepId) return;
         let next = null;
@@ -1466,9 +1578,11 @@ export const useTaskStore = create(
     {
       name: "seentasks-store",
       version: 3,
-      // Quick tasks live in Firestore only — do not mirror them in localStorage.
       partialize: (state) => ({
         tasks: state.tasks,
+        quickTasks: state.quickTasks || [],
+        quickWorkspaces: state.quickWorkspaces || [makeDefaultWorkspace()],
+        quickLabels: state.quickLabels || [],
         followFlows: state.followFlows || [],
         members: state.members,
         persona: state.persona,
@@ -1497,9 +1611,6 @@ export const useTaskStore = create(
           incomingRequests: _ir,
           assignedByMe: _ab,
           assignedToMe: _at,
-          quickTasks: _qt,
-          quickWorkspaces: _qw,
-          quickLabels: _ql,
           ...safe
         } = incoming;
 
@@ -1526,9 +1637,11 @@ export const useTaskStore = create(
           ...safe,
           focusTimer: restoredFocusTimer,
           focusHistory: Array.isArray(safe.focusHistory) ? safe.focusHistory : (current.focusHistory || []),
-          quickTasks: [],
-          quickWorkspaces: [makeDefaultWorkspace()],
-          quickLabels: [],
+          quickTasks: Array.isArray(safe.quickTasks) ? safe.quickTasks : (current.quickTasks || []),
+          quickWorkspaces: Array.isArray(safe.quickWorkspaces) && safe.quickWorkspaces.length
+            ? safe.quickWorkspaces
+            : (current.quickWorkspaces?.length ? current.quickWorkspaces : [makeDefaultWorkspace()]),
+          quickLabels: Array.isArray(safe.quickLabels) ? safe.quickLabels : (current.quickLabels || []),
           followFlows: Array.isArray(safe.followFlows) ? safe.followFlows : (current.followFlows || []),
           onePassword: null,
           activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,

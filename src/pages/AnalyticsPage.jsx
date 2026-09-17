@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Flame,
   Layers,
@@ -21,10 +23,13 @@ import { todayKey } from "../lib/date";
 import HabitHeatmap from "../components/HabitHeatmap";
 import FocusHeatmap from "../components/FocusHeatmap";
 
+const SPRINTS_PER_PAGE = 12;
+
 export default function AnalyticsPage() {
   const [rangeId, setRangeId] = useState("7d");
   const [activeHoverBar, setActiveHoverBar] = useState(null);
   const [activeHoverHour, setActiveHoverHour] = useState(null);
+  const [sprintPage, setSprintPage] = useState(1);
 
   const quickTasks = useTaskStore((s) => s.quickTasks) || [];
   const followFlows = useTaskStore((s) => s.followFlows) || [];
@@ -32,6 +37,12 @@ export default function AnalyticsPage() {
   const dailyMoods = useTaskStore((s) => s.dailyMoods) || {};
   const streakShields = useTaskStore((s) => s.streakShields) || null;
   const focusHistory = useTaskStore((s) => s.focusHistory) || [];
+
+  const totalSprintPages = Math.max(1, Math.ceil(focusHistory.length / SPRINTS_PER_PAGE));
+  const pagedSprints = useMemo(() => {
+    const start = (sprintPage - 1) * SPRINTS_PER_PAGE;
+    return focusHistory.slice(start, start + SPRINTS_PER_PAGE);
+  }, [focusHistory, sprintPage]);
 
   const unlockedAchievementCount = useMemo(() => {
     const unlocked = evaluateUnlockedIds(followFlows, todayKey(), streakShields?.usedDates || []);
@@ -180,6 +191,9 @@ export default function AnalyticsPage() {
               <h2>Recent 1-Hour Work Sprints</h2>
               <p>Completed deep focus blocks with automatic tick marks and extension records</p>
             </div>
+            {focusHistory.length > 0 && (
+              <span className="analytics-badge">{focusHistory.length} Total</span>
+            )}
           </div>
 
           {focusHistory.length === 0 ? (
@@ -188,56 +202,88 @@ export default function AnalyticsPage() {
               <small>Click the 1h timer icon on any step in your Everyday Flow to log deep focus blocks and build your focus map!</small>
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="focus-sessions-table">
-                <thead>
-                  <tr>
-                    <th>Task / Step</th>
-                    <th>Base Time</th>
-                    <th>Extension</th>
-                    <th>Total Focus</th>
-                    <th>Completed At</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {focusHistory.slice(0, 8).map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <div className="focus-session-title-cell">
-                          <Timer size={14} style={{ color: "#f97316", flexShrink: 0 }} />
-                          <span>{s.taskTitle || "1 Hr Work"}</span>
-                        </div>
-                      </td>
-                      <td>{s.durationMinutes || 60}m</td>
-                      <td>
-                        {s.extendedMinutes > 0 ? (
-                          <span className="focus-session-ext-badge">+{s.extendedMinutes}m</span>
-                        ) : (
-                          <span style={{ color: "var(--muted)" }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <strong>{(s.durationMinutes || 60) + (s.extendedMinutes || 0)}m</strong>
-                      </td>
-                      <td>
-                        {s.completedAt ? new Date(s.completedAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        }) : s.dateKey}
-                      </td>
-                      <td>
-                        <span className="focus-session-done-badge">
-                          <CheckCircle2 size={12} /> Auto-Ticked
-                        </span>
-                      </td>
+            <>
+              <div style={{ overflowX: "auto" }}>
+                <table className="focus-sessions-table">
+                  <thead>
+                    <tr>
+                      <th>Task / Step</th>
+                      <th>Base Time</th>
+                      <th>Extension</th>
+                      <th>Total Focus</th>
+                      <th>Completed At</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {pagedSprints.map((s) => (
+                      <tr key={s.id}>
+                        <td>
+                          <div className="focus-session-title-cell">
+                            <Timer size={14} style={{ color: "#f97316", flexShrink: 0 }} />
+                            <span>{s.taskTitle || "1 Hr Work"}</span>
+                          </div>
+                        </td>
+                        <td>{s.durationMinutes || 60}m</td>
+                        <td>
+                          {s.extendedMinutes > 0 ? (
+                            <span className="focus-session-ext-badge">+{s.extendedMinutes}m</span>
+                          ) : (
+                            <span style={{ color: "var(--muted)" }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <strong>{(s.durationMinutes || 60) + (s.extendedMinutes || 0)}m</strong>
+                        </td>
+                        <td>
+                          {s.completedAt ? new Date(s.completedAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          }) : s.dateKey}
+                        </td>
+                        <td>
+                          <span className="focus-session-done-badge">
+                            <CheckCircle2 size={12} /> Auto-Ticked
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {focusHistory.length > SPRINTS_PER_PAGE && (
+                <div className="analytics-pagination" role="navigation" aria-label="Sprints pagination">
+                  <span className="analytics-pagination-info">
+                    Showing {(sprintPage - 1) * SPRINTS_PER_PAGE + 1}–
+                    {Math.min(sprintPage * SPRINTS_PER_PAGE, focusHistory.length)} of {focusHistory.length}
+                  </span>
+                  <div className="analytics-pagination-actions">
+                    <button
+                      type="button"
+                      className="button button-sm button-secondary"
+                      disabled={sprintPage <= 1}
+                      onClick={() => setSprintPage((p) => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft size={14} /> Prev
+                    </button>
+                    <span className="analytics-pagination-current">
+                      Page {sprintPage} of {totalSprintPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="button button-sm button-secondary"
+                      disabled={sprintPage >= totalSprintPages}
+                      onClick={() => setSprintPage((p) => Math.min(totalSprintPages, p + 1))}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

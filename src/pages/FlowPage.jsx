@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Archive, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, stepCategoryId } from "../lib/flowService";
@@ -133,6 +133,7 @@ export default function FlowPage() {
   const remove1HrTaskSuggestion = useTaskStore((s) => s.remove1HrTaskSuggestion);
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
+  const batchUpdateFlowStepsDates = useTaskStore((s) => s.batchUpdateFlowStepsDates);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
   const focusTimer = useTaskStore((s) => s.focusTimer);
   const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
@@ -149,6 +150,11 @@ export default function FlowPage() {
   const [addingCat, setAddingCat] = useState(false);
   const [catDraft, setCatDraft] = useState("");
   const [catColorId, setCatColorId] = useState(FLOW_COLORS[1].id);
+  const [selectedStepIds, setSelectedStepIds] = useState(() => new Set());
+  const [batchStartDate, setBatchStartDate] = useState("");
+  const [batchEndDate, setBatchEndDate] = useState("");
+  const [batchFeedback, setBatchFeedback] = useState("");
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const switchRef = useRef(null);
 
   const flow = useMemo(
@@ -233,6 +239,8 @@ export default function FlowPage() {
     : flow.color;
   const ink = flowColorInk(isEveryday && activeCatMeta ? activeCatMeta.color : flow.color);
   const is1HrStepActive = (s) => (s.dateKey === day || !s.dateKey || !s.done);
+  const isStepArchived = (s) => isEveryday && !is1HrFlow && Boolean(s.endDate && s.endDate < day);
+
   const visibleSteps = is1HrFlow
     ? (categories.length > 1 && activeCat
         ? steps.filter((s) => is1HrStepActive(s) && stepCategoryId(s, flow) === activeCat)
@@ -240,10 +248,66 @@ export default function FlowPage() {
     : isEveryday && activeCat
       ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
       : steps;
+
+  const activeVisibleSteps = visibleSteps.filter((s) => !isStepArchived(s));
+  const archivedSteps = visibleSteps.filter((s) => isStepArchived(s));
+
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
     .filter(Boolean);
   const suggestions = is1HrFlow ? get1HrTaskSuggestions(flow) : [];
+
+  useEffect(() => {
+    if (!editing) {
+      setSelectedStepIds(new Set());
+      setBatchFeedback("");
+    }
+  }, [editing]);
+
+  useEffect(() => {
+    setSelectedStepIds(new Set());
+    setBatchFeedback("");
+  }, [activeCat]);
+
+  function toggleSelectAll() {
+    if (selectedStepIds.size === visibleSteps.length && visibleSteps.length > 0) {
+      setSelectedStepIds(new Set());
+    } else {
+      setSelectedStepIds(new Set(visibleSteps.map((s) => s.id)));
+    }
+  }
+
+  function toggleSelectStep(id) {
+    setSelectedStepIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleApplyBatchDates() {
+    if (selectedStepIds.size === 0) return;
+    if (!batchStartDate && !batchEndDate) return;
+    batchUpdateFlowStepsDates(flow.id, Array.from(selectedStepIds), {
+      startDate: batchStartDate || undefined,
+      endDate: batchEndDate || undefined,
+    });
+    if (soundEnabled) playTickSound();
+    setBatchFeedback(`Updated ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}!`);
+    setTimeout(() => setBatchFeedback(""), 3500);
+  }
+
+  function handleClearBatchDates() {
+    if (selectedStepIds.size === 0) return;
+    batchUpdateFlowStepsDates(flow.id, Array.from(selectedStepIds), {
+      startDate: null,
+      endDate: null,
+    });
+    if (soundEnabled) playTickSound();
+    setBatchFeedback(`Cleared dates for ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}`);
+    setTimeout(() => setBatchFeedback(""), 3500);
+  }
 
   function submitStep() {
     const added = addFlowStep(flow.id, draft, {
@@ -387,6 +451,261 @@ export default function FlowPage() {
           : gate?.type === "reset-1hr-today"
             ? "This will clear today’s active steps so you can start fresh. Your tasks remain safely saved in the suggestions tray below. Answer your One Password question to continue."
             : "This removes the whole step path. Answer your One Password question to continue.";
+
+  function renderStepItem(step, visIndex, isArchived = false) {
+    const index = steps.findIndex((s) => s.id === step.id);
+    const onToday = is1HrFlow
+      ? is1HrStepActive(step)
+      : (!isEveryday || isFlowStepActiveOnDay(step, day));
+    const unlocked = isFlowStepUnlocked(steps, index, day, isEveryday, {
+      anyOrder: is1HrFlow ? true : anyOrder,
+      categoryId: activeCat || step.categoryId,
+    });
+    const isActive = onToday && unlocked && !step.done;
+    const locked = onToday && !unlocked;
+    const scheduled = isEveryday && !onToday;
+    const windowLabel = stepWindowLabel(step);
+    let todayOrd = 0;
+    if (onToday && isEveryday && !isArchived) {
+      for (let i = 0; i <= visIndex; i += 1) {
+        const prev = activeVisibleSteps[i];
+        if (prev && (is1HrFlow ? is1HrStepActive(prev) : isFlowStepActiveOnDay(prev, day))) todayOrd += 1;
+      }
+    }
+    const catObj = categories.find((c) => c.id === (step.categoryId || activeCat)) || activeCatMeta;
+    const isStep1Hr = is1HrFlow;
+    const stepBg = flowColorValue(catObj?.color || flow.color);
+    const stepInk = flowColorInk(catObj?.color || flow.color);
+
+    const isStepTimer = focusTimer?.taskId === step.id && focusTimer?.flowId === flow.id;
+    const isTimerRunning = isStepTimer && Boolean(focusTimer?.running);
+    const isTimerActive = isStepTimer && Boolean(focusTimer?.active || focusTimer?.running || (focusTimer?.secondsLeft < 3600));
+    let timerTimeStr = "1h";
+    if (isStepTimer) {
+      let sec = focusTimer.secondsLeft ?? 3600;
+      if (focusTimer.running && focusTimer.targetEndTime) {
+        sec = Math.max(0, Math.ceil((focusTimer.targetEndTime - Date.now()) / 1000));
+      }
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      timerTimeStr = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
+    const isSelected = selectedStepIds.has(step.id);
+
+    return (
+      <li
+        key={step.id}
+        className={`flow-step${step.done && onToday ? " is-done" : ""}${isActive ? " is-active" : ""}${locked ? " is-locked" : ""}${scheduled ? " is-scheduled" : ""}${isArchived ? " is-archived" : ""}${isSelected ? " is-selected" : ""}`}
+        style={{
+          "--step-bg": stepBg,
+          "--step-ink": stepInk,
+        }}
+      >
+        {editing && isEveryday && !is1HrFlow && (
+          <div className="flow-step-select-col">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleSelectStep(step.id)}
+              aria-label={`Select ${step.title}`}
+            />
+          </div>
+        )}
+
+        <div className="flow-step-rail" aria-hidden="true">
+          <button
+            type="button"
+            className="flow-step-node"
+            disabled={locked || editing || scheduled || isArchived || (isEveryday && !everydayActive)}
+            onClick={() => {
+              if (!editing && !isArchived && onToday && unlocked && (!isEveryday || everydayActive)) {
+                const willBeDone = !step.done;
+                toggleFlowStep(flow.id, step.id);
+                if (willBeDone) {
+                  if (soundEnabled) playTickSound();
+                  triggerConfetti();
+                  if (focusTimer?.taskId === step.id) {
+                    setFocusTimer((prev) => ({ ...prev, running: false, active: false }));
+                  }
+                }
+              }
+            }}
+            aria-label={
+              isArchived
+                ? `Archived: ${step.title}`
+                : scheduled
+                  ? windowLabel || "Not active today"
+                  : locked
+                    ? "Locked until previous step is done"
+                    : step.done
+                      ? "Mark as not done"
+                      : "Mark as done"
+            }
+          >
+            {onToday && step.done ? (
+              <Check size={14} />
+            ) : isArchived ? (
+              <Archive size={12} />
+            ) : locked || scheduled ? (
+              <Lock size={12} />
+            ) : null}
+          </button>
+        </div>
+
+        <div className="flow-step-body">
+          <div className="flow-step-main">
+            <span className="flow-step-index">
+              {isArchived
+                ? `Archived`
+                : isEveryday && onToday
+                  ? `Today ${todayOrd}`
+                  : `Step ${visIndex + 1}`}
+            </span>
+            <strong className="flow-step-title">{step.title}</strong>
+            <span className="flow-step-status">
+              {isArchived
+                ? `Ended ${step.endDate ? formatFriendly(step.endDate) : ""}`
+                : scheduled
+                  ? windowLabel || "Not today"
+                  : step.done
+                    ? "Done"
+                    : locked
+                      ? "Locked"
+                      : anyOrder
+                        ? "Open"
+                        : "Do this next"}
+            </span>
+            {!isArchived && onToday && windowLabel && !scheduled && (
+              <span className="flow-step-window">{windowLabel}</span>
+            )}
+          </div>
+
+          {!editing && onToday && isStep1Hr && (
+            <div className="flow-step-timer-wrap">
+              <button
+                type="button"
+                className={`flow-step-timer-btn${isTimerActive ? " is-active" : ""}${isTimerRunning ? " is-running" : ""}${step.done ? " is-done" : ""}`}
+                disabled={locked || scheduled}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStepTimerToggle(step);
+                }}
+                title={
+                  step.done && isStepTimer
+                    ? "1-hour session completed! Click to view details or extend"
+                    : step.done
+                    ? "Task complete"
+                    : isTimerRunning
+                      ? "Pause 1-hour focus timer"
+                      : isTimerActive
+                        ? "Resume 1-hour focus timer"
+                        : "Start 1-hour focus timer"
+                }
+              >
+                {step.done && isStepTimer ? (
+                  <>
+                    <CheckCircle2 size={12} style={{ color: "#10b981" }} />
+                    <strong style={{ color: "#10b981" }}>Done</strong>
+                  </>
+                ) : isTimerRunning ? (
+                  <>
+                    <span className="flow-timer-pulse" />
+                    <Pause size={12} />
+                    <strong>{timerTimeStr}</strong>
+                  </>
+                ) : isTimerActive ? (
+                  <>
+                    <Play size={12} />
+                    <strong>{timerTimeStr}</strong>
+                  </>
+                ) : (
+                  <>
+                    <Timer size={13} />
+                    <span>{flow?.is1HrWork ? "Start 1h" : "1h"}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {editing && (
+            <div className="flow-step-edit">
+              {isEveryday && (
+                <div className="flow-step-dates">
+                  <label>
+                    Start
+                    <input
+                      type="date"
+                      className="text-input"
+                      value={step.startDate || ""}
+                      onChange={(e) =>
+                        updateFlowStep(flow.id, step.id, {
+                          startDate: e.target.value || null,
+                        })
+                      }
+                      aria-label={`Start date for ${step.title}`}
+                    />
+                  </label>
+                  <label>
+                    End
+                    <input
+                      type="date"
+                      className="text-input"
+                      value={step.endDate || ""}
+                      min={step.startDate || undefined}
+                      onChange={(e) =>
+                        updateFlowStep(flow.id, step.id, {
+                          endDate: e.target.value || null,
+                        })
+                      }
+                      aria-label={`End date for ${step.title}`}
+                    />
+                  </label>
+                </div>
+              )}
+              {!isArchived && (
+                <>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    disabled={visIndex === 0}
+                    onClick={() =>
+                      reorderFlowSteps(flow.id, visIndex, visIndex - 1, isEveryday ? activeCat : null)
+                    }
+                    aria-label="Move up"
+                  >
+                    <ArrowUp size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    disabled={visIndex === activeVisibleSteps.length - 1}
+                    onClick={() =>
+                      reorderFlowSteps(flow.id, visIndex, visIndex + 1, isEveryday ? activeCat : null)
+                    }
+                    aria-label="Move down"
+                  >
+                    <ArrowDown size={14} />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="icon-button icon-button-danger"
+                onClick={() =>
+                  setGate({ type: "delete-step", stepId: step.id, title: step.title })
+                }
+                aria-label="Delete step"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  }
 
   return (
     <div
@@ -759,247 +1078,113 @@ export default function FlowPage() {
         </p>
       )}
 
-      <ol className="flow-stepper" aria-label="Flow steps">
-        {visibleSteps.map((step, visIndex) => {
-          const index = steps.findIndex((s) => s.id === step.id);
-          const onToday = is1HrFlow
-            ? is1HrStepActive(step)
-            : (!isEveryday || isFlowStepActiveOnDay(step, day));
-          const unlocked = isFlowStepUnlocked(steps, index, day, isEveryday, {
-            anyOrder: is1HrFlow ? true : anyOrder,
-            categoryId: activeCat || step.categoryId,
-          });
-          const isActive = onToday && unlocked && !step.done;
-          const locked = onToday && !unlocked;
-          const scheduled = isEveryday && !onToday;
-          const windowLabel = stepWindowLabel(step);
-          let todayOrd = 0;
-          if (onToday && isEveryday) {
-            for (let i = 0; i <= visIndex; i += 1) {
-              const prev = visibleSteps[i];
-              if (is1HrFlow ? is1HrStepActive(prev) : isFlowStepActiveOnDay(prev, day)) todayOrd += 1;
-            }
-          }
-          const catObj = categories.find((c) => c.id === (step.categoryId || activeCat)) || activeCatMeta;
-          const isStep1Hr = is1HrFlow;
-          const stepBg = flowColorValue(catObj?.color || flow.color);
-          const stepInk = flowColorInk(catObj?.color || flow.color);
+      {/* Bulk Date Changer in Edit Mode (Image 1) */}
+      {editing && isEveryday && !is1HrFlow && visibleSteps.length > 0 && (
+        <div className="flow-bulk-date-bar">
+          <div className="flow-bulk-date-left">
+            <label className="flow-bulk-select-all" title="Select all steps in this category">
+              <input
+                type="checkbox"
+                checked={visibleSteps.length > 0 && selectedStepIds.size === visibleSteps.length}
+                onChange={toggleSelectAll}
+                aria-label="Select all steps"
+              />
+              <span>Select all</span>
+            </label>
+            <span className="flow-bulk-count">
+              {selectedStepIds.size} of {visibleSteps.length} selected
+            </span>
+            {batchFeedback && (
+              <span className="flow-bulk-feedback">{batchFeedback}</span>
+            )}
+          </div>
 
-          const isStepTimer = focusTimer?.taskId === step.id && focusTimer?.flowId === flow.id;
-          const isTimerRunning = isStepTimer && Boolean(focusTimer?.running);
-          const isTimerActive = isStepTimer && Boolean(focusTimer?.active || focusTimer?.running || (focusTimer?.secondsLeft < 3600));
-          let timerTimeStr = "1h";
-          if (isStepTimer) {
-            let sec = focusTimer.secondsLeft ?? 3600;
-            if (focusTimer.running && focusTimer.targetEndTime) {
-              sec = Math.max(0, Math.ceil((focusTimer.targetEndTime - Date.now()) / 1000));
-            }
-            const m = Math.floor(sec / 60);
-            const s = sec % 60;
-            timerTimeStr = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-          }
-
-          return (
-            <li
-              key={step.id}
-              className={`flow-step${step.done && onToday ? " is-done" : ""}${isActive ? " is-active" : ""}${locked ? " is-locked" : ""}${scheduled ? " is-scheduled" : ""}`}
-              style={{
-                "--step-bg": stepBg,
-                "--step-ink": stepInk,
-              }}
+          <div className="flow-bulk-date-inputs">
+            <label className="flow-bulk-input-group">
+              <span>Start</span>
+              <input
+                type="date"
+                className="text-input text-input-sm"
+                value={batchStartDate}
+                onChange={(e) => setBatchStartDate(e.target.value)}
+                aria-label="Batch start date"
+              />
+            </label>
+            <label className="flow-bulk-input-group">
+              <span>End</span>
+              <input
+                type="date"
+                className="text-input text-input-sm"
+                value={batchEndDate}
+                min={batchStartDate || undefined}
+                onChange={(e) => setBatchEndDate(e.target.value)}
+                aria-label="Batch end date"
+              />
+            </label>
+            <button
+              type="button"
+              className="button button-sm button-primary"
+              disabled={selectedStepIds.size === 0 || (!batchStartDate && !batchEndDate)}
+              onClick={handleApplyBatchDates}
             >
-              <div className="flow-step-rail" aria-hidden="true">
-                <button
-                  type="button"
-                  className="flow-step-node"
-                  disabled={locked || editing || scheduled || (isEveryday && !everydayActive)}
-                  onClick={() => {
-                    if (!editing && onToday && unlocked && (!isEveryday || everydayActive)) {
-                      const willBeDone = !step.done;
-                      toggleFlowStep(flow.id, step.id);
-                      if (willBeDone) {
-                        if (soundEnabled) playTickSound();
-                        triggerConfetti();
-                        if (focusTimer?.taskId === step.id) {
-                          setFocusTimer((prev) => ({ ...prev, running: false, active: false }));
-                        }
-                      }
-                    }
-                  }}
-                  aria-label={
-                    scheduled
-                      ? windowLabel || "Not active today"
-                      : locked
-                        ? "Locked until previous step is done"
-                        : step.done
-                          ? "Mark as not done"
-                          : "Mark as done"
-                  }
-                >
-                  {onToday && step.done ? (
-                    <Check size={14} />
-                  ) : locked || scheduled ? (
-                    <Lock size={12} />
-                  ) : null}
-                </button>
-              </div>
+              Apply to {selectedStepIds.size ? `${selectedStepIds.size} selected` : "selected"}
+            </button>
+            <button
+              type="button"
+              className="button button-sm button-secondary"
+              disabled={selectedStepIds.size === 0}
+              onClick={handleClearBatchDates}
+              title="Remove dates from selected steps"
+            >
+              Clear dates
+            </button>
+          </div>
+        </div>
+      )}
 
-              <div className="flow-step-body">
-                <div className="flow-step-main">
-                  <span className="flow-step-index">
-                    {isEveryday && onToday
-                      ? `Today ${todayOrd}`
-                      : `Step ${visIndex + 1}`}
-                  </span>
-                  <strong className="flow-step-title">{step.title}</strong>
-                  <span className="flow-step-status">
-                    {scheduled
-                      ? windowLabel || "Not today"
-                      : step.done
-                        ? "Done"
-                        : locked
-                          ? "Locked"
-                          : anyOrder
-                            ? "Open"
-                            : "Do this next"}
-                  </span>
-                  {onToday && windowLabel && !scheduled && (
-                    <span className="flow-step-window">{windowLabel}</span>
-                  )}
-                </div>
-
-                {!editing && onToday && isStep1Hr && (
-                  <div className="flow-step-timer-wrap">
-                    <button
-                      type="button"
-                      className={`flow-step-timer-btn${isTimerActive ? " is-active" : ""}${isTimerRunning ? " is-running" : ""}${step.done ? " is-done" : ""}`}
-                      disabled={locked || scheduled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStepTimerToggle(step);
-                      }}
-                      title={
-                        step.done && isStepTimer
-                          ? "1-hour session completed! Click to view details or extend"
-                          : step.done
-                          ? "Task complete"
-                          : isTimerRunning
-                            ? "Pause 1-hour focus timer"
-                            : isTimerActive
-                              ? "Resume 1-hour focus timer"
-                              : "Start 1-hour focus timer"
-                      }
-                    >
-                      {step.done && isStepTimer ? (
-                        <>
-                          <CheckCircle2 size={12} style={{ color: "#10b981" }} />
-                          <strong style={{ color: "#10b981" }}>Done</strong>
-                        </>
-                      ) : isTimerRunning ? (
-                        <>
-                          <span className="flow-timer-pulse" />
-                          <Pause size={12} />
-                          <strong>{timerTimeStr}</strong>
-                        </>
-                      ) : isTimerActive ? (
-                        <>
-                          <Play size={12} />
-                          <strong>{timerTimeStr}</strong>
-                        </>
-                      ) : (
-                        <>
-                          <Timer size={13} />
-                          <span>{flow?.is1HrWork ? "Start 1h" : "1h"}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-
-                {editing && (
-                  <div className="flow-step-edit">
-                    {isEveryday && (
-                      <div className="flow-step-dates">
-                        <label>
-                          Start
-                          <input
-                            type="date"
-                            className="text-input"
-                            value={step.startDate || ""}
-                            onChange={(e) =>
-                              updateFlowStep(flow.id, step.id, {
-                                startDate: e.target.value || null,
-                              })
-                            }
-                            aria-label={`Start date for ${step.title}`}
-                          />
-                        </label>
-                        <label>
-                          End
-                          <input
-                            type="date"
-                            className="text-input"
-                            value={step.endDate || ""}
-                            min={step.startDate || undefined}
-                            onChange={(e) =>
-                              updateFlowStep(flow.id, step.id, {
-                                endDate: e.target.value || null,
-                              })
-                            }
-                            aria-label={`End date for ${step.title}`}
-                          />
-                        </label>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="icon-button"
-                      disabled={visIndex === 0}
-                      onClick={() =>
-                        reorderFlowSteps(flow.id, visIndex, visIndex - 1, isEveryday ? activeCat : null)
-                      }
-                      aria-label="Move up"
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      disabled={visIndex === visibleSteps.length - 1}
-                      onClick={() =>
-                        reorderFlowSteps(flow.id, visIndex, visIndex + 1, isEveryday ? activeCat : null)
-                      }
-                      aria-label="Move down"
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button icon-button-danger"
-                      onClick={() =>
-                        setGate({ type: "delete-step", stepId: step.id, title: step.title })
-                      }
-                      aria-label="Delete step"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </li>
-          );
-        })}
+      <ol className="flow-stepper" aria-label="Flow steps">
+        {activeVisibleSteps.map((step, visIndex) => renderStepItem(step, visIndex, false))}
       </ol>
 
-      {visibleSteps.length === 0 && !editing && (
+      {activeVisibleSteps.length === 0 && !editing && (
         <div className="flow-steps-empty">
           {is1HrFlow ? (
             <div className="flow-1hr-empty-content">
               <strong>Plan today’s 1-hour focus sprints</strong>
               <p>Type your tasks below, or tap previous tasks from the suggestions tray.</p>
             </div>
+          ) : archivedSteps.length > 0 ? (
+            <p>All steps in this tab have ended and moved to Archived below.</p>
           ) : (
             <p>{isEveryday ? "No steps in this tab — add one below." : "No steps yet — add the first one below."}</p>
+          )}
+        </div>
+      )}
+
+      {/* Archived Section for Ended Steps (Image 2) */}
+      {archivedSteps.length > 0 && (
+        <div className="flow-archived-container">
+          <button
+            type="button"
+            className="flow-archived-toggle"
+            onClick={() => setArchivedOpen((v) => !v)}
+            aria-expanded={archivedOpen}
+          >
+            <div className="flow-archived-toggle-left">
+              <Archive size={15} />
+              <strong>Archived ({archivedSteps.length})</strong>
+              <span className="flow-archived-hint">Past ended steps</span>
+            </div>
+            <ChevronDown
+              size={15}
+              className={`flow-archived-chevron${archivedOpen ? " is-open" : ""}`}
+            />
+          </button>
+
+          {archivedOpen && (
+            <ol className="flow-stepper flow-stepper-archived">
+              {archivedSteps.map((step, idx) => renderStepItem(step, idx, true))}
+            </ol>
           )}
         </div>
       )}

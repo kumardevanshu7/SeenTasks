@@ -96,7 +96,6 @@ export function useQuickTasksSync() {
         const legacy = readLegacyLocalQuickTasks().filter((t) =>
           isCreatedAfterClear(t, clearedAt)
         );
-        scrubQuickTasksFromPersist();
 
         await ensureDefaultWorkspace(uid);
         if (legacy.length) {
@@ -149,10 +148,14 @@ export function useQuickTasksSync() {
             const cloudStepIds = new Set((cloudFlow.steps || []).map((s) => s.id));
             const pendingSteps = (local.steps || []).filter((s) => s?.id && !cloudStepIds.has(s.id));
             if (pendingSteps.length > 0) {
-              return {
+              const combined = {
                 ...cloudFlow,
                 steps: [...(cloudFlow.steps || []), ...pendingSteps],
               };
+              upsertFollowFlow(uid, combined).catch((err) =>
+                console.warn("Auto-sync pending flow steps failed:", err)
+              );
+              return combined;
             }
             return cloudFlow;
           });
@@ -160,6 +163,9 @@ export function useQuickTasksSync() {
           localFlows.forEach((local) => {
             if (local?.id && !cloudMap.has(local.id)) {
               merged.push(local);
+              upsertFollowFlow(uid, local).catch((err) =>
+                console.warn("Auto-sync pending local flow failed:", err)
+              );
             }
           });
 
@@ -178,6 +184,15 @@ export function useQuickTasksSync() {
           const pending = (useTaskStore.getState().quickTasks || []).filter(
             (t) => t?.id && !cloudIds.has(t.id) && isCreatedAfterClear(t, cut)
           );
+
+          if (pending.length > 0) {
+            pending.forEach((p) => {
+              upsertQuickTask(uid, p).catch((err) =>
+                console.warn("Auto-sync pending quick task failed:", err)
+              );
+            });
+          }
+
           setQuickTasks(
             [...pending, ...cloud].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
           );
