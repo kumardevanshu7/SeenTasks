@@ -18,6 +18,7 @@ import { useTaskStore } from "../store/useTaskStore";
 import { MOOD_EXPRESSIONS, getMoodWindowCountdown, isMoodWindowOpen } from "../lib/moodService";
 import { formatFriendly, todayKey } from "../lib/date";
 import { triggerConfetti } from "../lib/audioConfetti";
+import MoodIcon from "./MoodIcon";
 
 export default function MoodTrackerModal({ open, onClose }) {
   const dailyMoods = useTaskStore((s) => s.dailyMoods) || {};
@@ -154,7 +155,9 @@ export default function MoodTrackerModal({ open, onClose }) {
                 }}
               >
                 <div className="mood-confirmed-header">
-                  <span className="mood-confirmed-emoji">{todaySavedMood.emoji}</span>
+                  <span className="mood-confirmed-emoji">
+                    <MoodIcon moodId={todaySavedMood.id} size={30} active={true} />
+                  </span>
                   <div className="mood-confirmed-title-wrap">
                     <div className="mood-confirmed-badge-row">
                       <span className="mood-confirmed-tag">{todaySavedMood.vibeTag}</span>
@@ -217,7 +220,7 @@ export default function MoodTrackerModal({ open, onClose }) {
                   }}
                 >
                   <div className="mood-showcase-top">
-                    <span className="mood-showcase-emoji">{activeMood.emoji}</span>
+                    <MoodIcon moodId={activeMood.id} size={28} active={true} />
                     <div className="mood-showcase-info">
                       <div className="mood-showcase-head">
                         <h3>{activeMood.label}</h3>
@@ -311,7 +314,7 @@ export default function MoodTrackerModal({ open, onClose }) {
                         }}
                       >
                         <div className="mood-card-top">
-                          <span className="mood-emoji">{expr.emoji}</span>
+                          <MoodIcon moodId={expr.id} size={20} interactive={true} />
                           <span className="mood-tag">{expr.vibeTag}</span>
                         </div>
                         <strong className="mood-title">{expr.label}</strong>
@@ -342,7 +345,7 @@ export default function MoodTrackerModal({ open, onClose }) {
                   const isCurrent = entry.dateKey === today;
                   return (
                     <div key={entry.dateKey} className={`mood-history-row${isCurrent ? " is-today" : ""}`}>
-                      <span className="mood-history-emoji">{m?.emoji || "✨"}</span>
+                      <MoodIcon moodId={m?.id} size={18} motionEnabled={false} />
                       <div className="mood-history-body">
                         <div className="mood-history-head">
                           <strong>{m?.label || "Reflected"}</strong>

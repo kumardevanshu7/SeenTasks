@@ -21,7 +21,6 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const TodayPage = lazy(() => import("./pages/TodayPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const PersonaPage = lazy(() => import("./pages/PersonaPage"));
-const AssistantPage = lazy(() => import("./pages/AssistantPage"));
 const BinPage = lazy(() => import("./pages/BinPage"));
 const TeamPage = lazy(() => import("./pages/TeamPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -66,7 +65,7 @@ export default function App() {
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="guide" element={<GuidePage inApp />} />
             <Route path="persona" element={<PersonaPage />} />
-            <Route path="assistant" element={<AssistantPage />} />
+            <Route path="assistant" element={<Navigate to="/app" replace />} />
             <Route path="bin" element={<BinPage />} />
             <Route path="team" element={<TeamPage />} />
             <Route path="settings" element={<SettingsPage />} />

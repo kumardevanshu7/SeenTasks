@@ -3,7 +3,6 @@ const loaders = {
   "/app/today": () => import("../pages/TodayPage"),
   "/app/calendar": () => import("../pages/CalendarPage"),
   "/app/persona": () => import("../pages/PersonaPage"),
-  "/app/assistant": () => import("../pages/AssistantPage"),
   "/app/bin": () => import("../pages/BinPage"),
   "/app/team": () => import("../pages/TeamPage"),
   "/app/settings": () => import("../pages/SettingsPage"),

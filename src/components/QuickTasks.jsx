@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CalendarRange, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CalendarRange, CalendarSearch, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
@@ -231,6 +231,7 @@ function SnoozeMenu({ onSnooze, onClose, activeDate }) {
   const weekend = getUpcomingWeekend(activeDate || todayKey());
   const nextWeek = getUpcomingMonday(activeDate || todayKey());
   const menuRef = useRef(null);
+  const [showCustom, setShowCustom] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -285,6 +286,38 @@ function SnoozeMenu({ onSnooze, onClose, activeDate }) {
         </div>
         <small>{formatFriendly(nextWeek)}</small>
       </button>
+      {showCustom ? (
+        <div className="quick-task-snooze-opt snooze-custom-date-row">
+          <div className="snooze-opt-title">
+            <CalendarSearch size={13} className="snooze-opt-icon" />
+            <span>Pick a date</span>
+          </div>
+          <input
+            type="date"
+            className="snooze-custom-input"
+            min={todayKey()}
+            autoFocus
+            onChange={(e) => {
+              if (e.target.value) {
+                onSnooze(e.target.value);
+                onClose?.();
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="quick-task-snooze-opt"
+          onClick={() => setShowCustom(true)}
+        >
+          <div className="snooze-opt-title">
+            <CalendarSearch size={13} className="snooze-opt-icon" />
+            <span>Custom Date</span>
+          </div>
+          <small>Pick any day</small>
+        </button>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, MessageCircle, Moon, Plus, Settings, Timer, Trash2, TrendingUp, Users, X } from "lucide-react";
+import { BookOpen, CheckSquare, ClipboardList, Command, GitBranch, LogOut, Menu, Moon, Plus, Settings, Timer, Trash2, TrendingUp, Users, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { useAuth } from "../hooks/useAuth";
 import Logo from "./Logo";
@@ -181,7 +181,6 @@ export default function Navbar() {
             {showMoodLive && <em className="em-live" title="11:00 PM reflection window is open!">Live</em>}
           </button>
 
-          <NavLink to="/app/assistant" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/assistant")}><MessageCircle size={17} /><span>Assistant</span></NavLink>
           <NavLink to="/app/bin" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/bin")}><Trash2 size={17} /><span>Abort bin</span>{binCount > 0 && <em>{binCount}</em>}</NavLink>
           <NavLink to="/app/team" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/team")}><Users size={17} /><span>Organization</span>{requestCount > 0 ? <em className="em-alert">{requestCount}</em> : connectionCount > 0 && <em>{connectionCount}</em>}</NavLink>
           <NavLink to="/app/settings" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/settings")}><Settings size={17} /><span>Settings</span></NavLink>

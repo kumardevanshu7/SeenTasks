@@ -22,6 +22,7 @@ import { evaluateUnlockedIds } from "../lib/flowAchievements";
 import { todayKey } from "../lib/date";
 import HabitHeatmap from "../components/HabitHeatmap";
 import FocusHeatmap from "../components/FocusHeatmap";
+import MoodIcon from "../components/MoodIcon";
 
 const SPRINTS_PER_PAGE = 12;
 
@@ -303,44 +304,53 @@ export default function AnalyticsPage() {
 
         <div className="analytics-chart-wrapper">
           <div className="analytics-bars-container">
-            {dailyTrend.map((d, idx) => {
-              const heightPct = Math.max(14, Math.round((d.totalAll / maxDayTotal) * 100));
-              const doneHeightPct = d.totalAll > 0 ? Math.round((d.totalDone / d.totalAll) * 100) : 0;
-              const isHovered = activeHoverBar === idx;
+            {(() => {
+              const tickStep =
+                rangeId === "7d" ? 1 :
+                rangeId === "14d" ? 2 :
+                rangeId === "30d" ? 5 : 12;
+              return dailyTrend.map((d, idx) => {
+                const heightPct = Math.max(14, Math.round((d.totalAll / maxDayTotal) * 100));
+                const doneHeightPct = d.totalAll > 0 ? Math.round((d.totalDone / d.totalAll) * 100) : 0;
+                const isHovered = activeHoverBar === idx;
+                const showLabel = idx % tickStep === 0 || d.isToday || idx === dailyTrend.length - 1;
 
-              return (
-                <div
-                  key={d.dateKey}
-                  className={`analytics-bar-col${d.isToday ? " is-today" : ""}${isHovered ? " is-hovered" : ""}`}
-                  onMouseEnter={() => setActiveHoverBar(idx)}
-                  onMouseLeave={() => setActiveHoverBar(null)}
-                  onClick={() => setActiveHoverBar(isHovered ? null : idx)}
-                >
-                  {/* Tooltip on Hover/Tap */}
-                  {isHovered && (
-                    <div className="analytics-bar-tooltip">
-                      <strong>{d.dayName}, {d.shortDate}</strong>
-                      <span className="tooltip-stat">{d.totalDone} of {d.totalAll} done ({d.pct}%)</span>
-                      <span className="tooltip-sub">{d.tasksDone} tasks · {d.flowDone} steps</span>
+                return (
+                  <div
+                    key={d.dateKey}
+                    className={`analytics-bar-col${d.isToday ? " is-today" : ""}${isHovered ? " is-hovered" : ""}`}
+                    onMouseEnter={() => setActiveHoverBar(idx)}
+                    onMouseLeave={() => setActiveHoverBar(null)}
+                    onClick={() => setActiveHoverBar(isHovered ? null : idx)}
+                  >
+                    {/* Tooltip on Hover/Tap */}
+                    {isHovered && (
+                      <div className="analytics-bar-tooltip">
+                        <strong>{d.dayName}, {d.shortDate}</strong>
+                        <span className="tooltip-stat">{d.totalDone} of {d.totalAll} done ({d.pct}%)</span>
+                        <span className="tooltip-sub">{d.tasksDone} tasks · {d.flowDone} steps</span>
+                      </div>
+                    )}
+
+                    <div className="analytics-bar-track-wrap" style={{ height: `${heightPct}%` }}>
+                      <div className="analytics-bar-track">
+                        <div
+                          className="analytics-bar-fill"
+                          style={{ height: `${doneHeightPct}%` }}
+                        />
+                      </div>
                     </div>
-                  )}
 
-                  <div className="analytics-bar-track-wrap" style={{ height: `${heightPct}%` }}>
-                    <div className="analytics-bar-track">
-                      <div
-                        className="analytics-bar-fill"
-                        style={{ height: `${doneHeightPct}%` }}
-                      />
-                    </div>
+                    {showLabel && (
+                      <div className="analytics-bar-label">
+                        <span className="bar-day">{d.dayName}</span>
+                        <span className="bar-date">{d.shortDate.split(" ")[1]}</span>
+                      </div>
+                    )}
                   </div>
-
-                  <div className="analytics-bar-label">
-                    <span className="bar-day">{d.dayName}</span>
-                    <span className="bar-date">{d.shortDate.split(" ")[1]}</span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       </section>
@@ -485,7 +495,7 @@ export default function AnalyticsPage() {
               {moodEntries.slice(0, 6).map((m) => (
                 <div key={m.dateKey} className="analytics-mood-card">
                   <div className="analytics-mood-top">
-                    <span className="analytics-mood-emoji">{m.emoji}</span>
+                    <MoodIcon moodId={m.moodId} size={20} motionEnabled={false} />
                     <span className="analytics-mood-date">{m.shortDate}</span>
                   </div>
                   <strong className="analytics-mood-title">{m.title}</strong>
