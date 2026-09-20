@@ -11,6 +11,8 @@ import {
   Layers,
   Moon,
   Sparkles,
+  Sun,
+  Sunrise,
   Target,
   Timer,
   TrendingUp,
@@ -372,7 +374,11 @@ export default function AnalyticsPage() {
           {periodBreakdown.map((p) => (
             <div key={p.id} className="analytics-period-card">
               <div className="period-card-top">
-                <span className="period-icon">{p.icon}</span>
+                <span className={`period-icon period-icon-${p.id}`}>
+                  {p.id === "morning" && <Sunrise size={20} />}
+                  {p.id === "afternoon" && <Sun size={20} />}
+                  {p.id === "night" && <Moon size={20} />}
+                </span>
                 <div className="period-meta">
                   <strong>{p.label}</strong>
                   <small>{p.time}</small>
@@ -518,7 +524,12 @@ export default function AnalyticsPage() {
           <div className="analytics-insights-grid">
             {smartInsights.map((ins, i) => (
               <div key={i} className="analytics-insight-card">
-                <span className="insight-icon">{ins.icon}</span>
+                <span className={`insight-icon insight-icon-${ins.type}`}>
+                  {ins.type === "peak-day" && <Flame size={20} />}
+                  {ins.type === "peak-hour" && <Zap size={20} />}
+                  {ins.type === "mood" && <MoodIcon moodId={ins.moodId || "zen-flow"} size={20} motionEnabled={false} />}
+                  {ins.type === "category" && <Target size={20} />}
+                </span>
                 <div className="insight-body">
                   <strong>{ins.title}</strong>
                   <p>{ins.description}</p>

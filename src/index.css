@@ -36,8 +36,9 @@ a { color: inherit; text-decoration: none; }
 p, h1, h2, h3, h4 { margin: 0; }
 ::selection { color: white; background: var(--primary); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cfc7bb; border-radius: 999px; }
+::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
+::-webkit-scrollbar-thumb { background: #cfc7bb; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #b8b0a2; background-clip: padding-box; }
 
 .app-shell { min-height: 100vh; }
 .app-main { min-height: 100vh; margin-left: 264px; }
@@ -1117,6 +1118,26 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step-main { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
 .flow-step-index { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .2px; text-transform: uppercase; }
 .flow-step-title { color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.35; }
+.flow-step-title-input {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  outline: none;
+  width: 100%;
+  max-width: 460px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.flow-step-title-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(204, 120, 92, 0.15);
+}
 .flow-step.is-done .flow-step-title { color: var(--muted-soft); text-decoration: line-through; font-weight: 500; }
 .flow-step.is-locked .flow-step-title { color: var(--muted-soft); }
 .flow-step.is-scheduled .flow-step-body { opacity: .72; }
@@ -4755,9 +4776,18 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 }
 
 .period-icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface-soft);
   flex-shrink: 0;
 }
+.period-icon-morning { color: #d97706; background: rgba(245, 158, 11, 0.12); }
+.period-icon-afternoon { color: #2563eb; background: rgba(59, 130, 246, 0.12); }
+.period-icon-night { color: #7c3aed; background: rgba(139, 92, 246, 0.12); }
 
 .period-meta {
   display: flex;
@@ -5072,9 +5102,19 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 }
 
 .insight-icon {
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-soft);
   flex-shrink: 0;
 }
+.insight-icon-peak-day { color: #ea580c; background: rgba(234, 88, 12, 0.12); }
+.insight-icon-peak-hour { color: #d97706; background: rgba(217, 119, 6, 0.12); }
+.insight-icon-mood { color: #059669; background: rgba(5, 150, 105, 0.12); }
+.insight-icon-category { color: #7c3aed; background: rgba(124, 58, 237, 0.12); }
 
 .insight-body strong {
   display: block;

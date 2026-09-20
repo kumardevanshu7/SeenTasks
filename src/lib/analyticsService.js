@@ -165,7 +165,6 @@ export function computeAnalytics({
     {
       id: "morning",
       label: "Morning",
-      icon: "🌅",
       time: "6 AM – 12 PM",
       count: morningCount,
       pct: totalHourlyCompletions > 0 ? Math.round((morningCount / totalHourlyCompletions) * 100) : 0,
@@ -174,7 +173,6 @@ export function computeAnalytics({
     {
       id: "afternoon",
       label: "Afternoon",
-      icon: "☀️",
       time: "12 PM – 6 PM",
       count: afternoonCount,
       pct: totalHourlyCompletions > 0 ? Math.round((afternoonCount / totalHourlyCompletions) * 100) : 0,
@@ -183,7 +181,6 @@ export function computeAnalytics({
     {
       id: "night",
       label: "Night",
-      icon: "🌙",
       time: "6 PM – 12 AM",
       count: eveningCount,
       pct: totalHourlyCompletions > 0 ? Math.round((eveningCount / totalHourlyCompletions) * 100) : 0,
@@ -278,10 +275,15 @@ export function computeAnalytics({
   });
 
   const moodCounts = {};
+  const moodIdCounts = {};
   moodEntries.forEach((m) => {
     moodCounts[m.title] = (moodCounts[m.title] || 0) + 1;
+    if (m.moodId) {
+      moodIdCounts[m.moodId] = (moodIdCounts[m.moodId] || 0) + 1;
+    }
   });
   const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const topMoodId = Object.entries(moodIdCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
   // 6. Focus Sessions Analytics
   let totalFocusMins = 0;
@@ -331,7 +333,6 @@ export function computeAnalytics({
   if (bestDayRate > 0) {
     smartInsights.push({
       type: "peak-day",
-      icon: "🔥",
       title: `${bestDay} is your strongest execution day`,
       description: `You hit an average of ${Math.round(bestDayRate * 100)}% completion on ${bestDay}s. Schedule your hardest deep work here.`,
     });
@@ -340,7 +341,6 @@ export function computeAnalytics({
   if (grandTotalDone > 0) {
     smartInsights.push({
       type: "peak-hour",
-      icon: "⚡",
       title: `Prime Focus Window: ${peakHourWindow}`,
       description: `Your highest output occurs around ${peakHourWindow}. Block notifications during this window to enter flow state faster.`,
     });
@@ -349,7 +349,7 @@ export function computeAnalytics({
   if (topMood) {
     smartInsights.push({
       type: "mood",
-      icon: "🧘",
+      moodId: topMoodId,
       title: `Dominant Mindset: “${topMood}”`,
       description: `Your most frequent nightly reflection is ${topMood}. Consistent mindset tracking sharpens daily clarity.`,
     });
@@ -359,7 +359,6 @@ export function computeAnalytics({
     const topCat = categoryBreakdown[0];
     smartInsights.push({
       type: "category",
-      icon: "🎯",
       title: `Top Focus Domain: ${topCat.name}`,
       description: `${topCat.name} leads your workspace with ${topCat.done} completions (${topCat.pct}% completion rate).`,
     });

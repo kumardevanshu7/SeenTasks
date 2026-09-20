@@ -592,7 +592,34 @@ export default function FlowPage() {
                 </span>
               )}
             </div>
-            <strong className="flow-step-title">{step.title}</strong>
+            {editing ? (
+              <input
+                type="text"
+                className="flow-step-title-input"
+                defaultValue={step.title}
+                key={`edit-${step.id}-${step.title}`}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  const next = e.target.value.trim();
+                  if (next && next !== step.title) {
+                    updateFlowStep(flow.id, step.id, { title: next });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  } else if (e.key === "Escape") {
+                    e.currentTarget.value = step.title;
+                    e.currentTarget.blur();
+                  }
+                }}
+                maxLength={120}
+                aria-label={`Edit step ${step.title}`}
+              />
+            ) : (
+              <strong className="flow-step-title">{step.title}</strong>
+            )}
             <span className="flow-step-status">
               {isArchived ? (
                 <>

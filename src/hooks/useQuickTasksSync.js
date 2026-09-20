@@ -8,8 +8,14 @@ import {
   listenQuickTasks,
   listenQuickWorkspaces,
   migrateLocalQuickTasks,
+  upsertQuickTask,
 } from "../lib/quickTaskService";
-import { listenFollowFlows, pruneDuplicate1HrFlows, removeFollowFlowDoc } from "../lib/flowService";
+import {
+  listenFollowFlows,
+  pruneDuplicate1HrFlows,
+  removeFollowFlowDoc,
+  upsertFollowFlow,
+} from "../lib/flowService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
 
@@ -206,8 +212,34 @@ export function useQuickTasksSync() {
       );
     })();
 
+    function handleResume() {
+      if (document.visibilityState === "visible" && user?.uid) {
+        const state = useTaskStore.getState();
+        const cut = state.dataClearedAt || 0;
+        // Push any local pending quick tasks
+        (state.quickTasks || []).forEach((t) => {
+          if (t?.id && isCreatedAfterClear(t, cut)) {
+            upsertQuickTask(user.uid, t).catch(() => {});
+          }
+        });
+        // Push any local flows
+        (state.followFlows || []).forEach((f) => {
+          if (f?.id) {
+            upsertFollowFlow(user.uid, f).catch(() => {});
+          }
+        });
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleResume);
+    window.addEventListener("online", handleResume);
+    window.addEventListener("focus", handleResume);
+
     return () => {
       active = false;
+      document.removeEventListener("visibilitychange", handleResume);
+      window.removeEventListener("online", handleResume);
+      window.removeEventListener("focus", handleResume);
       unsubTasks?.();
       unsubSpaces?.();
       unsubLabels?.();
