@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, Coffee, Flame, Maximize2, Minimize2, Pause, Play, RotateCcw, SkipForward, Sparkles, Timer, X } from "lucide-react";
+import { CheckCircle2, Coffee, Flame, Maximize2, Minimize2, Pause, Play, RotateCcw, SkipForward, Sparkles, Timer, X, Zap } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import { playChimeSound, triggerConfetti } from "../lib/audioConfetti";
 import { todayKey } from "../lib/date";
@@ -12,6 +12,45 @@ const MODES = [
   { id: "longBreak", label: "Long break", seconds: 15 * 60, icon: Sparkles, color: "#bae6fd", ink: "#075985" },
 ];
 
+const EXTEND_OPTIONS = [10, 20, 30, 40, 50];
+
+const MOTIVATION_QUOTE = "Small daily improvements over time lead to stunning results.";
+const MOTIVATION_AUTHOR = "Robin Sharma";
+
+function MotivationToast({ onClose }) {
+  return (
+    <motion.div
+      className="focus-motivation-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="focus-motivation-card"
+        initial={{ scale: 0.9, opacity: 0, y: 12 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 6 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="focus-motivation-icon"><Zap size={22} /></div>
+        <p className="focus-motivation-msg">
+          Hey, one hour is enough for today.<br />
+          If you keep going, other tasks will get crowded out.<br />
+          Every day, just a little — <strong>but in consistency.</strong>
+        </p>
+        <blockquote className="focus-motivation-quote">
+          "{MOTIVATION_QUOTE}"
+          <cite>— {MOTIVATION_AUTHOR}</cite>
+        </blockquote>
+        <button type="button" className="button button-primary focus-motivation-close" onClick={onClose}>
+          Got it 💪
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function FocusTimerModal({ open, onClose }) {
   const focusTimer = useTaskStore((s) => s.focusTimer);
   const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
@@ -19,10 +58,20 @@ export default function FocusTimerModal({ open, onClose }) {
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
 
   const [minimized, setMinimized] = useState(false);
+  const [hasExtended, setHasExtended] = useState(false);
+  const [showMotivation, setShowMotivation] = useState(false);
 
   const currentMode = MODES.find((m) => m.id === focusTimer.mode) || MODES[0];
   const totalSeconds = currentMode.seconds;
   const progressPct = Math.max(0, Math.min(100, ((totalSeconds - focusTimer.secondsLeft) / totalSeconds) * 100));
+
+  // Reset hasExtended when a new session starts
+  useEffect(() => {
+    if (focusTimer.running && focusTimer.secondsLeft === totalSeconds) {
+      setHasExtended(false);
+      setShowMotivation(false);
+    }
+  }, [focusTimer.running, focusTimer.secondsLeft, totalSeconds]);
 
   // Screen WakeLock to prevent screen timeout while timer is running
   useEffect(() => {
@@ -114,6 +163,8 @@ export default function FocusTimerModal({ open, onClose }) {
 
   function switchMode(modeId) {
     const target = MODES.find((m) => m.id === modeId) || MODES[0];
+    setHasExtended(false);
+    setShowMotivation(false);
     setFocusTimer({
       mode: modeId,
       secondsLeft: target.seconds,
@@ -134,6 +185,8 @@ export default function FocusTimerModal({ open, onClose }) {
   }
 
   function reset() {
+    setHasExtended(false);
+    setShowMotivation(false);
     setFocusTimer({
       secondsLeft: currentMode.seconds,
       running: false,
@@ -144,6 +197,15 @@ export default function FocusTimerModal({ open, onClose }) {
   function skip() {
     const nextMode = focusTimer.mode === "focus" ? "shortBreak" : "focus";
     switchMode(nextMode);
+  }
+
+  function handleExtend(mins) {
+    if (hasExtended) {
+      setShowMotivation(true);
+      return;
+    }
+    setHasExtended(true);
+    extendFocusTimer(mins);
   }
 
   const mins = Math.floor(focusTimer.secondsLeft / 60);
@@ -195,30 +257,17 @@ export default function FocusTimerModal({ open, onClose }) {
           <div className="focus-mini-done-group" onClick={(e) => e.stopPropagation()}>
             <span className="focus-mini-done-badge">✓ Ticked</span>
             <div className="focus-mini-ext-chips">
-              <button
-                type="button"
-                className="focus-mini-ext-btn"
-                onClick={() => extendFocusTimer(5)}
-                title="Extend 5 minutes"
-              >
-                +5m
-              </button>
-              <button
-                type="button"
-                className="focus-mini-ext-btn"
-                onClick={() => extendFocusTimer(10)}
-                title="Extend 10 minutes"
-              >
-                +10m
-              </button>
-              <button
-                type="button"
-                className="focus-mini-ext-btn"
-                onClick={() => extendFocusTimer(20)}
-                title="Extend 20 minutes"
-              >
-                +20m
-              </button>
+              {EXTEND_OPTIONS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className="focus-mini-ext-btn"
+                  onClick={() => handleExtend(m)}
+                  title={`Extend ${m} minutes`}
+                >
+                  +{m}m
+                </button>
+              ))}
             </div>
             <button
               type="button"
@@ -261,6 +310,12 @@ export default function FocusTimerModal({ open, onClose }) {
             </button>
           </>
         )}
+
+        <AnimatePresence>
+          {showMotivation && (
+            <MotivationToast onClose={() => setShowMotivation(false)} />
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   }
@@ -389,31 +444,22 @@ export default function FocusTimerModal({ open, onClose }) {
                 <CheckCircle2 size={18} className="focus-extend-check" />
                 <div>
                   <strong>Session Completed & Step Ticked! 🎉</strong>
-                  <p>Need more time to wrap up? Extend session:</p>
+                  {hasExtended
+                    ? <p>You've already extended once — stay consistent! 🌱</p>
+                    : <p>Need a bit more time? Extend once:</p>}
                 </div>
               </div>
               <div className="focus-extend-buttons">
-                <button
-                  type="button"
-                  className="focus-extend-chip"
-                  onClick={() => extendFocusTimer(5)}
-                >
-                  +5 min
-                </button>
-                <button
-                  type="button"
-                  className="focus-extend-chip"
-                  onClick={() => extendFocusTimer(10)}
-                >
-                  +10 min
-                </button>
-                <button
-                  type="button"
-                  className="focus-extend-chip"
-                  onClick={() => extendFocusTimer(20)}
-                >
-                  +20 min
-                </button>
+                {EXTEND_OPTIONS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`focus-extend-chip${hasExtended ? " is-used" : ""}`}
+                    onClick={() => handleExtend(m)}
+                  >
+                    +{m} min
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -455,6 +501,12 @@ export default function FocusTimerModal({ open, onClose }) {
               <SkipForward size={16} />
             </button>
           </div>
+
+          <AnimatePresence>
+            {showMotivation && (
+              <MotivationToast onClose={() => setShowMotivation(false)} />
+            )}
+          </AnimatePresence>
         </motion.div>
       </motion.div>
     </AnimatePresence>
