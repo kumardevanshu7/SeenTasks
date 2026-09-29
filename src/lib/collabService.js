@@ -10,6 +10,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   startAt,
   updateDoc,
   where,
@@ -35,7 +36,8 @@ export async function searchProfiles(rawQuery) {
 export async function sendConnectionRequest(fromProfile, toProfile) {
   const me = auth.currentUser;
   if (!me) throw new Error("auth/required");
-  await addDoc(collection(db, "connectionRequests"), {
+  const reqId = `${me.uid}_${toProfile.uid}`;
+  await setDoc(doc(db, "connectionRequests", reqId), {
     fromUid: me.uid,
     fromUsername: fromProfile.username,
     fromName: fromProfile.displayName || fromProfile.username,
@@ -114,7 +116,7 @@ export async function removeConnection(targetUid, requestId) {
 }
 
 // ---------- Assigned tasks ----------
-export async function assignTask({ toConnection, analysis, title, description, dateKey, firstDateKey }, fromProfile) {
+export async function assignTask({ toConnection, analysis = {}, title, description, dateKey, firstDateKey }, fromProfile) {
   const me = auth.currentUser;
   if (!me) throw new Error("auth/required");
   await addDoc(collection(db, "assignedTasks"), {
@@ -124,13 +126,13 @@ export async function assignTask({ toConnection, analysis, title, description, d
     toUid: toConnection.uid,
     toUsername: toConnection.username,
     toName: toConnection.name || toConnection.username,
-    title,
-    description: description || "",
+    title: String(title || "").slice(0, 500),
+    description: String(description || "").slice(0, 5000),
     dateKey,
     firstDateKey: firstDateKey || dateKey,
-    category: analysis.category,
-    reasoning: analysis.reasoning,
-    wellbeingNote: analysis.wellbeingNote || "",
+    category: analysis.category || "first",
+    reasoning: String(analysis.reasoning || "").slice(0, 1000),
+    wellbeingNote: String(analysis.wellbeingNote || "").slice(0, 500),
     analysisSource: analysis.source || "heuristic",
     status: "active",
     createdAt: serverTimestamp(),

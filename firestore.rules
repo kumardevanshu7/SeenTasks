@@ -126,7 +126,7 @@ service cloud.firestore {
 
     function canManageOrgTask(orgId) {
       return isOrgOwner(orgId)
-        || (signedIn() && resource.data.createdBy == request.auth.uid);
+        || (isOrgMember(orgId) && resource.data.createdBy == request.auth.uid);
     }
 
     function isTaskAssignee() {
@@ -135,30 +135,109 @@ service cloud.firestore {
         && resource.data.assignedTo == request.auth.uid;
     }
 
-    match /users/{userId} {
-      allow read, write: if isSelf(userId);
+    function profileExists(uid) {
+      return exists(/databases/$(database)/documents/publicProfiles/$(uid));
+    }
 
-      match /{subcollection=**} {
+    function profileOf(uid) {
+      return get(/databases/$(database)/documents/publicProfiles/$(uid)).data;
+    }
+
+    function reqPath(a, b) {
+      return /databases/$(database)/documents/connectionRequests/$(a + '_' + b);
+    }
+
+    function areConnected(a, b) {
+      return (exists(reqPath(a, b)) && get(reqPath(a, b)).data.status == 'accepted')
+        || (exists(reqPath(b, a)) && get(reqPath(b, a)).data.status == 'accepted')
+        || exists(/databases/$(database)/documents/users/$(a)/friends/$(b));
+    }
+
+    match /users/{userId} {
+      allow get: if isSelf(userId);
+      allow list: if false;
+      allow create, update: if isSelf(userId)
+        && request.resource.data.uid == userId;
+      allow delete: if isSelf(userId);
+
+      match /tasks/{taskId} {
+        allow read: if isSelf(userId);
+        allow create, update: if isSelf(userId) && validUserTask(userId);
+        allow delete: if isSelf(userId);
+      }
+
+      match /quickTasks/{taskId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /quickWorkspaces/{workspaceId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /quickLabels/{labelId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /followFlows/{flowId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /focusSessions/{sessionId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /friends/{friendUid} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /settings/onePassword {
+        allow read, delete: if isSelf(userId);
+        allow create, update: if isSelf(userId)
+          && request.resource.data.keys().hasOnly(['question', 'answerHash', 'updatedAt'])
+          && request.resource.data.question is string
+          && request.resource.data.question.size() <= 200
+          && request.resource.data.answerHash is string
+          && request.resource.data.answerHash.size() <= 128
+          && !('answer' in request.resource.data);
+      }
+
+      match /settings/{settingId} {
         allow read, write: if isSelf(userId);
       }
     }
 
     match /publicProfiles/{userId} {
-      allow read: if signedIn();
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 10;
       allow create, update: if isSelf(userId)
         && request.resource.data.keys().hasOnly([
           'uid', 'username', 'usernameLower', 'displayName', 'photoURL', 'updatedAt'
         ])
-        && request.resource.data.uid == userId;
+        && request.resource.data.uid == userId
+        && request.resource.data.username == request.resource.data.usernameLower
+        && request.resource.data.username.matches('^[a-z0-9_]{3,20}$')
+        && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 80))
+        && (!('photoURL' in request.resource.data) || request.resource.data.photoURL is string);
       allow delete: if isSelf(userId);
     }
 
     // Usernames are claimed create-only, which makes them unique:
     // a second person's create fails because the document already exists.
     match /usernames/{username} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && username.matches('^[a-z0-9_]{3,20}$')
+        && !(username in ['admin', 'api', 'app', 'help', 'me', 'root', 'seentasks', 'support', 'system', 'team'])
+        && request.resource.data.keys().hasOnly(['uid', 'username'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == username
+        && !exists(/databases/$(database)/documents/publicProfiles/$(request.auth.uid));
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == username;
+      allow delete: if false;
     }
 
     match /organizations/{orgId} {
@@ -220,13 +299,15 @@ service cloud.firestore {
           && request.resource.data.email is string
           && request.resource.data.email.size() > 3
           && request.resource.data.email.size() <= 320
+          && request.resource.data.email == request.resource.data.email.lower()
           && request.resource.data.status == 'pending'
           && request.resource.data.createdBy == request.auth.uid;
 
         allow read: if isOrgOwner(orgId)
           || (signedIn()
             && ('email' in request.auth.token)
-            && request.auth.token.email == resource.data.email);
+            && request.auth.token.email.lower() == resource.data.email
+            && request.auth.token.email_verified == true);
 
         allow update: if (isOrgOwner(orgId)
             && request.resource.data.keys().hasOnly([
@@ -239,7 +320,9 @@ service cloud.firestore {
             && request.resource.data.status in ['pending', 'accepted', 'revoked'])
           || (signedIn()
             && ('email' in request.auth.token)
-            && request.auth.token.email == resource.data.email
+            && request.auth.token.email.lower() == resource.data.email
+            && request.auth.token.email_verified == true
+            && resource.data.status == 'pending'
             && request.resource.data.organizationId == resource.data.organizationId
             && request.resource.data.email == resource.data.email
             && request.resource.data.createdBy == resource.data.createdBy
@@ -258,10 +341,20 @@ service cloud.firestore {
       allow read: if signedIn()
         && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
       allow create: if signedIn()
+        && reqId == request.auth.uid + '_' + request.resource.data.toUid
+        && request.resource.data.keys().hasAll([
+          'fromUid', 'fromUsername', 'toUid', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'fromUid', 'fromUsername', 'fromName', 'fromPhoto',
+          'toUid', 'toUsername', 'toName', 'status', 'createdAt'
+        ])
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.toUid is string
         && request.resource.data.toUid != request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && profileExists(request.auth.uid)
+        && request.resource.data.fromUsername == profileOf(request.auth.uid).username;
       allow update: if signedIn()
         && resource.data.toUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
@@ -275,20 +368,42 @@ service cloud.firestore {
       allow read: if signedIn()
         && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
       allow create: if signedIn()
+        && request.resource.data.keys().hasAll([
+          'fromUid', 'fromUsername', 'toUid', 'title', 'category', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'fromUid', 'fromUsername', 'fromName', 'toUid', 'toUsername', 'toName',
+          'title', 'description', 'dateKey', 'firstDateKey', 'category',
+          'reasoning', 'wellbeingNote', 'analysisSource', 'status', 'createdAt',
+          'completedAt', 'updatedAt'
+        ])
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && areConnected(request.auth.uid, request.resource.data.toUid)
+        && profileExists(request.auth.uid)
+        && request.resource.data.fromUsername == profileOf(request.auth.uid).username
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 500
+        && (!('description' in request.resource.data) || (request.resource.data.description is string && request.resource.data.description.size() <= 5000))
+        && (!('reasoning' in request.resource.data) || (request.resource.data.reasoning is string && request.resource.data.reasoning.size() <= 1000))
+        && (!('wellbeingNote' in request.resource.data) || (request.resource.data.wellbeingNote is string && request.resource.data.wellbeingNote.size() <= 500))
         && request.resource.data.category in ['danger', 'first', 'second', 'endofday', 'tomorrow']
         && request.resource.data.status == 'active';
       allow update: if signedIn() && (
-          resource.data.fromUid == request.auth.uid
+          (resource.data.fromUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title', 'description', 'dateKey', 'category', 'reasoning', 'wellbeingNote', 'updatedAt'
+            ]))
           || (resource.data.toUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'completedAt', 'updatedAt'
+            ])
             && request.resource.data.status in ['active', 'completed'])
         );
-      allow delete: if signedIn() && resource.data.fromUid == request.auth.uid;
+      allow delete: if signedIn()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
     }
 
     // Everything not explicitly allowed above remains private.
