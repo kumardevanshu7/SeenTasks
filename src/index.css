@@ -1534,6 +1534,7 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-add-dates {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 12px;
   margin-top: 10px;
 }
@@ -1547,6 +1548,46 @@ p, h1, h2, h3, h4 { margin: 0; }
   font-weight: 500;
 }
 .flow-add-dates .text-input { font-size: 13px; }
+
+.flow-same-dates-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c2410c;
+  background: rgba(234, 88, 12, 0.08);
+  border: 1px solid rgba(234, 88, 12, 0.22);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.flow-same-dates-btn:hover {
+  background: rgba(234, 88, 12, 0.16);
+  border-color: rgba(234, 88, 12, 0.4);
+}
+.flow-same-dates-btn:active {
+  transform: scale(0.97);
+}
+
+.flow-clear-dates-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 6px;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+}
+.flow-clear-dates-btn:hover {
+  color: var(--text, #1e293b);
+  text-decoration: underline;
+}
 
 .flow-mini-cal {
   margin-top: 36px;

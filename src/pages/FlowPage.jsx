@@ -156,6 +156,7 @@ export default function FlowPage() {
   const [batchEndDate, setBatchEndDate] = useState("");
   const [batchFeedback, setBatchFeedback] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [lastAddedDates, setLastAddedDates] = useState(null);
   const switchRef = useRef(null);
 
   const flow = useMemo(
@@ -275,6 +276,25 @@ export default function FlowPage() {
     .filter(Boolean);
   const suggestions = is1HrFlow ? get1HrTaskSuggestions(flow) : [];
 
+  const previousStepDates = useMemo(() => {
+    if (lastAddedDates && (lastAddedDates.startDate || lastAddedDates.endDate)) {
+      return lastAddedDates;
+    }
+    const catSteps = steps.filter((s) => stepCategoryId(s, flow) === activeCat);
+    const withDatesInCat = [...catSteps].reverse().find((s) => s.startDate || s.endDate);
+    if (withDatesInCat) {
+      return { startDate: withDatesInCat.startDate || "", endDate: withDatesInCat.endDate || "" };
+    }
+    const anyWithDates = [...steps].reverse().find((s) => s.startDate || s.endDate);
+    if (anyWithDates) {
+      return { startDate: anyWithDates.startDate || "", endDate: anyWithDates.endDate || "" };
+    }
+    if (flow?.startDate || flow?.endDate) {
+      return { startDate: flow.startDate || "", endDate: flow.endDate || "" };
+    }
+    return null;
+  }, [lastAddedDates, steps, flow, activeCat]);
+
   useEffect(() => {
     if (!editing) {
       setSelectedStepIds(new Set());
@@ -330,12 +350,17 @@ export default function FlowPage() {
   function submitStep() {
     if (isEveryday && !everydayActive) return;
     if (isArchivedTab) return;
+    const sDate = isEveryday && startDraft ? startDraft : null;
+    const eDate = isEveryday && endStepDraft ? endStepDraft : null;
     const added = addFlowStep(flow.id, draft, {
-      startDate: isEveryday && startDraft ? startDraft : null,
-      endDate: isEveryday && endStepDraft ? endStepDraft : null,
+      startDate: sDate,
+      endDate: eDate,
       categoryId: isEveryday ? activeCat : null,
     });
     if (added) {
+      if (sDate || eDate) {
+        setLastAddedDates({ startDate: sDate, endDate: eDate });
+      }
       setDraft("");
       setStartDraft("");
       setEndStepDraft("");
@@ -1469,6 +1494,65 @@ export default function FlowPage() {
                   aria-label="Step end date"
                 />
               </label>
+
+              {previousStepDates && (
+                <button
+                  type="button"
+                  className="flow-same-dates-btn"
+                  onClick={() => {
+                    setStartDraft(previousStepDates.startDate || "");
+                    setEndStepDraft(previousStepDates.endDate || "");
+                    if (soundEnabled) playTickSound();
+                  }}
+                  title={
+                    previousStepDates.startDate && previousStepDates.endDate
+                      ? `Apply: ${formatFriendly(previousStepDates.startDate)} – ${formatFriendly(previousStepDates.endDate)}`
+                      : "Apply previous task dates"
+                  }
+                >
+                  <RotateCcw size={12} />
+                  <span>Same as before</span>
+                </button>
+              )}
+
+              {(startDraft || endStepDraft) && (
+                <button
+                  type="button"
+                  className="flow-clear-dates-btn"
+                  onClick={() => {
+                    setStartDraft("");
+                    setEndStepDraft("");
+                  }}
+                  title="Clear dates"
+                >
+                  Clear
+                </button>
+              )}
+
+              {startDraft && endStepDraft && calculateDayCount(startDraft, endStepDraft) ? (
+                <div
+                  className="flow-dates-duration-badge"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: "var(--accent, #ea580c)",
+                    background: "var(--accent-subtle, rgba(234, 88, 12, 0.08))",
+                    padding: "4px 10px",
+                    borderRadius: "8px",
+                    height: "38px",
+                  }}
+                >
+                  <Calendar size={13} aria-hidden="true" />
+                  <span>
+                    {calculateDayCount(startDraft, endStepDraft) === 1
+                      ? "1 day"
+                      : `${calculateDayCount(startDraft, endStepDraft)} days`}
+                  </span>
+                </div>
+              ) : null}
             </div>
           )}
           {is1HrFlow && suggestions.length > 0 && (
