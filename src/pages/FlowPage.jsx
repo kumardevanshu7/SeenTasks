@@ -405,7 +405,12 @@ export default function FlowPage() {
     if (!isEveryday) return;
     const next = endDraft || null;
     if ((flow.endDate || null) !== next) {
-      updateFollowFlow(flow.id, { endDate: next });
+      if (next && startFlowDraft && next < startFlowDraft) {
+        setStartFlowDraft(next);
+        updateFollowFlow(flow.id, { startDate: next, endDate: next });
+      } else {
+        updateFollowFlow(flow.id, { endDate: next });
+      }
     }
   }
 
@@ -737,12 +742,14 @@ export default function FlowPage() {
                       type="date"
                       className="text-input"
                       value={step.endDate || ""}
-                      min={step.startDate || undefined}
-                      onChange={(e) =>
-                        updateFlowStep(flow.id, step.id, {
-                          endDate: e.target.value || null,
-                        })
-                      }
+                      onChange={(e) => {
+                        const newEnd = e.target.value || null;
+                        const patch = { endDate: newEnd };
+                        if (newEnd && step.startDate && newEnd < step.startDate) {
+                          patch.startDate = newEnd;
+                        }
+                        updateFlowStep(flow.id, step.id, patch);
+                      }}
                       aria-label={`End date for ${step.title}`}
                     />
                   </label>
@@ -937,8 +944,14 @@ export default function FlowPage() {
                         className="text-input"
                         type="date"
                         value={endDraft}
-                        min={startFlowDraft || todayKey()}
-                        onChange={(e) => setEndDraft(e.target.value)}
+                        onChange={(e) => {
+                          const newEnd = e.target.value;
+                          setEndDraft(newEnd);
+                          if (newEnd && startFlowDraft && newEnd < startFlowDraft) {
+                            setStartFlowDraft(newEnd);
+                            updateFollowFlow(flow.id, { startDate: newEnd });
+                          }
+                        }}
                         onBlur={saveEndDate}
                         aria-label="Everyday end date"
                       />
@@ -1250,8 +1263,13 @@ export default function FlowPage() {
                 type="date"
                 className="text-input text-input-sm"
                 value={batchEndDate}
-                min={batchStartDate || undefined}
-                onChange={(e) => setBatchEndDate(e.target.value)}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  setBatchEndDate(newEnd);
+                  if (newEnd && batchStartDate && newEnd < batchStartDate) {
+                    setBatchStartDate(newEnd);
+                  }
+                }}
                 aria-label="Batch end date"
               />
             </label>
@@ -1379,8 +1397,13 @@ export default function FlowPage() {
                 type="date"
                 className="text-input"
                 value={endStepDraft}
-                min={startDraft || undefined}
-                onChange={(e) => setEndStepDraft(e.target.value)}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  setEndStepDraft(newEnd);
+                  if (newEnd && startDraft && newEnd < startDraft) {
+                    setStartDraft(newEnd);
+                  }
+                }}
                 aria-label="Step end date"
               />
             </label>

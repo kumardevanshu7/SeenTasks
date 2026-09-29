@@ -51,12 +51,15 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
     e.preventDefault();
     const clean = name.trim();
     if (!clean) return;
-    if (endDate && startDate && endDate < startDate) return;
+    let finalStart = startDate;
+    if (endDate && finalStart && endDate < finalStart) {
+      finalStart = endDate;
+    }
     onCreate?.({
       name: clean,
       color: colorId,
       repeat: everyday || is1HrWork ? "daily" : null,
-      startDate: (everyday || is1HrWork) ? (startDate || todayKey()) : null,
+      startDate: (everyday || is1HrWork) ? (finalStart || (endDate ? endDate : todayKey())) : null,
       endDate: (everyday || is1HrWork) && endDate ? endDate : null,
       labelIds: (everyday || is1HrWork) ? labelIds : [],
       anyOrder: (everyday || is1HrWork) && anyOrder,
@@ -166,8 +169,13 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                         className="text-input"
                         type="date"
                         value={endDate}
-                        min={startDate || todayKey()}
-                        onChange={(e) => setEndDate(e.target.value)}
+                        onChange={(e) => {
+                          const newEnd = e.target.value;
+                          setEndDate(newEnd);
+                          if (newEnd && startDate && newEnd < startDate) {
+                            setStartDate(newEnd);
+                          }
+                        }}
                         aria-label="Flow end date"
                       />
                     </label>
