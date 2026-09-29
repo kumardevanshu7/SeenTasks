@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Archive, Calendar, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Archive, Calendar, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Star, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, isStepMandatory, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { calculateDayCount, formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
@@ -121,6 +121,7 @@ export default function FlowPage() {
   const addFlowStep = useTaskStore((s) => s.addFlowStep);
   const updateFlowStep = useTaskStore((s) => s.updateFlowStep);
   const toggleFlowStep = useTaskStore((s) => s.toggleFlowStep);
+  const toggleFlowStepMandatory = useTaskStore((s) => s.toggleFlowStepMandatory);
   const deleteFlowStep = useTaskStore((s) => s.deleteFlowStep);
   const reorderFlowSteps = useTaskStore((s) => s.reorderFlowSteps);
   const renameFollowFlow = useTaskStore((s) => s.renameFollowFlow);
@@ -142,6 +143,7 @@ export default function FlowPage() {
   const [draft, setDraft] = useState("");
   const [startDraft, setStartDraft] = useState("");
   const [endStepDraft, setEndStepDraft] = useState("");
+  const [mandatoryDraft, setMandatoryDraft] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [startFlowDraft, setStartFlowDraft] = useState("");
   const [endDraft, setEndDraft] = useState("");
@@ -356,6 +358,7 @@ export default function FlowPage() {
       startDate: sDate,
       endDate: eDate,
       categoryId: isEveryday ? activeCat : null,
+      isMandatory: isEveryday ? mandatoryDraft : false,
     });
     if (added) {
       if (sDate || eDate) {
@@ -364,6 +367,7 @@ export default function FlowPage() {
       setDraft("");
       setStartDraft("");
       setEndStepDraft("");
+      setMandatoryDraft(false);
     }
   }
 
@@ -642,6 +646,30 @@ export default function FlowPage() {
                 >
                   {stepCategoryName}
                 </span>
+              )}
+              {isEveryday && !isArchived && (
+                <button
+                  type="button"
+                  className={`flow-step-star-badge${isStepMandatory(step) ? " is-starred" : " is-optional"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFlowStepMandatory(flow.id, step.id);
+                    if (soundEnabled) playTickSound();
+                  }}
+                  title={
+                    isStepMandatory(step)
+                      ? "Mandatory (⭐) — Must complete today to pass report. Click to make optional."
+                      : "Optional step — Click to mark as Mandatory (⭐) for report"
+                  }
+                  aria-label="Toggle mandatory status"
+                >
+                  <Star
+                    size={12}
+                    fill={isStepMandatory(step) ? "#eab308" : "none"}
+                    color={isStepMandatory(step) ? "#ca8a04" : "var(--muted, #94a3b8)"}
+                  />
+                  <span>{isStepMandatory(step) ? "Mandatory" : "Optional"}</span>
+                </button>
               )}
             </div>
             {editing ? (
@@ -1157,6 +1185,22 @@ export default function FlowPage() {
                     <Trophy size={13} aria-hidden="true" />
                   </span>
                 )}
+                {catTotal > 0 && !(catDone === catTotal) && (() => {
+                  const catSteps = steps.filter(
+                    (s) =>
+                      stepCategoryId(s, flow) === cat.id &&
+                      (is1HrFlow ? is1HrStepActive(s) : isFlowStepActiveOnDay(s, day))
+                  );
+                  const mSteps = catSteps.filter(isStepMandatory);
+                  if (mSteps.length > 0 && mSteps.every((s) => s.done)) {
+                    return (
+                      <span className="flow-cat-star-done" title="All mandatory tasks complete in this tab!">
+                        <Star size={12} fill="#eab308" color="#ca8a04" aria-hidden="true" />
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
                 {catTotal > 0 && (
                   <em>
                     {catDone}/{catTotal}
@@ -1272,12 +1316,33 @@ export default function FlowPage() {
         </div>
       )}
 
-      {isEveryday && activeCatMeta && flowProgressInCategory(flow, activeCat, day).complete && (
-        <p className="flow-winner-banner">
-          <Trophy size={16} aria-hidden="true" />
-          Winner — {activeCatMeta.name} is complete today
-        </p>
-      )}
+      {isEveryday && activeCatMeta && (() => {
+        const catProg = flowProgressInCategory(flow, activeCat, day);
+        if (catProg.complete) {
+          return (
+            <p className="flow-winner-banner">
+              <Trophy size={16} aria-hidden="true" />
+              <span>Winner — {activeCatMeta.name} is complete today</span>
+            </p>
+          );
+        }
+        if (
+          catProg.grading?.hasMandatory &&
+          !catProg.grading.mandatoryFailed &&
+          catProg.grading.mandatoryDone === catProg.grading.mandatoryTotal &&
+          catProg.grading.mandatoryTotal > 0
+        ) {
+          return (
+            <p className="flow-mandatory-pass-banner">
+              <Star size={15} fill="#eab308" color="#ca8a04" aria-hidden="true" />
+              <span>
+                <strong>Priorities done!</strong> All mandatory starred tasks complete in {activeCatMeta.name} (Passing grade secured). Complete remaining tasks for bonus marks!
+              </span>
+            </p>
+          );
+        }
+        return null;
+      })()}
 
       {/* Bulk Date Changer in Edit Mode (Image 1) */}
       {editing && isEveryday && !is1HrFlow && visibleSteps.length > 0 && (
@@ -1494,6 +1559,27 @@ export default function FlowPage() {
                   aria-label="Step end date"
                 />
               </label>
+
+              <button
+                type="button"
+                className={`flow-mandatory-toggle-btn${mandatoryDraft ? " is-active" : ""}`}
+                onClick={() => {
+                  setMandatoryDraft((v) => !v);
+                  if (soundEnabled) playTickSound();
+                }}
+                title={
+                  mandatoryDraft
+                    ? "Mandatory (Starred) — Must complete on active day to pass. Click to make optional."
+                    : "Star as Mandatory (⭐) — Incomplete mandatory tasks result in Fail (F) on report card."
+                }
+              >
+                <Star
+                  size={13}
+                  fill={mandatoryDraft ? "#eab308" : "none"}
+                  color={mandatoryDraft ? "#ca8a04" : "currentColor"}
+                />
+                <span>{mandatoryDraft ? "⭐ Starred (Mandatory)" : "Star as mandatory"}</span>
+              </button>
 
               {previousStepDates && (
                 <button

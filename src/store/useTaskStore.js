@@ -986,6 +986,7 @@ export const useTaskStore = create(
           endDate,
           categoryId: null,
           dateKey: day,
+          isMandatory: Boolean(opts.isMandatory || opts.mandatory || opts.starred),
         };
         set((s) => ({
           followFlows: (s.followFlows || []).map((f) => {
@@ -1064,7 +1065,28 @@ export const useTaskStore = create(
                 updates.endDate =
                   typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
               }
+              if (Object.prototype.hasOwnProperty.call(patch, "isMandatory")) {
+                updates.isMandatory = Boolean(patch.isMandatory);
+              }
               return { ...st, ...updates };
+            });
+            next = { ...f, steps };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return next;
+      },
+
+      toggleFlowStepMandatory: (flowId, stepId) => {
+        if (!flowId || !stepId) return null;
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const steps = (f.steps || []).map((st) => {
+              if (st.id !== stepId) return st;
+              return { ...st, isMandatory: !st.isMandatory };
             });
             next = { ...f, steps };
             return next;

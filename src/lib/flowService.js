@@ -10,6 +10,15 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { addDaysToKey, todayKey } from "./date";
+import {
+  calculateStepGrading,
+  gradeFromScore,
+  isStepMandatory,
+  generateFeedback,
+  BASE_MANDATORY_SCORE,
+  BONUS_EXTRA_MARKS_POOL,
+  FAIL_SCORE_CEILING,
+} from "./flowGrading.js";
 
 /** 12 distinct light theme colors for Follow Flow */
 export const FLOW_COLORS = [
@@ -361,15 +370,16 @@ export function flowProgress(flow, day = null) {
     (flow?.repeat === "daily" ? flow.dayKey || todayKey() : null) ||
     todayKey();
   const steps = activeFlowSteps(flow, d);
-  const total = steps.length;
-  const done = steps.filter((s) => s.done).length;
+  const grading = calculateStepGrading(steps);
   const activeIndex = steps.findIndex((s) => !s.done);
   return {
-    total,
-    done,
-    pct: total === 0 ? 0 : Math.round((done / total) * 100),
-    activeIndex: activeIndex === -1 ? (total === 0 ? -1 : total) : activeIndex,
-    complete: total > 0 && done === total,
+    total: grading.total,
+    done: grading.done,
+    pct: grading.pct,
+    grade: grading.grade,
+    grading,
+    activeIndex: activeIndex === -1 ? (grading.total === 0 ? -1 : grading.total) : activeIndex,
+    complete: grading.complete,
   };
 }
 
@@ -381,13 +391,14 @@ export function flowProgressInCategory(flow, categoryId, day = null) {
   const steps = activeFlowSteps(flow, d).filter(
     (s) => stepCategoryId(s, flow) === categoryId
   );
-  const total = steps.length;
-  const done = steps.filter((s) => s.done).length;
+  const grading = calculateStepGrading(steps);
   return {
-    total,
-    done,
-    pct: total === 0 ? 0 : Math.round((done / total) * 100),
-    complete: total > 0 && done === total,
+    total: grading.total,
+    done: grading.done,
+    pct: grading.pct,
+    grade: grading.grade,
+    grading,
+    complete: grading.complete,
   };
 }
 
@@ -396,7 +407,7 @@ function categoryReportSlice(flow, dateKey) {
     .map((c) => {
       const p = flowProgressInCategory(flow, c.id, dateKey);
       if (p.total === 0) return null;
-      const grade = gradeFromPct(p.pct);
+      const g = p.grading || {};
       return {
         id: c.id,
         name: c.name,
@@ -404,7 +415,17 @@ function categoryReportSlice(flow, dateKey) {
         done: p.done,
         total: p.total,
         pct: p.pct,
-        grade,
+        grade: p.grade,
+        feedback: g.feedback || feedbackForGrade(p.grade),
+        hasMandatory: Boolean(g.hasMandatory),
+        mandatoryFailed: Boolean(g.mandatoryFailed),
+        mandatoryTotal: Number(g.mandatoryTotal) || 0,
+        mandatoryDone: Number(g.mandatoryDone) || 0,
+        mandatoryMissed: Number(g.mandatoryMissed) || 0,
+        optionalTotal: Number(g.optionalTotal) || 0,
+        optionalDone: Number(g.optionalDone) || 0,
+        extraMarksEarned: Number(g.extraMarksEarned) || 0,
+        baseMarksEarned: Number(g.baseMarksEarned) || 0,
       };
     })
     .filter(Boolean);
@@ -426,6 +447,16 @@ function normalizeStoredCategoryReport(c = {}) {
     total: Number(c.total) || 0,
     pct,
     grade: c.grade || gradeFromPct(pct),
+    feedback: c.feedback || "",
+    hasMandatory: Boolean(c.hasMandatory),
+    mandatoryFailed: Boolean(c.mandatoryFailed),
+    mandatoryTotal: Number(c.mandatoryTotal) || 0,
+    mandatoryDone: Number(c.mandatoryDone) || 0,
+    mandatoryMissed: Number(c.mandatoryMissed) || 0,
+    optionalTotal: Number(c.optionalTotal) || 0,
+    optionalDone: Number(c.optionalDone) || 0,
+    extraMarksEarned: Number(c.extraMarksEarned) || 0,
+    baseMarksEarned: Number(c.baseMarksEarned) || 0,
   };
 }
 
@@ -511,17 +542,7 @@ export function periodReportsForCategories(flow, days, endKey = todayKey()) {
 
 /** School-style grades from completion percent. */
 export function gradeFromPct(pct) {
-  const n = Math.max(0, Math.min(100, Number(pct) || 0));
-  if (n >= 97) return "A+";
-  if (n >= 90) return "A";
-  if (n >= 87) return "B+";
-  if (n >= 80) return "B";
-  if (n >= 77) return "C+";
-  if (n >= 70) return "C";
-  if (n >= 67) return "D+";
-  if (n >= 60) return "D";
-  if (n >= 50) return "E";
-  return "F";
+  return gradeFromScore(pct);
 }
 
 export function feedbackForGrade(grade) {
@@ -551,17 +572,38 @@ export function feedbackForGrade(grade) {
 
 export function buildEverydayReport(flow, dateKey) {
   const prog = flowProgress(flow, dateKey);
-  const grade = gradeFromPct(prog.pct);
+  const grading = prog.grading || calculateStepGrading(activeFlowSteps(flow, dateKey));
   return {
     dateKey,
-    pct: prog.pct,
-    grade,
-    feedback: feedbackForGrade(grade),
-    done: prog.done,
-    total: prog.total,
+    pct: grading.pct,
+    grade: grading.grade,
+    feedback: grading.feedback || feedbackForGrade(grading.grade),
+    done: grading.done,
+    total: grading.total,
+    hasMandatory: grading.hasMandatory,
+    mandatoryFailed: grading.mandatoryFailed,
+    mandatoryTotal: grading.mandatoryTotal,
+    mandatoryDone: grading.mandatoryDone,
+    mandatoryMissed: grading.mandatoryMissed,
+    optionalTotal: grading.optionalTotal,
+    optionalDone: grading.optionalDone,
+    extraMarksEarned: grading.extraMarksEarned,
+    baseMarksEarned: grading.baseMarksEarned,
     categories: categoryReportSlice(flow, dateKey),
   };
 }
+
+export {
+  calculateStepGrading,
+  calculateFlowGrading,
+  calculateCategoryGrading,
+  gradeFromScore,
+  isStepMandatory,
+  generateFeedback,
+  BASE_MANDATORY_SCORE,
+  BONUS_EXTRA_MARKS_POOL,
+  FAIL_SCORE_CEILING,
+} from "./flowGrading.js";
 
 export function get1HrTaskSuggestions(flow) {
   if (!flow) return [];
