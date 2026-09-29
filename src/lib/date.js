@@ -24,6 +24,11 @@ export function daysBetween(fromKey, toKeyValue) {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
+export function calculateDayCount(fromKey, toKeyValue) {
+  if (!fromKey || !toKeyValue || fromKey > toKeyValue) return 0;
+  return daysBetween(fromKey, toKeyValue) + 1;
+}
+
 export function addDaysToKey(dateKey, days) {
   const d = new Date(`${dateKey}T12:00:00`);
   if (Number.isNaN(d.getTime())) return dateKey;

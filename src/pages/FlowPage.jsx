@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Archive, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Archive, Calendar, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
-import { formatFriendly, todayKey, toKey } from "../lib/date";
+import { calculateDayCount, formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 
 function CategoryColorRow({ value, onChange, label }) {
@@ -903,7 +903,7 @@ export default function FlowPage() {
                   : `${prog.done} of ${prog.total} complete · next unlocks after the current step.`}
             {isEveryday && everydayActive && (
               flow.startDate && flow.endDate
-                ? ` Active ${formatFriendly(flow.startDate)} – ${formatFriendly(flow.endDate)}.`
+                ? ` Active ${formatFriendly(flow.startDate)} – ${formatFriendly(flow.endDate)}${calculateDayCount(flow.startDate, flow.endDate) ? ` (${calculateDayCount(flow.startDate, flow.endDate)} days total)` : ""}.`
                 : flow.endDate
                   ? ` Ends ${formatFriendly(flow.endDate)}.`
                   : flow.startDate
@@ -971,6 +971,33 @@ export default function FlowPage() {
                       )}
                     </label>
                   </div>
+
+                  {startFlowDraft && endDraft && calculateDayCount(startFlowDraft, endDraft) ? (
+                    <div
+                      className="flow-dates-duration-badge"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "var(--accent, #ea580c)",
+                        background: "var(--accent-subtle, rgba(234, 88, 12, 0.08))",
+                        padding: "5px 12px",
+                        borderRadius: "8px",
+                        alignSelf: "flex-start",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <Calendar size={13} aria-hidden="true" />
+                      <span>
+                        {calculateDayCount(startFlowDraft, endDraft) === 1
+                          ? "1 day total"
+                          : `${calculateDayCount(startFlowDraft, endDraft)} days total`}
+                      </span>
+                    </div>
+                  ) : null}
+
                   <label className="flow-everyday-toggle">
                     <input
                       type="checkbox"

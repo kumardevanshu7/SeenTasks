@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Timer, X } from "lucide-react";
+import { Calendar, Timer, X } from "lucide-react";
 import { FLOW_COLORS, is1HrWorkFlow } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
-import { todayKey } from "../lib/date";
+import { calculateDayCount, todayKey } from "../lib/date";
 import { useTaskStore } from "../store/useTaskStore";
 
 export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryday = false, defaultMode = null }) {
@@ -20,6 +20,10 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
   const [endDate, setEndDate] = useState("");
   const [labelIds, setLabelIds] = useState([]);
   const [anyOrder, setAnyOrder] = useState(is1Hr);
+
+  const durationDays = useMemo(() => {
+    return startDate && endDate ? calculateDayCount(startDate, endDate) : null;
+  }, [startDate, endDate]);
 
   useEffect(() => {
     if (!open) {
@@ -180,6 +184,29 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                       />
                     </label>
                   </div>
+
+                  {durationDays ? (
+                    <div
+                      className="flow-dates-duration-badge"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "var(--accent, #ea580c)",
+                        background: "var(--accent-subtle, rgba(234, 88, 12, 0.08))",
+                        padding: "5px 12px",
+                        borderRadius: "8px",
+                        marginTop: "2px",
+                        marginBottom: "4px",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      <Calendar size={13} aria-hidden="true" />
+                      <span>{durationDays === 1 ? "1 day total" : `${durationDays} days total`}</span>
+                    </div>
+                  ) : null}
 
                   <label className="flow-everyday-toggle">
                     <input
