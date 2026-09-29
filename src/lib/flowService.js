@@ -254,6 +254,7 @@ export function normalizeFlowStep(data = {}, index = 0) {
     endDate: isValidDateKey(data.endDate) ? data.endDate : null,
     categoryId: data.categoryId || DEFAULT_FLOW_CATEGORY_ID,
     dateKey: isValidDateKey(data.dateKey) ? data.dateKey : null,
+    isMandatory: Boolean(data.isMandatory || data.mandatory || data.starred),
   };
 }
 
@@ -801,6 +802,7 @@ export async function upsertFollowFlow(uid, flow) {
         endDate: isValidDateKey(s.endDate) ? s.endDate : null,
         categoryId: s.categoryId || DEFAULT_FLOW_CATEGORY_ID,
         dateKey: isValidDateKey(s.dateKey) ? s.dateKey : (is1HrWorkFlow(flow) ? todayKey() : null),
+        isMandatory: Boolean(s.isMandatory || s.mandatory || s.starred),
       })),
       categories: flowCategories(flow).map((c, i) => ({
         id: c.id || `cat-${i}`,

@@ -135,6 +135,7 @@ export default function FlowPage() {
   const deleteFollowFlow = useTaskStore((s) => s.deleteFollowFlow);
   const rollEverydayFlows = useTaskStore((s) => s.rollEverydayFlows);
   const batchUpdateFlowStepsDates = useTaskStore((s) => s.batchUpdateFlowStepsDates);
+  const batchUpdateFlowStepsMandatory = useTaskStore((s) => s.batchUpdateFlowStepsMandatory);
   const soundEnabled = useTaskStore((s) => s.soundEnabled);
   const focusTimer = useTaskStore((s) => s.focusTimer);
   const setFocusTimer = useTaskStore((s) => s.setFocusTimer);
@@ -346,6 +347,18 @@ export default function FlowPage() {
     });
     if (soundEnabled) playTickSound();
     setBatchFeedback(`Cleared dates for ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}`);
+    setTimeout(() => setBatchFeedback(""), 3500);
+  }
+
+  function handleBatchMandatory(isMandatory) {
+    if (selectedStepIds.size === 0) return;
+    batchUpdateFlowStepsMandatory(flow.id, Array.from(selectedStepIds), isMandatory);
+    if (soundEnabled) playTickSound();
+    setBatchFeedback(
+      isMandatory
+        ? `Marked ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"} as Mandatory (⭐)`
+        : `Removed star from ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}`
+    );
     setTimeout(() => setBatchFeedback(""), 3500);
   }
 
@@ -658,17 +671,17 @@ export default function FlowPage() {
                   }}
                   title={
                     isStepMandatory(step)
-                      ? "Mandatory (⭐) — Must complete today to pass report. Click to make optional."
-                      : "Optional step — Click to mark as Mandatory (⭐) for report"
+                      ? "Mandatory (⭐) — Click to remove star"
+                      : "Click to mark as Mandatory (⭐)"
                   }
-                  aria-label="Toggle mandatory status"
+                  aria-label={isStepMandatory(step) ? "Marked as mandatory" : "Mark as mandatory"}
                 >
                   <Star
                     size={12}
                     fill={isStepMandatory(step) ? "#eab308" : "none"}
                     color={isStepMandatory(step) ? "#ca8a04" : "var(--muted, #94a3b8)"}
                   />
-                  <span>{isStepMandatory(step) ? "Mandatory" : "Optional"}</span>
+                  {isStepMandatory(step) && <span>Mandatory</span>}
                 </button>
               )}
             </div>
@@ -1408,6 +1421,26 @@ export default function FlowPage() {
               title="Remove dates from selected steps"
             >
               Clear dates
+            </button>
+            <button
+              type="button"
+              className="button button-sm button-secondary"
+              disabled={selectedStepIds.size === 0}
+              onClick={() => handleBatchMandatory(true)}
+              title="Mark selected steps as Mandatory (⭐)"
+            >
+              <Star size={12} fill="#eab308" color="#ca8a04" />
+              <span>Star</span>
+            </button>
+            <button
+              type="button"
+              className="button button-sm button-secondary"
+              disabled={selectedStepIds.size === 0}
+              onClick={() => handleBatchMandatory(false)}
+              title="Remove star from selected steps"
+            >
+              <Star size={12} fill="none" color="var(--muted, #94a3b8)" />
+              <span>Unstar</span>
             </button>
           </div>
         </div>

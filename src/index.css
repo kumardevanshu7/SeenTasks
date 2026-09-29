@@ -1643,12 +1643,15 @@ p, h1, h2, h3, h4 { margin: 0; }
   border-color: #eab308;
 }
 .flow-step-star-badge.is-optional {
-  color: var(--muted, #64748b);
-  background: rgba(148, 163, 184, 0.08);
-  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--muted, #94a3b8);
+  background: transparent;
+  border-color: transparent;
+  padding: 2px 4px;
+  opacity: 0.75;
 }
 .flow-step-star-badge.is-optional:hover {
-  color: #854d0e;
+  opacity: 1;
+  color: #ca8a04;
   background: #fefce8;
   border-color: #fde047;
 }

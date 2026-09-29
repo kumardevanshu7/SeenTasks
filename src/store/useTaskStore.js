@@ -1086,7 +1086,37 @@ export const useTaskStore = create(
             if (f.id !== flowId) return f;
             const steps = (f.steps || []).map((st) => {
               if (st.id !== stepId) return st;
-              return { ...st, isMandatory: !st.isMandatory };
+              const currentMandatory = Boolean(st.isMandatory || st.mandatory || st.starred);
+              return {
+                ...st,
+                isMandatory: !currentMandatory,
+                mandatory: !currentMandatory,
+                starred: !currentMandatory,
+              };
+            });
+            next = { ...f, steps };
+            return next;
+          }),
+        }));
+        if (next) syncFlowUpsert(next);
+        return next;
+      },
+
+      batchUpdateFlowStepsMandatory: (flowId, stepIds = [], isMandatory = true) => {
+        if (!flowId || !Array.isArray(stepIds) || stepIds.length === 0) return null;
+        const idSet = new Set(stepIds);
+        let next = null;
+        set((s) => ({
+          followFlows: (s.followFlows || []).map((f) => {
+            if (f.id !== flowId) return f;
+            const steps = (f.steps || []).map((st) => {
+              if (!idSet.has(st.id)) return st;
+              return {
+                ...st,
+                isMandatory: Boolean(isMandatory),
+                mandatory: Boolean(isMandatory),
+                starred: Boolean(isMandatory),
+              };
             });
             next = { ...f, steps };
             return next;
