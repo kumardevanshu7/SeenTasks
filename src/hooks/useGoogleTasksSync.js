@@ -15,13 +15,17 @@ export function useGoogleTasksSync() {
   const disconnectGoogleTasks = useTaskStore((s) => s.disconnectGoogleTasks);
 
   const syncingRef = useRef(false);
+  const pendingSyncRef = useRef(false);
   const debounceTimerRef = useRef(null);
 
   useEffect(() => {
     if (!connected || !token || !autoSync) return;
 
     async function triggerSync() {
-      if (syncingRef.current) return;
+      if (syncingRef.current) {
+        pendingSyncRef.current = true;
+        return;
+      }
 
       // Check token expiration
       if (tokenExpiresAt && Date.now() >= tokenExpiresAt) {
@@ -50,13 +54,19 @@ export function useGoogleTasksSync() {
         );
         window.dispatchEvent(new CustomEvent("google-tasks-synced"));
       } catch (err) {
-        if (err.message === "TOKEN_EXPIRED") {
+        if (err?.message === "TOKEN_EXPIRED") {
           disconnectGoogleTasks();
         } else {
-          console.warn("Auto-sync with Google Tasks skipped:", err.message);
+          console.warn("Auto-sync with Google Tasks skipped:", err?.message || err);
         }
       } finally {
         syncingRef.current = false;
+        if (pendingSyncRef.current) {
+          pendingSyncRef.current = false;
+          if (typeof document === "undefined" || document.visibilityState === "visible") {
+            triggerSync();
+          }
+        }
       }
     }
 
@@ -70,11 +80,17 @@ export function useGoogleTasksSync() {
     // Initial sync
     triggerSync();
 
-    // 12s periodic background sync for ultra-fast sync parity
-    const intervalId = window.setInterval(triggerSync, 12_000);
+    // 12s periodic background sync (only while tab is actively visible)
+    const intervalId = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      triggerSync();
+    }, 12_000);
 
-    // Sync immediately on tab focus and window active
-    const onFocus = () => triggerSync();
+    // Sync immediately when tab regains focus and visibility
+    const onFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      triggerSync();
+    };
     window.addEventListener("focus", onFocus);
     window.addEventListener("visibilitychange", onFocus);
     window.addEventListener("trigger-google-sync", handleInstantTrigger);

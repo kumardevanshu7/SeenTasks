@@ -1,4 +1,4 @@
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
 function onePasswordRef(uid) {
@@ -165,4 +165,19 @@ export async function saveOnePassword(uid, { question, answer }) {
 export async function clearOnePasswordDoc(uid) {
   if (!uid) return;
   await deleteDoc(onePasswordRef(uid));
+}
+
+export function listenOnePassword(uid, cb, onError) {
+  if (!uid) return () => {};
+  return onSnapshot(
+    onePasswordRef(uid),
+    (snap) => {
+      if (!snap.exists()) {
+        cb(null);
+        return;
+      }
+      cb(normalizeOnePasswordDoc(snap.data()));
+    },
+    (error) => onError?.(error)
+  );
 }

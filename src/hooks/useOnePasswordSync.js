@@ -1,28 +1,30 @@
 import { useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { useTaskStore } from "../store/useTaskStore";
-import { loadOnePassword } from "../lib/onePasswordService";
+import { listenOnePassword } from "../lib/onePasswordService";
 
 // One Password lives in Firestore only — memory cache, never localStorage.
 export function useOnePasswordSync() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const setOnePassword = useTaskStore((s) => s.setOnePassword);
   const clearOnePassword = useTaskStore((s) => s.clearOnePassword);
 
   useEffect(() => {
+    // Wait until Firebase Auth resolves
+    if (loading) return undefined;
+
     if (!user?.uid) {
       clearOnePassword();
       return undefined;
     }
 
     let active = true;
-    loadOnePassword(user.uid)
-      .then((cloud) => {
+    const unsub = listenOnePassword(
+      user.uid,
+      (cloud) => {
         if (!active) return;
         if (!cloud) {
-          // Don't wipe a newer in-memory save if cloud is empty mid-write.
-          const local = useTaskStore.getState().onePassword;
-          if (!local) setOnePassword(null);
+          setOnePassword(null);
           return;
         }
         const local = useTaskStore.getState().onePassword;
@@ -30,13 +32,17 @@ export function useOnePasswordSync() {
           return;
         }
         setOnePassword(cloud);
-      })
-      .catch(() => {
-        // Keep whatever is in memory if offline.
-      });
+      },
+      (error) => {
+        console.warn("OnePassword listener error:", error);
+      }
+    );
 
     return () => {
       active = false;
+      unsub();
+      // Ensure memory cache is always wiped when switching accounts or unmounting
+      clearOnePassword();
     };
-  }, [user?.uid, setOnePassword, clearOnePassword]);
+  }, [user?.uid, loading, setOnePassword, clearOnePassword]);
 }

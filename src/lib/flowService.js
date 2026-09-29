@@ -778,7 +778,7 @@ export function listenFollowFlows(uid, cb, onError) {
     (snap) => {
       const items = snap.docs
         .map((d) => normalizeFollowFlow(d.id, d.data()))
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime());
       cb(items);
     },
     (error) => onError?.(error)

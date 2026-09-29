@@ -146,7 +146,7 @@ export function listenQuickTasks(uid, cb, onError) {
     (snap) => {
       const items = snap.docs
         .map((d) => normalizeQuickTask(d.id, d.data()))
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime());
       cb(items);
     },
     (error) => onError?.(error)
@@ -163,7 +163,7 @@ export function listenQuickWorkspaces(uid, cb, onError) {
       list.sort((a, b) => {
         if (a.id === DEFAULT_WORKSPACE_ID) return -1;
         if (b.id === DEFAULT_WORKSPACE_ID) return 1;
-        return a.createdAt < b.createdAt ? -1 : 1;
+        return new Date(a?.createdAt || 0).getTime() - new Date(b?.createdAt || 0).getTime();
       });
       cb(list);
     },
@@ -177,7 +177,7 @@ export function listenQuickLabels(uid, cb, onError) {
     (snap) => {
       const items = snap.docs
         .map((d) => normalizeQuickLabel(d.id, d.data()))
-        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+        .sort((a, b) => new Date(a?.createdAt || 0).getTime() - new Date(b?.createdAt || 0).getTime());
       cb(items);
     },
     (error) => onError?.(error)

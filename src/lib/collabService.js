@@ -50,11 +50,15 @@ export async function sendConnectionRequest(fromProfile, toProfile) {
   });
 }
 
-export function listenIncomingRequests(uid, cb) {
+export function listenIncomingRequests(uid, cb, onError) {
   const ref = collection(db, "connectionRequests");
-  return onSnapshot(query(ref, where("toUid", "==", uid)), (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((r) => r.status === "pending"));
-  });
+  return onSnapshot(
+    query(ref, where("toUid", "==", uid)),
+    (snap) => {
+      cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((r) => r.status === "pending"));
+    },
+    (err) => onError?.(err)
+  );
 }
 
 export async function respondToRequest(reqId, accepted) {
@@ -65,7 +69,7 @@ export async function respondToRequest(reqId, accepted) {
 }
 
 // Connections are derived from accepted requests on either side.
-export function listenConnections(uid, cb) {
+export function listenConnections(uid, cb, onError) {
   const ref = collection(db, "connectionRequests");
   let fromList = [];
   let toList = [];
@@ -74,24 +78,32 @@ export function listenConnections(uid, cb) {
     [...fromList, ...toList].forEach((c) => map.set(c.uid, c));
     cb([...map.values()]);
   };
-  const unsubA = onSnapshot(query(ref, where("fromUid", "==", uid)), (snap) => {
-    fromList = snap.docs
-      .filter((d) => d.data().status === "accepted")
-      .map((d) => {
-        const r = d.data();
-        return { uid: r.toUid, username: r.toUsername, name: r.toName, photoURL: "", requestId: d.id };
-      });
-    emit();
-  });
-  const unsubB = onSnapshot(query(ref, where("toUid", "==", uid)), (snap) => {
-    toList = snap.docs
-      .filter((d) => d.data().status === "accepted")
-      .map((d) => {
-        const r = d.data();
-        return { uid: r.fromUid, username: r.fromUsername, name: r.fromName, photoURL: r.fromPhoto || "", requestId: d.id };
-      });
-    emit();
-  });
+  const unsubA = onSnapshot(
+    query(ref, where("fromUid", "==", uid)),
+    (snap) => {
+      fromList = snap.docs
+        .filter((d) => d.data().status === "accepted")
+        .map((d) => {
+          const r = d.data();
+          return { uid: r.toUid, username: r.toUsername, name: r.toName, photoURL: "", requestId: d.id };
+        });
+      emit();
+    },
+    (err) => onError?.(err)
+  );
+  const unsubB = onSnapshot(
+    query(ref, where("toUid", "==", uid)),
+    (snap) => {
+      toList = snap.docs
+        .filter((d) => d.data().status === "accepted")
+        .map((d) => {
+          const r = d.data();
+          return { uid: r.fromUid, username: r.fromUsername, name: r.fromName, photoURL: r.fromPhoto || "", requestId: d.id };
+        });
+      emit();
+    },
+    (err) => onError?.(err)
+  );
   return () => { unsubA(); unsubB(); };
 }
 
@@ -139,18 +151,26 @@ export async function assignTask({ toConnection, analysis = {}, title, descripti
   });
 }
 
-export function listenAssignedByMe(uid, cb) {
+export function listenAssignedByMe(uid, cb, onError) {
   const ref = collection(db, "assignedTasks");
-  return onSnapshot(query(ref, where("fromUid", "==", uid)), (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  });
+  return onSnapshot(
+    query(ref, where("fromUid", "==", uid)),
+    (snap) => {
+      cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    },
+    (err) => onError?.(err)
+  );
 }
 
-export function listenAssignedToMe(uid, cb) {
+export function listenAssignedToMe(uid, cb, onError) {
   const ref = collection(db, "assignedTasks");
-  return onSnapshot(query(ref, where("toUid", "==", uid)), (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  });
+  return onSnapshot(
+    query(ref, where("toUid", "==", uid)),
+    (snap) => {
+      cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    },
+    (err) => onError?.(err)
+  );
 }
 
 export async function setAssignedStatus(taskId, status) {

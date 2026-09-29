@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut } from "firebase/auth";
+import {
+  getRedirectResult,
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
 import { auth, authPersistenceReady, googleProvider } from "../lib/firebase";
 import { claimUsername as claimUsernameApi, loadUserProfile } from "../lib/profileService";
 import { AuthContext } from "./AuthContext";
 
 const REDIRECT_ERROR_CODES = new Set([
   "auth/popup-blocked",
-  "auth/cancelled-popup-request",
   "auth/operation-not-supported-in-this-environment",
 ]);
 
@@ -41,13 +46,23 @@ export default function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState(null);
 
   useEffect(() => {
     let unsubscribe = () => {};
     let active = true;
 
+    // Check for any pending redirect result when returning from signInWithRedirect
+    getRedirectResult(auth).catch((err) => {
+      console.warn("Firebase redirect auth failed:", err);
+    });
+
+    // Always subscribe to onAuthStateChanged even if persistence configuration fails
     authPersistenceReady
-      .then(() => {
+      .catch((err) => {
+        console.warn("Auth persistence failed, falling back to memory/default session:", err);
+      })
+      .finally(() => {
         if (!active) return;
         unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
           if (!active) return;
@@ -56,6 +71,7 @@ export default function AuthProvider({ children }) {
 
           if (!nextUser) {
             setProfile(null);
+            setProfileError(null);
             setProfileLoading(false);
             writeProfileCache(null, null);
             return;
@@ -71,21 +87,25 @@ export default function AuthProvider({ children }) {
             setProfileLoading(true);
           }
 
+          const isCurrent = () => active && auth.currentUser?.uid === nextUser.uid;
+
           try {
             const nextProfile = await loadUserProfile(nextUser.uid);
-            if (!active || auth.currentUser?.uid !== nextUser.uid) return;
+            if (!isCurrent()) return;
             setProfile(nextProfile);
+            setProfileError(null);
             writeProfileCache(nextUser.uid, nextProfile);
-          } catch {
-            if (active && !cached) setProfile(null);
+          } catch (err) {
+            if (!isCurrent()) return;
+            console.warn("Failed to load user profile:", err);
+            setProfileError(err);
+            if (!cached) setProfile(null);
           } finally {
-            if (active) setProfileLoading(false);
+            if (isCurrent()) {
+              setProfileLoading(false);
+            }
           }
         });
-      })
-      .catch(() => {
-        setLoading(false);
-        setProfileLoading(false);
       });
 
     return () => {
@@ -94,12 +114,36 @@ export default function AuthProvider({ children }) {
     };
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return null;
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      const nextProfile = await loadUserProfile(currentUser.uid);
+      setProfile(nextProfile);
+      setProfileError(null);
+      writeProfileCache(currentUser.uid, nextProfile);
+      return nextProfile;
+    } catch (err) {
+      console.warn("Failed to refresh user profile:", err);
+      setProfileError(err);
+      return null;
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     await authPersistenceReady;
     try {
       return await signInWithPopup(auth, googleProvider);
     } catch (error) {
-      if (REDIRECT_ERROR_CODES.has(error.code)) {
+      // Ignore user double-click cancellations
+      if (error?.code === "auth/cancelled-popup-request") {
+        return null;
+      }
+      if (REDIRECT_ERROR_CODES.has(error?.code)) {
         await signInWithRedirect(auth, googleProvider);
         return null;
       }
@@ -110,19 +154,34 @@ export default function AuthProvider({ children }) {
   const claimUsername = useCallback(async (username) => {
     const nextProfile = await claimUsernameApi(username);
     setProfile(nextProfile);
+    setProfileError(null);
     if (auth.currentUser?.uid) writeProfileCache(auth.currentUser.uid, nextProfile);
     return nextProfile;
   }, []);
 
   const signOut = useCallback(async () => {
-    writeProfileCache(null, null);
-    await firebaseSignOut(auth);
-    setProfile(null);
+    try {
+      await firebaseSignOut(auth);
+    } finally {
+      writeProfileCache(null, null);
+      setProfile(null);
+      setProfileError(null);
+    }
   }, []);
 
   const value = useMemo(
-    () => ({ user, profile, loading, profileLoading, signInWithGoogle, claimUsername, signOut }),
-    [user, profile, loading, profileLoading, signInWithGoogle, claimUsername, signOut]
+    () => ({
+      user,
+      profile,
+      loading,
+      profileLoading,
+      profileError,
+      refreshProfile,
+      signInWithGoogle,
+      claimUsername,
+      signOut,
+    }),
+    [user, profile, loading, profileLoading, profileError, refreshProfile, signInWithGoogle, claimUsername, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

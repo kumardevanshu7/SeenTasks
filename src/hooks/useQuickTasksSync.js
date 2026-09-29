@@ -8,13 +8,11 @@ import {
   listenQuickTasks,
   listenQuickWorkspaces,
   migrateLocalQuickTasks,
-  upsertQuickTask,
 } from "../lib/quickTaskService";
 import {
   listenFollowFlows,
   pruneDuplicate1HrFlows,
   removeFollowFlowDoc,
-  upsertFollowFlow,
 } from "../lib/flowService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
@@ -41,35 +39,17 @@ function markLegacyMigrated() {
   }
 }
 
-function scrubQuickTasksFromPersist() {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem("seentasks-store");
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    const root = parsed?.state && typeof parsed.state === "object" ? parsed : null;
-    if (root?.state && "quickTasks" in root.state) {
-      delete root.state.quickTasks;
-      delete root.state.quickWorkspaces;
-      localStorage.setItem("seentasks-store", JSON.stringify(root));
-    } else if (parsed && typeof parsed === "object" && "quickTasks" in parsed) {
-      delete parsed.quickTasks;
-      delete parsed.quickWorkspaces;
-      localStorage.setItem("seentasks-store", JSON.stringify(parsed));
-    }
-  } catch {
-    // ignore
-  }
-}
-
 export function useQuickTasksSync() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const setQuickTasks = useTaskStore((s) => s.setQuickTasks);
   const setQuickWorkspaces = useTaskStore((s) => s.setQuickWorkspaces);
   const setQuickLabels = useTaskStore((s) => s.setQuickLabels);
   const setFollowFlows = useTaskStore((s) => s.setFollowFlows);
 
   useEffect(() => {
+    // Wait until Firebase Auth resolves so we don't clear the store prematurely
+    if (loading) return undefined;
+
     if (!user?.uid) {
       setQuickTasks([]);
       setQuickWorkspaces([]);
@@ -146,36 +126,8 @@ export function useQuickTasksSync() {
             return false;
           });
 
-          const localFlows = useTaskStore.getState().followFlows || [];
-          const cloudMap = new Map(cloud.map((f) => [f.id, f]));
-          const merged = cloud.map((cloudFlow) => {
-            const local = localFlows.find((l) => l.id === cloudFlow.id);
-            if (!local) return cloudFlow;
-            const cloudStepIds = new Set((cloudFlow.steps || []).map((s) => s.id));
-            const pendingSteps = (local.steps || []).filter((s) => s?.id && !cloudStepIds.has(s.id));
-            if (pendingSteps.length > 0) {
-              const combined = {
-                ...cloudFlow,
-                steps: [...(cloudFlow.steps || []), ...pendingSteps],
-              };
-              upsertFollowFlow(uid, combined).catch((err) =>
-                console.warn("Auto-sync pending flow steps failed:", err)
-              );
-              return combined;
-            }
-            return cloudFlow;
-          });
-
-          localFlows.forEach((local) => {
-            if (local?.id && !cloudMap.has(local.id)) {
-              merged.push(local);
-              upsertFollowFlow(uid, local).catch((err) =>
-                console.warn("Auto-sync pending local flow failed:", err)
-              );
-            }
-          });
-
-          const deduped = pruneDuplicate1HrFlows(merged, (dupId) => {
+          // Firestore is source of truth; avoid resurrecting deleted flows/steps
+          const deduped = pruneDuplicate1HrFlows(cloud, (dupId) => {
             removeFollowFlowDoc(uid, dupId).catch((err) =>
               console.warn("Failed to remove duplicate 1hr flow doc:", err)
             );
@@ -191,59 +143,25 @@ export function useQuickTasksSync() {
           if (!active) return;
           const cut = Math.max(useTaskStore.getState().dataClearedAt || 0, clearedAt || 0);
           const cloud = (items || []).filter((t) => isCreatedAfterClear(t, cut));
-          const cloudIds = new Set(cloud.map((t) => t.id));
-          const pending = (useTaskStore.getState().quickTasks || []).filter(
-            (t) => t?.id && !cloudIds.has(t.id) && isCreatedAfterClear(t, cut)
-          );
 
-          if (pending.length > 0) {
-            pending.forEach((p) => {
-              upsertQuickTask(uid, p).catch((err) =>
-                console.warn("Auto-sync pending quick task failed:", err)
-              );
-            });
-          }
-
-          setQuickTasks(
-            [...pending, ...cloud].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-          );
+          // Firestore is source of truth; sort stably by descending creation date
+          const sorted = [...cloud].sort((a, b) => {
+            const ta = new Date(a?.createdAt || 0).getTime();
+            const tb = new Date(b?.createdAt || 0).getTime();
+            return tb - ta;
+          });
+          setQuickTasks(sorted);
         },
         (error) => console.warn("Quick tasks listener error:", error)
       );
     })();
 
-    function handleResume() {
-      if (document.visibilityState === "visible" && user?.uid) {
-        const state = useTaskStore.getState();
-        const cut = state.dataClearedAt || 0;
-        // Push any local pending quick tasks
-        (state.quickTasks || []).forEach((t) => {
-          if (t?.id && isCreatedAfterClear(t, cut)) {
-            upsertQuickTask(user.uid, t).catch(() => {});
-          }
-        });
-        // Push any local flows
-        (state.followFlows || []).forEach((f) => {
-          if (f?.id) {
-            upsertFollowFlow(user.uid, f).catch(() => {});
-          }
-        });
-      }
-    }
-
-    document.addEventListener("visibilitychange", handleResume);
-    window.addEventListener("online", handleResume);
-    window.addEventListener("focus", handleResume);
-
     return () => {
       active = false;
-      document.removeEventListener("visibilitychange", handleResume);
-      window.removeEventListener("online", handleResume);
-      window.removeEventListener("focus", handleResume);
       unsubTasks?.();
       unsubSpaces?.();
       unsubLabels?.();
       unsubFlows?.();
     };
-  }, [user?.uid, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows]);
+  }, [user?.uid, loading, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows]);
 }
