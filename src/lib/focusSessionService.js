@@ -7,6 +7,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { todayKey } from "./date";
 
 function sessionsCol(uid) {
   return collection(db, "users", uid, "focusSessions");
@@ -29,7 +30,7 @@ export async function upsertFocusSession(uid, session) {
     extendedMinutes: Number(session.extendedMinutes) || 0,
     totalMinutes: Number(session.totalMinutes) || ((Number(session.durationMinutes) || 60) + (Number(session.extendedMinutes) || 0)),
     completedAt: session.completedAt || new Date().toISOString(),
-    dateKey: session.dateKey || new Date().toISOString().slice(0, 10),
+    dateKey: session.dateKey || todayKey(),
     updatedAt: serverTimestamp(),
   };
   await setDoc(ref, payload, { merge: true });

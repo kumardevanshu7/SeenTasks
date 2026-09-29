@@ -186,6 +186,14 @@ export function computeAnalytics({
       pct: totalHourlyCompletions > 0 ? Math.round((eveningCount / totalHourlyCompletions) * 100) : 0,
       color: "#8b5cf6",
     },
+    {
+      id: "latenight",
+      label: "Late Night",
+      time: "12 AM – 6 AM",
+      count: lateNightCount,
+      pct: totalHourlyCompletions > 0 ? Math.round((lateNightCount / totalHourlyCompletions) * 100) : 0,
+      color: "#6366f1",
+    },
   ];
 
   // Identify Peak Hours

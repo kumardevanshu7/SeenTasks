@@ -5,6 +5,7 @@ import { registerSW } from "virtual:pwa-register";
 import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-500.css";
 import "@fontsource/cormorant-garamond/latin-500.css";
+import "lenis/dist/lenis.css";
 import "./index.css";
 import App from "./App.jsx";
 import AuthProvider from "./context/AuthProvider.jsx";

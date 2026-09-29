@@ -14,9 +14,9 @@ import { upsertFocusSession } from "../lib/focusSessionService";
 
 const MAX_ITERATION = 10;
 
-async function runAnalyze(title, description, persona) {
+async function runAnalyze(title, description, persona, metadata = {}) {
   const { analyzeTask } = await import("../lib/aiAnalyzer");
-  return analyzeTask(title, description, persona);
+  return analyzeTask(title, description, persona, metadata);
 }
 
 function isTaskAfterClear(task, clearedAt) {
@@ -1534,7 +1534,7 @@ export const useTaskStore = create(
         const cleanTitle = title.trim();
         const cleanDescription = description?.trim() || "";
         const targetDate = dateKey || todayKey();
-        const analysis = await runAnalyze(cleanTitle, cleanDescription, personaGuidance(get().persona));
+        const analysis = await runAnalyze(cleanTitle, cleanDescription, personaGuidance(get().persona), { dateKey: targetDate });
         const task = makeTask({
           title: cleanTitle,
           description: cleanDescription,
@@ -1611,7 +1611,12 @@ export const useTaskStore = create(
       reanalyzeTask: async (id) => {
         const task = get().tasks.find((item) => item.id === id);
         if (!task) return null;
-        const analysis = await runAnalyze(task.title, task.description, personaGuidance(get().persona));
+        const analysis = await runAnalyze(
+          task.title,
+          task.description,
+          personaGuidance(get().persona),
+          { dueDate: task.dueDate || null, dateKey: task.dateKey || null }
+        );
         set((state) => ({
           tasks: state.tasks.map((item) => item.id === id ? {
             ...item,

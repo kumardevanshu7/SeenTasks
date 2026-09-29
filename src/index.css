@@ -4757,10 +4757,10 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   font-weight: 700;
 }
 
-/* Period Summary Cards (Morning, Afternoon, Night) */
+/* Period Summary Cards (Morning, Afternoon, Night, Late Night) */
 .analytics-period-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 
@@ -4793,6 +4793,7 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 .period-icon-morning { color: #d97706; background: rgba(245, 158, 11, 0.12); }
 .period-icon-afternoon { color: #2563eb; background: rgba(59, 130, 246, 0.12); }
 .period-icon-night { color: #7c3aed; background: rgba(139, 92, 246, 0.12); }
+.period-icon-latenight { color: #4f46e5; background: rgba(99, 102, 241, 0.12); }
 
 .period-meta {
   display: flex;

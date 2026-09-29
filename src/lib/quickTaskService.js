@@ -348,6 +348,7 @@ export async function migrateLocalQuickTasks(uid, localItems, clearedAt = 0) {
             ? [String(task.labelId)]
             : [],
         labelId: task.labelId || null,
+        subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
         createdAt: task.createdAt || new Date().toISOString(),
         completedAt: task.completedAt || null,
         updatedAt: serverTimestamp(),
@@ -360,39 +361,49 @@ export async function migrateLocalQuickTasks(uid, localItems, clearedAt = 0) {
 
 export async function batchShiftQuickTasksToToday(uid, shiftedTasks = [], removeIds = []) {
   if (!uid) return;
+
+  // Combine operations so delete & set happen atomically per batch chunk, preventing data loss
+  const operations = [];
+  removeIds.forEach((id) => {
+    if (id) operations.push({ type: "delete", id });
+  });
+  shiftedTasks.forEach((task) => {
+    if (task?.id) operations.push({ type: "set", task });
+  });
+
+  if (!operations.length) return;
+
   const CHUNK = 400;
-  for (let i = 0; i < removeIds.length; i += CHUNK) {
+  for (let i = 0; i < operations.length; i += CHUNK) {
     const batch = writeBatch(db);
-    removeIds.slice(i, i + CHUNK).forEach((id) => {
-      batch.delete(doc(db, "users", uid, "quickTasks", id));
-    });
-    await batch.commit();
-  }
-  for (let i = 0; i < shiftedTasks.length; i += CHUNK) {
-    const batch = writeBatch(db);
-    shiftedTasks.slice(i, i + CHUNK).forEach((task) => {
-      const labelIds = Array.isArray(task.labelIds)
-        ? task.labelIds.filter(Boolean).map((x) => String(x))
-        : task.labelId
-          ? [String(task.labelId)]
-          : [];
-      batch.set(
-        doc(db, "users", uid, "quickTasks", task.id),
-        {
-          title: task.title || "",
-          done: Boolean(task.done),
-          dateKey: task.dateKey || "",
-          workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
-          dueDate: task.dueDate || null,
-          labelIds,
-          labelId: task.labelId || labelIds[0] || null,
-          subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
-          createdAt: task.createdAt || new Date().toISOString(),
-          completedAt: task.completedAt || null,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+    operations.slice(i, i + CHUNK).forEach((op) => {
+      if (op.type === "delete") {
+        batch.delete(doc(db, "users", uid, "quickTasks", op.id));
+      } else {
+        const task = op.task;
+        const labelIds = Array.isArray(task.labelIds)
+          ? task.labelIds.filter(Boolean).map((x) => String(x))
+          : task.labelId
+            ? [String(task.labelId)]
+            : [];
+        batch.set(
+          doc(db, "users", uid, "quickTasks", task.id),
+          {
+            title: task.title || "",
+            done: Boolean(task.done),
+            dateKey: task.dateKey || "",
+            workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
+            dueDate: task.dueDate || null,
+            labelIds,
+            labelId: task.labelId || labelIds[0] || null,
+            subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+            createdAt: task.createdAt || new Date().toISOString(),
+            completedAt: task.completedAt || null,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
     });
     await batch.commit();
   }

@@ -369,7 +369,7 @@ export default function AnalyticsPage() {
           </span>
         </div>
 
-        {/* 3 Spacious Period Summary Cards */}
+        {/* Period Summary Cards */}
         <div className="analytics-period-cards">
           {periodBreakdown.map((p) => (
             <div key={p.id} className="analytics-period-card">
@@ -378,6 +378,7 @@ export default function AnalyticsPage() {
                   {p.id === "morning" && <Sunrise size={20} />}
                   {p.id === "afternoon" && <Sun size={20} />}
                   {p.id === "night" && <Moon size={20} />}
+                  {p.id === "latenight" && <Sparkles size={20} />}
                 </span>
                 <div className="period-meta">
                   <strong>{p.label}</strong>

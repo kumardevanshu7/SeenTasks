@@ -45,7 +45,7 @@ function TaskComposer({ onClose }) {
       setQueue((q) => q.map((item, idx) => (idx === i ? { ...item, status: STATUS.ANALYZING } : item)));
       let category = "second";
       if (target) {
-        const analysis = await analyzeTask(items[i].title, context, []);
+        const analysis = await analyzeTask(items[i].title, context, [], { dateKey: date });
         await assignTask({ toConnection: target, analysis, title: items[i].title, description: context, dateKey: date, firstDateKey: date }, profile);
         category = analysis.category;
       } else {

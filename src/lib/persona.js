@@ -70,5 +70,6 @@ export const PERSONA_TRAITS = [
 ];
 
 export function personaGuidance(selectedIds = []) {
-  return PERSONA_TRAITS.filter((t) => selectedIds.includes(t.id)).map((t) => t.aiRule);
+  // Filter out informational/demographic traits like gender (info: true) to minimize sent data & avoid bias
+  return PERSONA_TRAITS.filter((t) => selectedIds.includes(t.id) && !t.info).map((t) => t.aiRule);
 }

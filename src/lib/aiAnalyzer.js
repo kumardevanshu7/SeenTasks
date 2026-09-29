@@ -59,7 +59,11 @@ const TOMORROW_WORDS = [
 
 function scoreWords(text, words) {
   const t = text.toLowerCase();
-  return words.reduce((acc, w) => (t.includes(w) ? acc + 1 : acc), 0);
+  return words.reduce((acc, w) => {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`\\b${escaped}\\b`, "i");
+    return pattern.test(t) ? acc + 1 : acc;
+  }, 0);
 }
 
 /**
@@ -106,18 +110,22 @@ function analyzeTaskFallback(title, description = "") {
   };
 }
 
-export async function analyzeTask(title, description = "", persona = []) {
+export async function analyzeTask(title, description = "", persona = [], taskMetadata = {}) {
   const now = new Date();
   try {
     return await analyzeTaskWithOpenRouter({
       title,
       description,
+      dueDate: taskMetadata?.dueDate || null,
+      dateKey: taskMetadata?.dateKey || null,
       context: {
         localDate: now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
         localTime: now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
         dayOfWeek: now.toLocaleDateString(undefined, { weekday: "long" }),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         persona,
+        dueDate: taskMetadata?.dueDate || null,
+        dateKey: taskMetadata?.dateKey || null,
       },
     });
   } catch {
