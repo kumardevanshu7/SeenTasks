@@ -328,6 +328,8 @@ export default function FlowPage() {
   }
 
   function submitStep() {
+    if (isEveryday && !everydayActive) return;
+    if (isArchivedTab) return;
     const added = addFlowStep(flow.id, draft, {
       startDate: isEveryday && startDraft ? startDraft : null,
       endDate: isEveryday && endStepDraft ? endStepDraft : null,
@@ -1354,118 +1356,152 @@ export default function FlowPage() {
         </div>
       )}
 
-      <div className="flow-add-block">
-        <div className="flow-add-row">
-          <input
-            className="text-input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                submitStep();
-              }
-            }}
-            placeholder={is1HrFlow ? "Add a 1-hour focus task…" : "Add a step…"}
-            maxLength={120}
-            aria-label="Add a step"
-          />
-          <button
-            type="button"
-            className="button button-primary"
-            disabled={!draft.trim()}
-            onClick={submitStep}
-          >
-            Add
-          </button>
+      {isEveryday && !everydayActive ? (
+        <div
+          className="flow-ended-notice"
+          style={{
+            padding: "16px 20px",
+            borderRadius: "12px",
+            border: "1px dashed var(--border-color, #e2e8f0)",
+            background: "var(--bg-muted, rgba(0, 0, 0, 0.02))",
+            color: "var(--text-muted, #64748b)",
+            fontSize: "13px",
+            textAlign: "center",
+            marginTop: "20px",
+          }}
+        >
+          <span>This everyday flow ended{flow.endDate ? ` on ${formatFriendly(flow.endDate)}` : ""}. To add new steps, edit or extend the flow’s end date.</span>
         </div>
-        {isEveryday && !is1HrFlow && (
-          <div className="flow-add-dates">
-            <label>
-              Start <span className="flow-field-optional">(optional)</span>
-              <input
-                type="date"
-                className="text-input"
-                value={startDraft}
-                onChange={(e) => setStartDraft(e.target.value)}
-                aria-label="Step start date"
-              />
-            </label>
-            <label>
-              End <span className="flow-field-optional">(optional)</span>
-              <input
-                type="date"
-                className="text-input"
-                value={endStepDraft}
-                onChange={(e) => {
-                  const newEnd = e.target.value;
-                  setEndStepDraft(newEnd);
-                  if (newEnd && startDraft && newEnd < startDraft) {
-                    setStartDraft(newEnd);
-                  }
-                }}
-                aria-label="Step end date"
-              />
-            </label>
+      ) : isArchivedTab ? (
+        <div
+          className="flow-ended-notice"
+          style={{
+            padding: "14px 18px",
+            borderRadius: "12px",
+            border: "1px dashed var(--border-color, #e2e8f0)",
+            background: "var(--bg-muted, rgba(0, 0, 0, 0.02))",
+            color: "var(--text-muted, #64748b)",
+            fontSize: "13px",
+            textAlign: "center",
+            marginTop: "20px",
+          }}
+        >
+          <span>Archived tab is read-only. Switch to an active category tab to add steps.</span>
+        </div>
+      ) : (
+        <div className="flow-add-block">
+          <div className="flow-add-row">
+            <input
+              className="text-input"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitStep();
+                }
+              }}
+              placeholder={is1HrFlow ? "Add a 1-hour focus task…" : "Add a step…"}
+              maxLength={120}
+              aria-label="Add a step"
+            />
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={!draft.trim()}
+              onClick={submitStep}
+            >
+              Add
+            </button>
           </div>
-        )}
-        {is1HrFlow && suggestions.length > 0 && (
-          <div className="flow-suggestions-tray">
-            <div className="flow-suggestions-head">
-              <span className="flow-suggestions-label">
-                <Sparkles size={13} className="flow-suggestions-icon" />
-                Previous 1-hour tasks (tap to add for today):
-              </span>
-              {visibleSteps.length > 0 && (
-                <button
-                  type="button"
-                  className="flow-fresh-btn"
-                  onClick={() => setGate({ type: "reset-1hr-today" })}
-                  title="Protected: start fresh today (requires One Password confirmation)"
-                >
-                  <RotateCcw size={12} />
-                  <span>Start fresh today</span>
-                  <Lock size={10} className="flow-fresh-lock-icon" />
-                </button>
-              )}
+          {isEveryday && !is1HrFlow && (
+            <div className="flow-add-dates">
+              <label>
+                Start <span className="flow-field-optional">(optional)</span>
+                <input
+                  type="date"
+                  className="text-input"
+                  value={startDraft}
+                  onChange={(e) => setStartDraft(e.target.value)}
+                  aria-label="Step start date"
+                />
+              </label>
+              <label>
+                End <span className="flow-field-optional">(optional)</span>
+                <input
+                  type="date"
+                  className="text-input"
+                  value={endStepDraft}
+                  onChange={(e) => {
+                    const newEnd = e.target.value;
+                    setEndStepDraft(newEnd);
+                    if (newEnd && startDraft && newEnd < startDraft) {
+                      setStartDraft(newEnd);
+                    }
+                  }}
+                  aria-label="Step end date"
+                />
+              </label>
             </div>
-            <div className="flow-suggestions-chips">
-              {suggestions.map((title) => {
-                const isAdded = visibleSteps.some((s) => s.title.toLowerCase() === title.toLowerCase());
-                return (
+          )}
+          {is1HrFlow && suggestions.length > 0 && (
+            <div className="flow-suggestions-tray">
+              <div className="flow-suggestions-head">
+                <span className="flow-suggestions-label">
+                  <Sparkles size={13} className="flow-suggestions-icon" />
+                  Previous 1-hour tasks (tap to add for today):
+                </span>
+                {visibleSteps.length > 0 && (
                   <button
-                    key={title}
                     type="button"
-                    className={`flow-suggestion-chip${isAdded ? " is-added" : ""}`}
-                    disabled={isAdded}
-                    onClick={() => {
-                      addFlowStep(flow.id, title, { categoryId: activeCat });
-                      if (soundEnabled) playTickSound();
-                    }}
-                    title={isAdded ? "Already added today" : `Add "${title}" to today`}
+                    className="flow-fresh-btn"
+                    onClick={() => setGate({ type: "reset-1hr-today" })}
+                    title="Protected: start fresh today (requires One Password confirmation)"
                   >
-                    <span className="flow-suggestion-plus">{isAdded ? "✓" : "+"}</span>
-                    <span className="flow-suggestion-title">{title}</span>
-                    <span
-                      className="flow-suggestion-remove"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Remove suggestion ${title}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        remove1HrTaskSuggestion(flow.id, title);
-                      }}
-                      title="Remove from suggestions"
-                    >
-                      ×
-                    </span>
+                    <RotateCcw size={12} />
+                    <span>Start fresh today</span>
+                    <Lock size={10} className="flow-fresh-lock-icon" />
                   </button>
-                );
-              })}
+                )}
+              </div>
+              <div className="flow-suggestions-chips">
+                {suggestions.map((title) => {
+                  const isAdded = visibleSteps.some((s) => s.title.toLowerCase() === title.toLowerCase());
+                  return (
+                    <button
+                      key={title}
+                      type="button"
+                      className={`flow-suggestion-chip${isAdded ? " is-added" : ""}`}
+                      disabled={isAdded}
+                      onClick={() => {
+                        addFlowStep(flow.id, title, { categoryId: activeCat });
+                        if (soundEnabled) playTickSound();
+                      }}
+                      title={isAdded ? "Already added today" : `Add "${title}" to today`}
+                    >
+                      <span className="flow-suggestion-plus">{isAdded ? "✓" : "+"}</span>
+                      <span className="flow-suggestion-title">{title}</span>
+                      <span
+                        className="flow-suggestion-remove"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Remove suggestion ${title}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove1HrTaskSuggestion(flow.id, title);
+                        }}
+                        title="Remove from suggestions"
+                      >
+                        ×
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {isEveryday && <EverydayMiniCalendar flow={flow} />}
 
