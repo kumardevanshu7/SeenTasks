@@ -792,7 +792,7 @@ export const useTaskStore = create(
         syncLabelRemove(id);
       },
 
-      addFollowFlow: ({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork }) => {
+      addFollowFlow: ({ name, color, repeat, startDate, endDate, labelIds, anyOrder, is1HrWork }) => {
         const clean = name?.trim();
         if (!clean) return null;
         const is1Hr = Boolean(is1HrWork || is1HrWorkFlowName(clean));
@@ -807,6 +807,10 @@ export const useTaskStore = create(
         const labels = Array.isArray(labelIds)
           ? labelIds.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)
           : [];
+        const start =
+          isDaily && typeof startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+            ? startDate
+            : (isDaily ? todayKey() : null);
         const end =
           isDaily && typeof endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(endDate)
             ? endDate
@@ -823,6 +827,7 @@ export const useTaskStore = create(
           repeat: isDaily ? "daily" : null,
           is1HrWork: is1Hr,
           dayKey: isDaily ? todayKey() : null,
+          startDate: start,
           endDate: end,
           labelIds: labels,
           reports: [],
@@ -837,8 +842,10 @@ export const useTaskStore = create(
       updateFollowFlow: (id, patch = {}) => {
         if (!id) return null;
         let next = null;
-        set((s) => ({
-          followFlows: (s.followFlows || []).map((f) => {
+        let affectedQuickTasks = null;
+        set((s) => {
+          let updatedQuickTasks = s.quickTasks || [];
+          const nextFlows = (s.followFlows || []).map((f) => {
             if (f.id !== id) return f;
             const updates = {};
             if (typeof patch.name === "string") {
@@ -848,14 +855,59 @@ export const useTaskStore = create(
             if (Object.prototype.hasOwnProperty.call(patch, "is1HrWork")) {
               updates.is1HrWork = Boolean(patch.is1HrWork);
             }
+            if (Object.prototype.hasOwnProperty.call(patch, "startDate")) {
+              const raw = patch.startDate;
+              updates.startDate =
+                typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)
+                  ? raw
+                  : null;
+            }
             if (Object.prototype.hasOwnProperty.call(patch, "endDate")) {
               const raw = patch.endDate;
-              updates.endDate =
+              const nextEnd =
                 f.repeat === "daily" &&
                 typeof raw === "string" &&
                 /^\d{4}-\d{2}-\d{2}$/.test(raw)
                   ? raw
                   : null;
+              updates.endDate = nextEnd;
+
+              // Cascade to steps if nextEnd is set!
+              if (nextEnd && Array.isArray(f.steps)) {
+                const today = todayKey();
+                updates.steps = f.steps.map((st) => {
+                  // If step already ended before today or before nextEnd, preserve it!
+                  const isArchived = Boolean(st.endDate && (st.endDate < today || st.endDate < nextEnd));
+                  if (isArchived) return st;
+                  // If step has no endDate or has an endDate further than nextEnd, cap it to nextEnd!
+                  if (!st.endDate || st.endDate > nextEnd) {
+                    return { ...st, endDate: nextEnd };
+                  }
+                  return st;
+                });
+              }
+
+              // Cascade to open quickTasks matching flow labels
+              const flowLabels = updates.labelIds || f.labelIds || [];
+              if (nextEnd && flowLabels.length > 0 && Array.isArray(updatedQuickTasks)) {
+                const modified = [];
+                updatedQuickTasks = updatedQuickTasks.map((t) => {
+                  if (t.done) return t; // Skip completed tasks
+                  const matches =
+                    (t.labelIds || []).some((lid) => flowLabels.includes(lid)) ||
+                    flowLabels.includes(t.labelId);
+                  if (!matches) return t;
+                  if (!t.dueDate || t.dueDate > nextEnd) {
+                    const ut = { ...t, dueDate: nextEnd };
+                    modified.push(ut);
+                    return ut;
+                  }
+                  return t;
+                });
+                if (modified.length > 0) {
+                  affectedQuickTasks = modified;
+                }
+              }
             }
             if (Object.prototype.hasOwnProperty.call(patch, "labelIds")) {
               updates.labelIds = Array.isArray(patch.labelIds)
@@ -867,9 +919,18 @@ export const useTaskStore = create(
             }
             next = { ...f, ...updates };
             return next;
-          }),
-        }));
+          });
+
+          return {
+            followFlows: nextFlows,
+            ...(affectedQuickTasks ? { quickTasks: updatedQuickTasks } : {}),
+          };
+        });
+
         if (next) syncFlowUpsert(next);
+        if (affectedQuickTasks) {
+          affectedQuickTasks.forEach((t) => syncQuickUpsert(t));
+        }
         return next;
       },
 

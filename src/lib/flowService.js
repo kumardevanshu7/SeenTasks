@@ -331,7 +331,8 @@ export function normalizeFollowFlow(id, data = {}) {
 export function isEverydayActive(flow, day = null) {
   if (!flow || flow.repeat !== "daily") return false;
   const d = day || todayKey();
-  if (flow.endDate && flow.endDate < d) return false;
+  if (flow.startDate && isValidDateKey(flow.startDate) && flow.startDate > d) return false;
+  if (flow.endDate && isValidDateKey(flow.endDate) && flow.endDate < d) return false;
   return true;
 }
 
@@ -777,6 +778,11 @@ export async function upsertFollowFlow(uid, flow) {
           ).slice(0, 150)
         : [],
       dayKey: flow.dayKey || null,
+      startDate:
+        typeof flow.startDate === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(flow.startDate)
+          ? flow.startDate
+          : null,
       endDate:
         flow.repeat === "daily" &&
         typeof flow.endDate === "string" &&

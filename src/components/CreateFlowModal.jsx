@@ -16,6 +16,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
   const [colorId, setColorId] = useState(is1Hr ? FLOW_COLORS[4].id : FLOW_COLORS[0].id);
   const [everyday, setEveryday] = useState(is1Hr || defaultEveryday);
   const [is1HrWork, setIs1HrWork] = useState(is1Hr);
+  const [startDate, setStartDate] = useState(todayKey());
   const [endDate, setEndDate] = useState("");
   const [labelIds, setLabelIds] = useState([]);
   const [anyOrder, setAnyOrder] = useState(is1Hr);
@@ -26,6 +27,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
       setColorId(FLOW_COLORS[0].id);
       setEveryday(defaultEveryday);
       setIs1HrWork(false);
+      setStartDate(todayKey());
       setEndDate("");
       setLabelIds([]);
       setAnyOrder(false);
@@ -37,6 +39,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
       setAnyOrder(is1HrSelected);
       setName(is1HrSelected ? "1 Hr Work" : "");
       setColorId(is1HrSelected ? FLOW_COLORS[4].id : FLOW_COLORS[0].id);
+      setStartDate(todayKey());
     }
   }, [open, defaultEveryday, defaultMode]);
 
@@ -52,6 +55,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
       name: clean,
       color: colorId,
       repeat: everyday || is1HrWork ? "daily" : null,
+      startDate: (everyday || is1HrWork) ? (startDate || todayKey()) : null,
       endDate: (everyday || is1HrWork) && endDate ? endDate : null,
       labelIds: (everyday || is1HrWork) ? labelIds : [],
       anyOrder: (everyday || is1HrWork) && anyOrder,
@@ -137,17 +141,30 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
 
               {(everyday || is1HrWork) && (
                 <>
-                  <label>
-                    End date <span className="flow-field-optional">(optional)</span>
-                    <input
-                      className="text-input"
-                      type="date"
-                      value={endDate}
-                      min={todayKey()}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      aria-label="Everyday end date"
-                    />
-                  </label>
+                  <div className="flow-dates-row" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                    <label style={{ flex: 1, minWidth: "140px" }}>
+                      Start date <span className="flow-field-optional">(optional)</span>
+                      <input
+                        className="text-input"
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        aria-label="Flow start date"
+                      />
+                    </label>
+
+                    <label style={{ flex: 1, minWidth: "140px" }}>
+                      End date <span className="flow-field-optional">(optional)</span>
+                      <input
+                        className="text-input"
+                        type="date"
+                        value={endDate}
+                        min={startDate || todayKey()}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        aria-label="Flow end date"
+                      />
+                    </label>
+                  </div>
 
                   <label className="flow-everyday-toggle">
                     <input

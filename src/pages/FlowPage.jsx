@@ -143,6 +143,7 @@ export default function FlowPage() {
   const [startDraft, setStartDraft] = useState("");
   const [endStepDraft, setEndStepDraft] = useState("");
   const [titleDraft, setTitleDraft] = useState("");
+  const [startFlowDraft, setStartFlowDraft] = useState("");
   const [endDraft, setEndDraft] = useState("");
   const [gate, setGate] = useState(null);
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -190,15 +191,17 @@ export default function FlowPage() {
 
   useEffect(() => {
     setTitleDraft(flow?.name || "");
+    setStartFlowDraft(flow?.startDate || "");
     setEndDraft(flow?.endDate || "");
-  }, [flow?.id, flow?.name, flow?.endDate]);
+  }, [flow?.id, flow?.name, flow?.startDate, flow?.endDate]);
 
   useEffect(() => {
     if (editing) {
       setTitleDraft(flow?.name || "");
+      setStartFlowDraft(flow?.startDate || "");
       setEndDraft(flow?.endDate || "");
     }
-  }, [editing, flow?.name, flow?.endDate]);
+  }, [editing, flow?.name, flow?.startDate, flow?.endDate]);
 
   useEffect(() => {
     if (flow && is1HrWorkFlow(flow)) {
@@ -244,20 +247,28 @@ export default function FlowPage() {
   const ink = flowColorInk(isEveryday && activeCatMeta ? activeCatMeta.color : flow.color);
   const is1HrStepActive = (s) => (s.dateKey === day || !s.dateKey || !s.done);
   const isStepArchived = (s) => isEveryday && !is1HrFlow && Boolean(s.endDate && s.endDate < day);
+  const isArchivedTab = activeCat === "archived";
+
+  const allFlowArchivedSteps = isEveryday && !is1HrFlow
+    ? steps.filter((s) => isStepArchived(s))
+    : [];
 
   const visibleSteps = is1HrFlow
     ? (categories.length > 1 && activeCat
         ? steps.filter((s) => is1HrStepActive(s) && stepCategoryId(s, flow) === activeCat)
         : steps.filter(is1HrStepActive))
-    : isEveryday && activeCat
-      ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
-      : steps;
+    : isArchivedTab
+      ? allFlowArchivedSteps
+      : isEveryday && activeCat
+        ? steps.filter((s) => stepCategoryId(s, flow) === activeCat)
+        : steps;
 
-  const activeVisibleSteps = visibleSteps.filter((s) => !isStepArchived(s));
-  const archivedSteps = visibleSteps.filter((s) => isStepArchived(s));
-  const allFlowArchivedSteps = isEveryday && !is1HrFlow
-    ? steps.filter((s) => isStepArchived(s))
-    : [];
+  const activeVisibleSteps = isArchivedTab
+    ? allFlowArchivedSteps
+    : visibleSteps.filter((s) => !isStepArchived(s));
+  const archivedSteps = isArchivedTab
+    ? allFlowArchivedSteps
+    : visibleSteps.filter((s) => isStepArchived(s));
 
   const flowLabels = (flow.labelIds || [])
     .map((id) => quickLabels.find((l) => l.id === id))
@@ -382,6 +393,14 @@ export default function FlowPage() {
     if (clean !== flow.name) renameFollowFlow(flow.id, clean);
   }
 
+  function saveFlowStartDate() {
+    if (!isEveryday) return;
+    const next = startFlowDraft || null;
+    if ((flow.startDate || null) !== next) {
+      updateFollowFlow(flow.id, { startDate: next });
+    }
+  }
+
   function saveEndDate() {
     if (!isEveryday) return;
     const next = endDraft || null;
@@ -401,6 +420,7 @@ export default function FlowPage() {
   function requestEdit() {
     if (editing) {
       saveTitle();
+      saveFlowStartDate();
       saveEndDate();
       setEditing(false);
       return;
@@ -872,39 +892,70 @@ export default function FlowPage() {
                 : prog.complete
                   ? "All steps complete."
                   : `${prog.done} of ${prog.total} complete · next unlocks after the current step.`}
-            {isEveryday && everydayActive && flow.endDate
-              ? ` Ends ${formatFriendly(flow.endDate)}.`
-              : ""}
+            {isEveryday && everydayActive && (
+              flow.startDate && flow.endDate
+                ? ` Active ${formatFriendly(flow.startDate)} – ${formatFriendly(flow.endDate)}.`
+                : flow.endDate
+                  ? ` Ends ${formatFriendly(flow.endDate)}.`
+                  : flow.startDate
+                    ? ` Starts ${formatFriendly(flow.startDate)}.`
+                    : ""
+            )}
           </p>
 
           {isEveryday && (
             <div className="flow-meta-block">
               {editing ? (
                 <>
-                  <label className="flow-end-date-field">
-                    <span>End date</span>
-                    <input
-                      className="text-input"
-                      type="date"
-                      value={endDraft}
-                      min={todayKey()}
-                      onChange={(e) => setEndDraft(e.target.value)}
-                      onBlur={saveEndDate}
-                      aria-label="Everyday end date"
-                    />
-                    {endDraft && (
-                      <button
-                        type="button"
-                        className="flow-end-date-clear"
-                        onClick={() => {
-                          setEndDraft("");
-                          updateFollowFlow(flow.id, { endDate: null });
-                        }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </label>
+                  <div className="flow-dates-row" style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+                    <label className="flow-end-date-field" style={{ flex: 1, minWidth: "140px" }}>
+                      <span>Start date</span>
+                      <input
+                        className="text-input"
+                        type="date"
+                        value={startFlowDraft}
+                        onChange={(e) => setStartFlowDraft(e.target.value)}
+                        onBlur={saveFlowStartDate}
+                        aria-label="Everyday start date"
+                      />
+                      {startFlowDraft && (
+                        <button
+                          type="button"
+                          className="flow-end-date-clear"
+                          onClick={() => {
+                            setStartFlowDraft("");
+                            updateFollowFlow(flow.id, { startDate: null });
+                          }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </label>
+                    <label className="flow-end-date-field" style={{ flex: 1, minWidth: "140px" }}>
+                      <span>End date</span>
+                      <input
+                        className="text-input"
+                        type="date"
+                        value={endDraft}
+                        min={startFlowDraft || todayKey()}
+                        onChange={(e) => setEndDraft(e.target.value)}
+                        onBlur={saveEndDate}
+                        aria-label="Everyday end date"
+                      />
+                      {endDraft && (
+                        <button
+                          type="button"
+                          className="flow-end-date-clear"
+                          onClick={() => {
+                            setEndDraft("");
+                            updateFollowFlow(flow.id, { endDate: null });
+                          }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </label>
+                  </div>
                   <label className="flow-everyday-toggle">
                     <input
                       type="checkbox"
@@ -1089,13 +1140,12 @@ export default function FlowPage() {
               {allFlowArchivedSteps.length > 0 && (
                 <button
                   type="button"
-                  className="flow-cat-tab flow-cat-tab-archived"
+                  className={`flow-cat-tab flow-cat-tab-archived${isArchivedTab ? " is-active" : ""}`}
+                  style={isArchivedTab ? { background: "#334155", color: "#f8fafc" } : undefined}
                   onClick={() => {
-                    setArchivedOpen(true);
-                    setTimeout(() => {
-                      const el = document.querySelector(".flow-archived-container");
-                      if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                    }, 50);
+                    setActiveCategoryId((prev) =>
+                      prev === "archived" ? (categories[0]?.id || DEFAULT_FLOW_CATEGORY_ID) : "archived"
+                    );
                   }}
                   title="View all past ended steps"
                 >
@@ -1227,7 +1277,7 @@ export default function FlowPage() {
       )}
 
       <ol className="flow-stepper" aria-label="Flow steps">
-        {activeVisibleSteps.map((step, visIndex) => renderStepItem(step, visIndex, false))}
+        {activeVisibleSteps.map((step, visIndex) => renderStepItem(step, visIndex, isArchivedTab))}
       </ol>
 
       {activeVisibleSteps.length === 0 && !editing && (
@@ -1237,8 +1287,10 @@ export default function FlowPage() {
               <strong>Plan today’s 1-hour focus sprints</strong>
               <p>Type your tasks below, or tap previous tasks from the suggestions tray.</p>
             </div>
+          ) : isArchivedTab ? (
+            <p>No archived steps in this flow yet.</p>
           ) : archivedSteps.length > 0 ? (
-            <p>All steps in this tab have ended and moved to Archived below.</p>
+            <p>All steps in this tab have ended and moved to Archived.</p>
           ) : (
             <p>{isEveryday ? "No steps in this tab — add one below." : "No steps yet — add the first one below."}</p>
           )}

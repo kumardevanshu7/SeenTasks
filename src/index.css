@@ -352,7 +352,12 @@ p, h1, h2, h3, h4 { margin: 0; }
   flex-direction: column;
   gap: 12px;
   margin-top: 12px;
-  max-width: 420px;
+  max-width: 480px;
+}
+.flow-dates-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .flow-end-date-field {
   display: flex;

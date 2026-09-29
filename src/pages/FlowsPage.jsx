@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Timer, Trophy } from "lucide-react";
+import { Archive, ArrowUpRight, ClipboardList, GitBranch, Plus, RefreshCw, Timer, Trophy } from "lucide-react";
 import CreateFlowModal from "../components/CreateFlowModal";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_ACHIEVEMENTS, evaluateUnlockedIds } from "../lib/flowAchievements";
@@ -79,9 +79,15 @@ function FlowCard({ flow, everyday, labels }) {
               : prog.complete
                 ? "All steps complete"
                 : `Step ${Math.min(prog.activeIndex + 1, prog.total)} of ${prog.total}`}
-          {everyday && flow.endDate
-            ? ` · Ends ${formatFriendly(flow.endDate)}`
-            : !everyday && started
+          {everyday
+            ? flow.startDate && flow.endDate
+              ? ` · ${formatFriendly(flow.startDate)} – ${formatFriendly(flow.endDate)}`
+              : flow.endDate
+                ? ` · Ends ${formatFriendly(flow.endDate)}`
+                : flow.startDate
+                  ? ` · Starts ${formatFriendly(flow.startDate)}`
+                  : ""
+            : started
               ? ` · Started ${started}`
               : ""}
         </span>
@@ -125,8 +131,12 @@ export default function FlowsPage() {
     () => pruneDuplicate1HrFlows(followFlows),
     [followFlows]
   );
-  const everydayFlows = useMemo(
-    () => cleanFlows.filter((f) => f.repeat === "daily"),
+  const activeEverydayFlows = useMemo(
+    () => cleanFlows.filter((f) => f.repeat === "daily" && isEverydayActive(f, todayKey())),
+    [cleanFlows]
+  );
+  const archivedEverydayFlows = useMemo(
+    () => cleanFlows.filter((f) => f.repeat === "daily" && !isEverydayActive(f, todayKey())),
     [cleanFlows]
   );
   const oneShotFlows = useMemo(
@@ -136,14 +146,15 @@ export default function FlowsPage() {
 
   const yKey = yesterdayKey();
   const yesterdayReports = useMemo(() => {
-    return everydayFlows
+    return cleanFlows
+      .filter((f) => f.repeat === "daily")
       .map((f) => {
         const report = (f.reports || []).find((r) => r.dateKey === yKey);
         if (!report) return null;
         return { flow: f, report };
       })
       .filter(Boolean);
-  }, [everydayFlows, yKey]);
+  }, [cleanFlows, yKey]);
 
   const unlocked = useMemo(() => evaluateUnlockedIds(cleanFlows), [cleanFlows]);
   const earnedCount = FLOW_ACHIEVEMENTS.filter((a) => unlocked.has(a.id)).length;
@@ -160,7 +171,7 @@ export default function FlowsPage() {
     setCreateOpen(true);
   }
 
-  function handleCreate({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork }) {
+  function handleCreate({ name, color, repeat, startDate, endDate, labelIds, anyOrder, is1HrWork }) {
     if (is1HrWork || is1HrWorkFlowName(name)) {
       const existing = (followFlows || []).find((f) => is1HrWorkFlow(f));
       if (existing) {
@@ -169,7 +180,7 @@ export default function FlowsPage() {
         return;
       }
     }
-    const created = addFollowFlow({ name, color, repeat, endDate, labelIds, anyOrder, is1HrWork });
+    const created = addFollowFlow({ name, color, repeat, startDate, endDate, labelIds, anyOrder, is1HrWork });
     setCreateOpen(false);
     if (created?.id) navigate(`/app/flows/${created.id}`);
   }
@@ -224,16 +235,34 @@ export default function FlowsPage() {
               </div>
             </div>
 
-            {everydayFlows.length === 0 ? (
-              <p className="flow-section-empty">No everyday flows yet — build a daily sequence.</p>
+            {activeEverydayFlows.length === 0 ? (
+              <p className="flow-section-empty">No active everyday flows yet — build a daily sequence.</p>
             ) : (
               <div className="flow-list">
-                {everydayFlows.map((flow) => (
+                {activeEverydayFlows.map((flow) => (
                   <FlowCard key={flow.id} flow={flow} everyday labels={labelsFor(flow)} />
                 ))}
               </div>
             )}
           </section>
+
+          {archivedEverydayFlows.length > 0 && (
+            <section className="flow-section flow-section-archived" aria-label="Archived Everyday Flows">
+              <div className="flow-list-head">
+                <div>
+                  <h2 style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                    <Archive size={18} /> Archived Everyday Flows
+                  </h2>
+                  <p className="flow-section-sub">Ended everyday sequences past their end date</p>
+                </div>
+              </div>
+              <div className="flow-list">
+                {archivedEverydayFlows.map((flow) => (
+                  <FlowCard key={flow.id} flow={flow} everyday labels={labelsFor(flow)} />
+                ))}
+              </div>
+            </section>
+          )}
 
           <Link to="/app/achievements" className="report-teaser achieve-teaser">
             <div className="report-teaser-copy">
@@ -248,7 +277,7 @@ export default function FlowsPage() {
             </span>
           </Link>
 
-          {(yesterdayReports.length > 0 || everydayFlows.length > 0) && (
+          {(yesterdayReports.length > 0 || activeEverydayFlows.length > 0 || archivedEverydayFlows.length > 0) && (
             <section className="flow-section flow-yesterday" aria-label="Yesterday reports">
               <div className="flow-list-head">
                 <div>
