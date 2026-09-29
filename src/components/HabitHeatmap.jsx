@@ -1,11 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import { Calendar, Flame, Sparkles, Trophy, Zap } from "lucide-react";
-import { todayKey, formatFriendly } from "../lib/date";
+import { todayKey, toKey, formatFriendly } from "../lib/date";
 import { MOOD_EXPRESSIONS } from "../lib/moodService";
 
 export default function HabitHeatmap({ quickTasks = [], followFlows = [], dailyMoods = {} }) {
   const [hoveredDay, setHoveredDay] = useState(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, []);
 
   // Build 52-week calendar matrix ending with today's week
   const { weeks, stats, monthLabels } = useMemo(() => {
@@ -18,24 +25,34 @@ export default function HabitHeatmap({ quickTasks = [], followFlows = [], dailyM
     const tasksPerDay = {};
     (quickTasks || []).forEach((t) => {
       if (t.done) {
-        const dKey = t.completedAt ? t.completedAt.slice(0, 10) : t.dateKey;
+        const dKey = t.completedAt ? toKey(t.completedAt) : t.dateKey;
         if (dKey) {
           tasksPerDay[dKey] = (tasksPerDay[dKey] || 0) + 1;
         }
       }
     });
 
-    // Map flow reports / completions
+    // Map flow reports / completions (accumulate across multiple everyday flows)
     const flowReportsPerDay = {};
     (followFlows || []).forEach((f) => {
       (f.reports || []).forEach((r) => {
         if (r.dateKey && (r.done > 0 || r.score > 0)) {
-          flowReportsPerDay[r.dateKey] = {
-            done: r.done,
-            total: r.total,
-            score: r.score,
-            grade: r.grade,
-          };
+          const prev = flowReportsPerDay[r.dateKey];
+          if (prev) {
+            flowReportsPerDay[r.dateKey] = {
+              done: prev.done + (r.done || 0),
+              total: prev.total + (r.total || 0),
+              score: Math.max(prev.score, r.score || 0),
+              grade: r.grade || prev.grade || null,
+            };
+          } else {
+            flowReportsPerDay[r.dateKey] = {
+              done: r.done || 0,
+              total: r.total || 0,
+              score: r.score || 0,
+              grade: r.grade || null,
+            };
+          }
         }
       });
     });
@@ -180,7 +197,7 @@ export default function HabitHeatmap({ quickTasks = [], followFlows = [], dailyM
       </div>
 
       {/* Grid wrapper with horizontal scrolling support */}
-      <div className="habit-heatmap-scroll">
+      <div className="habit-heatmap-scroll" ref={scrollRef}>
         <div className="habit-heatmap-matrix-wrap">
           {/* Month labels row */}
           <div className="heatmap-months-row">
@@ -220,6 +237,7 @@ export default function HabitHeatmap({ quickTasks = [], followFlows = [], dailyM
                       className={`heatmap-cell level-${day.level}${day.isToday ? " is-today" : ""}${day.isFuture ? " is-future" : ""}`}
                       onMouseEnter={() => setHoveredDay(day)}
                       onMouseLeave={() => setHoveredDay(null)}
+                      onClick={() => setHoveredDay((prev) => (prev?.dateKey === day.dateKey ? null : day))}
                       aria-label={`${day.dateKey}: ${day.activityScore} activities`}
                     />
                   ))}
@@ -241,7 +259,7 @@ export default function HabitHeatmap({ quickTasks = [], followFlows = [], dailyM
                   ? hoveredDay.isFuture
                     ? "Upcoming day"
                     : "No activities logged"
-                  : `${hoveredDay.taskCount} tasks · ${hoveredDay.flowReport ? `Flow Grade: ${hoveredDay.flowReport.grade || "A"}` : "No flow"}${hoveredDay.moodObj ? ` · Mood: ${hoveredDay.moodObj.emoji} ${hoveredDay.moodObj.vibeTag}` : ""}`}
+                  : `${hoveredDay.taskCount} tasks · ${hoveredDay.flowReport ? (hoveredDay.flowReport.grade ? `Flow Grade: ${hoveredDay.flowReport.grade}` : "Flow logged") : "No flow"}${hoveredDay.moodObj ? ` · Mood: ${hoveredDay.moodObj.emoji} ${hoveredDay.moodObj.vibeTag}` : ""}`}
               </span>
               {hoveredDay.moodThought && (
                 <em className="hover-mood-thought">“{hoveredDay.moodThought}”</em>

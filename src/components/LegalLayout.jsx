@@ -18,7 +18,7 @@ export default function LegalLayout() {
       </main>
       <footer className="legal-shell-foot">
         <LegalLinks muted />
-        <p>Copyright © 2026 Arigato Labs. All Rights Reserved.</p>
+        <p>Copyright © {new Date().getFullYear()} Arigato Labs. All Rights Reserved.</p>
       </footer>
     </div>
   );

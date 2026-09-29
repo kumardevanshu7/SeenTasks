@@ -154,13 +154,14 @@ export function EverydayReportCard({
           <strong>
             {periodDays > 1
               ? `${daysLogged}/${periodDays}`
-              : formatFriendly(report.dateKey)}
+              : formatFriendly(report.dateKey || targetDay)}
           </strong>
         </div>
       </div>
 
-      {/* Dropdown to see which steps are pending for today */}
-      <div className="report-pending-wrapper">
+      {/* Dropdown to see which steps are pending for today (live only) */}
+      {live && (
+        <div className="report-pending-wrapper">
         <button
           type="button"
           className={`report-pending-btn${pendingOpen ? " is-open" : ""}`}
@@ -228,6 +229,7 @@ export function EverydayReportCard({
           </div>
         )}
       </div>
+      )}
 
       <p className="report-pro-foot">
         {to
@@ -383,12 +385,10 @@ export function CategoryReportCards({ flow, report, live, periodLabel, mini = tr
   const cats =
     Array.isArray(report.categories) && report.categories.length
       ? report.categories
-      : flowCategories(flow)
-          .map((c) => {
-            const row = (report.categories || []).find((x) => x.id === c.id);
-            return row ? { ...c, ...row } : null;
-          })
-          .filter(Boolean);
+      : flowCategories(flow).map((c) => {
+          const row = (report.categories || []).find((x) => x.id === c.id);
+          return row ? { ...c, ...row } : { ...c, pct: 0, done: 0, total: 0 };
+        });
   if (!cats.length) return null;
 
   if (mini) {

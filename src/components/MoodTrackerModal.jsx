@@ -44,11 +44,11 @@ export default function MoodTrackerModal({ open, onClose }) {
   }, []);
 
   useEffect(() => {
-    if (todayEntry) {
+    if (todayEntry && !isEditing) {
       setSelectedMoodId(todayEntry.moodId);
       setNote(todayEntry.note || "");
     }
-  }, [todayEntry]);
+  }, [todayEntry, isEditing]);
 
   const isWindowOpen = countdown.isOpen;
   const activeMood = MOOD_EXPRESSIONS.find((m) => m.id === selectedMoodId);
@@ -56,7 +56,8 @@ export default function MoodTrackerModal({ open, onClose }) {
 
   function handleSave() {
     if (!selectedMoodId) return;
-    recordDailyMood(today, selectedMoodId, note);
+    const saveDate = todayKey();
+    recordDailyMood(saveDate, selectedMoodId, note);
     setSavedSuccess(true);
     triggerConfetti();
     setIsEditing(false);

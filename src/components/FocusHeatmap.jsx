@@ -1,10 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek, parseISO } from "date-fns";
 import { Clock, Flame, Sparkles, Timer, Trophy, Zap } from "lucide-react";
-import { todayKey, formatFriendly } from "../lib/date";
+import { todayKey, toKey, formatFriendly } from "../lib/date";
 
 export default function FocusHeatmap({ focusHistory = [] }) {
   const [hoveredDay, setHoveredDay] = useState(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, []);
 
   const { weeks, stats, monthLabels } = useMemo(() => {
     const today = new Date();
@@ -15,7 +22,7 @@ export default function FocusHeatmap({ focusHistory = [] }) {
     // Map sessions per dayKey
     const sessionsByDay = {};
     (focusHistory || []).forEach((sess) => {
-      const dKey = sess.dateKey || (sess.completedAt ? sess.completedAt.slice(0, 10) : null);
+      const dKey = sess.dateKey || (sess.completedAt ? toKey(sess.completedAt) : null);
       if (!dKey) return;
       if (!sessionsByDay[dKey]) {
         sessionsByDay[dKey] = {
@@ -180,7 +187,7 @@ export default function FocusHeatmap({ focusHistory = [] }) {
       </div>
 
       {/* Grid wrapper with horizontal scrolling support */}
-      <div className="habit-heatmap-scroll">
+      <div className="habit-heatmap-scroll" ref={scrollRef}>
         <div className="habit-heatmap-matrix-wrap">
           {/* Month labels row */}
           <div className="heatmap-months-row">
@@ -220,6 +227,7 @@ export default function FocusHeatmap({ focusHistory = [] }) {
                       className={`focus-heatmap-cell level-${day.level}${day.isToday ? " is-today" : ""}${day.isFuture ? " is-future" : ""}`}
                       onMouseEnter={() => setHoveredDay(day)}
                       onMouseLeave={() => setHoveredDay(null)}
+                      onClick={() => setHoveredDay((prev) => (prev?.dateKey === day.dateKey ? null : day))}
                       aria-label={`${day.dateKey}: ${day.sessionCount} focus sessions (${day.totalMins}m)`}
                     />
                   ))}

@@ -79,6 +79,7 @@ function DayDetailPopup({ dateKey, items, onClose }) {
 
   useEffect(() => {
     function handleClick(e) {
+      if (e.target?.closest?.(".date-pill")) return;
       if (popupRef.current && !popupRef.current.contains(e.target)) onClose();
     }
     function handleKey(e) {
@@ -198,7 +199,7 @@ export default function DateStrip({ selected, onSelect, counts, stats, range = D
       list.push(d);
     }
     return list;
-  }, [range]);
+  }, [range, today]);
 
   useEffect(() => {
     selectedRef.current?.scrollIntoView({

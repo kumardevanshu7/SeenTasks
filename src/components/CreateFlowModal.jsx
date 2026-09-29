@@ -51,6 +51,7 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
     e.preventDefault();
     const clean = name.trim();
     if (!clean) return;
+    if (endDate && startDate && endDate < startDate) return;
     onCreate?.({
       name: clean,
       color: colorId,
@@ -148,7 +149,13 @@ export default function CreateFlowModal({ open, onClose, onCreate, defaultEveryd
                         className="text-input"
                         type="date"
                         value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          setStartDate(newStart);
+                          if (endDate && newStart && endDate < newStart) {
+                            setEndDate(newStart);
+                          }
+                        }}
                         aria-label="Flow start date"
                       />
                     </label>

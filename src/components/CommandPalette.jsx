@@ -31,6 +31,7 @@ export default function CommandPalette() {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
+  const resultsRef = useRef(null);
   const navigate = useNavigate();
 
   const quickWorkspaces = useTaskStore((s) => s.quickWorkspaces) || [];
@@ -68,13 +69,23 @@ export default function CommandPalette() {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (resultsRef.current) {
+      const selectedEl = resultsRef.current.querySelector(".command-palette-item.is-selected");
+      if (selectedEl && typeof selectedEl.scrollIntoView === "function") {
+        selectedEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [selectedIndex]);
+
   // Build command items
   const items = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const raw = query.trim();
+    const q = raw.toLowerCase();
     const isTaskCreation = q.startsWith("+") || q.startsWith("/task ") || q.startsWith("add ");
 
     if (isTaskCreation) {
-      const cleanTitle = q.replace(/^(\+|\/task\s+|add\s+)/i, "").trim();
+      const cleanTitle = raw.replace(/^(\+|\/task\s+|add\s+)/i, "").trim();
       return [
         {
           id: "create-task-instant",
@@ -334,7 +345,7 @@ export default function CommandPalette() {
         </div>
 
         {/* Results list */}
-        <div className="command-palette-results" role="listbox">
+        <div ref={resultsRef} className="command-palette-results" role="listbox">
           {items.length === 0 ? (
             <div className="command-palette-empty">
               <Compass size={24} />

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Check, LoaderCircle, Sparkles, UserCog, X } from "lucide-react";
+import { ArrowRight, Check, AlertCircle, LoaderCircle, Sparkles, UserCog, X } from "lucide-react";
 import { CATEGORY_META, analyzeTask } from "../lib/aiAnalyzer";
 import { PERSONA_TRAITS } from "../lib/persona";
 import { assignTask } from "../lib/collabService";
@@ -9,7 +9,7 @@ import { todayKey } from "../lib/date";
 import { useAuth } from "../hooks/useAuth";
 import { useTaskStore } from "../store/useTaskStore";
 
-const STATUS = { PENDING: "pending", ANALYZING: "analyzing", DONE: "done" };
+const STATUS = { PENDING: "pending", ANALYZING: "analyzing", DONE: "done", ERROR: "error" };
 
 export default function AddTaskModal({ open, onClose }) {
   return <AnimatePresence>{open && <TaskComposer onClose={onClose} />}</AnimatePresence>;
@@ -41,22 +41,37 @@ function TaskComposer({ onClose }) {
     setQueue(items);
     setRunning(true);
 
-    for (let i = 0; i < items.length; i += 1) {
-      setQueue((q) => q.map((item, idx) => (idx === i ? { ...item, status: STATUS.ANALYZING } : item)));
-      let category = "second";
-      if (target) {
-        const analysis = await analyzeTask(items[i].title, context, [], { dateKey: date });
-        await assignTask({ toConnection: target, analysis, title: items[i].title, description: context, dateKey: date, firstDateKey: date }, profile);
-        category = analysis.category;
-      } else {
-        const res = await addTask({ title: items[i].title, description: context, dateKey: date });
-        category = res?.task?.category || "second";
+    let hasErrors = false;
+    try {
+      for (let i = 0; i < items.length; i += 1) {
+        setQueue((q) => q.map((item, idx) => (idx === i ? { ...item, status: STATUS.ANALYZING } : item)));
+        let category = "second";
+        try {
+          if (target) {
+            const analysis = await analyzeTask(items[i].title, context, [], { dateKey: date });
+            await assignTask({ toConnection: target, analysis, title: items[i].title, description: context, dateKey: date, firstDateKey: date }, profile);
+            category = analysis.category;
+          } else {
+            const res = await addTask({ title: items[i].title, description: context, dateKey: date });
+            category = res?.task?.category || "second";
+          }
+          setQueue((q) => q.map((item, idx) => (idx === i ? { ...item, status: STATUS.DONE, category } : item)));
+        } catch (itemErr) {
+          console.error("Failed to add task:", itemErr);
+          hasErrors = true;
+          setQueue((q) => q.map((item, idx) => (idx === i ? { ...item, status: "error", error: "Failed to create" } : item)));
+        }
       }
-      setQueue((q) => q.map((item, idx) => (idx === i ? { ...item, status: STATUS.DONE, category } : item)));
-    }
 
-    await new Promise((r) => setTimeout(r, 650));
-    onClose();
+      await new Promise((r) => setTimeout(r, 650));
+      if (!hasErrors) {
+        onClose();
+      }
+    } catch (err) {
+      console.error("Unexpected error in AddTaskModal handleSubmit:", err);
+    } finally {
+      setRunning(false);
+    }
   }
 
   function handleKeyDown(event) {
@@ -85,13 +100,26 @@ function TaskComposer({ onClose }) {
               {queue.map((item) => (
                 <motion.div key={item.id} layout className={`analyze-row analyze-${item.status}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                   <span className="analyze-icon">
-                    {item.status === STATUS.DONE ? <Check size={15} /> : item.status === STATUS.ANALYZING ? <LoaderCircle className="spin" size={15} /> : <span className="analyze-dot" />}
+                    {item.status === STATUS.DONE ? (
+                      <Check size={15} />
+                    ) : item.status === STATUS.ERROR ? (
+                      <AlertCircle size={15} style={{ color: "#ef4444" }} />
+                    ) : item.status === STATUS.ANALYZING ? (
+                      <LoaderCircle className="spin" size={15} />
+                    ) : (
+                      <span className="analyze-dot" />
+                    )}
                   </span>
                   <span className="analyze-title">{item.title}</span>
                   <AnimatePresence>
                     {item.status === STATUS.DONE && (
-                      <motion.span className="analyze-badge" style={{ color: CATEGORY_META[item.category].color }} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
-                        {CATEGORY_META[item.category].label}
+                      <motion.span className="analyze-badge" style={{ color: CATEGORY_META[item.category]?.color || "inherit" }} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
+                        {CATEGORY_META[item.category]?.label || "Added"}
+                      </motion.span>
+                    )}
+                    {item.status === STATUS.ERROR && (
+                      <motion.span className="analyze-badge" style={{ color: "#ef4444" }} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
+                        Failed
                       </motion.span>
                     )}
                     {item.status === STATUS.ANALYZING && <motion.span className="analyze-status" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>thinking…</motion.span>}
@@ -99,6 +127,11 @@ function TaskComposer({ onClose }) {
                 </motion.div>
               ))}
             </div>
+            {!running && (
+              <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+                <button type="button" className="button button-secondary" onClick={onClose}>Close</button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="composer-body">
@@ -118,7 +151,7 @@ function TaskComposer({ onClose }) {
             <div className="composer-row">
               <div>
                 <label htmlFor="task-date">Day</label>
-                <input id="task-date" type="date" className="text-input" value={date} max={todayKey()} onChange={(e) => setDate(e.target.value || todayKey())} />
+                <input id="task-date" type="date" className="text-input" value={date} onChange={(e) => setDate(e.target.value || todayKey())} />
               </div>
               <div>
                 <label htmlFor="assignee">Assign to</label>
