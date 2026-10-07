@@ -10,7 +10,9 @@ import { clearAllFollowFlowDocs, DEFAULT_FLOW_CATEGORY_ID, FLOW_COLORS, flowCate
 import { markAppDataCleared } from "../lib/appStateService";
 import { clearAllCollabDocs } from "../lib/collabService";
 import { deleteGoogleTask } from "../lib/googleTasksService";
-import { upsertFocusSession } from "../lib/focusSessionService";
+import { clearAllFocusSessionDocs, upsertFocusSession } from "../lib/focusSessionService";
+import { upsertUserTask, removeUserTaskDoc, clearAllUserTaskDocs } from "../lib/taskService";
+import { upsertDailyMood, clearAllDailyMoodDocs } from "../lib/moodService";
 
 const MAX_ITERATION = 10;
 
@@ -185,6 +187,54 @@ function syncFocusSessionUpsert(session) {
   });
 }
 
+function syncTaskUpsert(task) {
+  if (!task) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertUserTask(directUid, task).catch((err) => {
+      console.warn("Task upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertUserTask(uid, task).catch((err) => console.warn("Deferred task upsert failed:", err));
+    }
+  });
+}
+
+function syncTaskRemove(id) {
+  if (!id) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    removeUserTaskDoc(directUid, id).catch((err) => {
+      console.warn("Task delete failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      removeUserTaskDoc(uid, id).catch((err) => console.warn("Deferred task delete failed:", err));
+    }
+  });
+}
+
+function syncMoodUpsert(dateKey, moodData) {
+  if (!dateKey || !moodData?.moodId) return;
+  const directUid = auth.currentUser?.uid;
+  if (directUid) {
+    upsertDailyMood(directUid, dateKey, moodData).catch((err) => {
+      console.warn("Mood upsert failed:", err);
+    });
+    return;
+  }
+  getAuthenticatedUid().then((uid) => {
+    if (uid) {
+      upsertDailyMood(uid, dateKey, moodData).catch((err) => console.warn("Deferred mood upsert failed:", err));
+    }
+  });
+}
+
 function makeTask({ title, description = "", dateKey = todayKey(), firstDateKey, assignedTo = null, assignedBy = null, analysis }) {
   return {
     id: uuid(),
@@ -309,17 +359,20 @@ export const useTaskStore = create(
           return { customRewards: next };
         }),
 
-      recordDailyMood: (dateKey, moodId, note = "") =>
+      recordDailyMood: (dateKey, moodId, note = "") => {
+        const moodEntry = {
+          moodId,
+          note: (note || "").trim().slice(0, 140),
+          recordedAt: new Date().toISOString(),
+        };
         set((s) => ({
           dailyMoods: {
             ...(s.dailyMoods || {}),
-            [dateKey]: {
-              moodId,
-              note: (note || "").trim().slice(0, 140),
-              recordedAt: new Date().toISOString(),
-            },
+            [dateKey]: moodEntry,
           },
-        })),
+        }));
+        syncMoodUpsert(dateKey, moodEntry);
+      },
 
       setFocusTimer: (updater) =>
         set((s) => {
@@ -459,6 +512,14 @@ export const useTaskStore = create(
       setActiveWorkspaceId: (id) =>
         set({ activeWorkspaceId: id || DEFAULT_WORKSPACE_ID }),
 
+      /** Called by Firestore listener to replace board tasks from cloud. */
+      setTasks: (tasks) =>
+        set({ tasks: Array.isArray(tasks) ? tasks : [] }),
+
+      /** Called by Firestore listener to replace dailyMoods from cloud. */
+      setDailyMoods: (dailyMoods) =>
+        set({ dailyMoods: dailyMoods && typeof dailyMoods === "object" ? dailyMoods : {} }),
+
       applyRemoteDataClear: (clearedAt) => {
         const at = Number(clearedAt) || 0;
         set({
@@ -478,6 +539,16 @@ export const useTaskStore = create(
           incomingRequests: [],
           assignedByMe: [],
           assignedToMe: [],
+          focusHistory: [],
+          focusTimer: {
+            secondsLeft: 0,
+            running: false,
+            active: false,
+            taskId: null,
+            targetEndTime: null,
+            sessionId: null,
+            mode: "oneHour",
+          },
         });
       },
 
@@ -1408,6 +1479,16 @@ export const useTaskStore = create(
           googleTasksTokenExpiresAt: null,
           googleTasksSyncing: false,
           deletedGoogleTaskIds: [],
+          focusHistory: [],
+          focusTimer: {
+            secondsLeft: 0,
+            running: false,
+            active: false,
+            taskId: null,
+            targetEndTime: null,
+            sessionId: null,
+            mode: "oneHour",
+          },
           dataClearedAt: clearedAt,
         };
         set(wipe);
@@ -1424,6 +1505,9 @@ export const useTaskStore = create(
           await clearAllQuickTaskDocs(uid);
           await clearAllFollowFlowDocs(uid);
           await clearAllCollabDocs(uid);
+          await clearAllFocusSessionDocs(uid);
+          await clearAllUserTaskDocs(uid);
+          await clearAllDailyMoodDocs(uid);
         } catch (err) {
           set(wipe);
           throw err;
@@ -1595,52 +1679,70 @@ export const useTaskStore = create(
           analysis,
         });
         set((state) => ({ tasks: [task, ...state.tasks] }));
+        syncTaskUpsert(task);
         return { task, analysis };
       },
 
-      completeTask: (id) =>
+      completeTask: (id) => {
+        let next = null;
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id
-              ? { ...t, status: "completed", completedAt: new Date().toISOString() }
-              : t
-          ),
-        })),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            next = { ...t, status: "completed", completedAt: new Date().toISOString() };
+            return next;
+          }),
+        }));
+        if (next) syncTaskUpsert(next);
+      },
 
-      reopenTask: (id) =>
+      reopenTask: (id) => {
+        let next = null;
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, status: "active", completedAt: null } : t
-          ),
-        })),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            next = { ...t, status: "active", completedAt: null };
+            return next;
+          }),
+        }));
+        if (next) syncTaskUpsert(next);
+      },
 
-      abortTask: (id) =>
+      abortTask: (id) => {
+        let next = null;
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id
-              ? { ...t, status: "aborted", abortedAt: new Date().toISOString() }
-              : t
-          ),
-        })),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            next = { ...t, status: "aborted", abortedAt: new Date().toISOString() };
+            return next;
+          }),
+        }));
+        if (next) syncTaskUpsert(next);
+      },
 
       // Restore from bin -> comes back as an active task today, labeled "Bin Task"
-      restoreFromBin: (id) =>
+      restoreFromBin: (id) => {
+        let next = null;
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  status: "active",
-                  isBinTask: true,
-                  abortedAt: null,
-                  dateKey: todayKey(),
-                }
-              : t
-          ),
-        })),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            next = {
+              ...t,
+              status: "active",
+              isBinTask: true,
+              abortedAt: null,
+              dateKey: todayKey(),
+            };
+            return next;
+          }),
+        }));
+        if (next) syncTaskUpsert(next);
+      },
 
-      deleteForever: (id) =>
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+      deleteForever: (id) => {
+        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+        syncTaskRemove(id);
+      },
+
 
       // ---------- Recall previous incomplete tasks ----------
       recallIncomplete: () => {

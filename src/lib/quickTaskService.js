@@ -302,6 +302,7 @@ export async function clearAllQuickTaskDocs(uid) {
   const total = await clearCollection(uid, quickTasksRef);
   await clearCollection(uid, workspacesRef);
   await clearCollection(uid, labelsRef);
+  await clearCollection(uid, (u) => collection(db, "users", u, "tasks"));
   const left = await getDocs(quickTasksRef(uid));
   if (!left.empty) {
     throw new Error("Some quick tasks could not be deleted from Firestore.");

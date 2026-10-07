@@ -161,12 +161,14 @@ service cloud.firestore {
       allow delete: if isSelf(userId);
 
       match /tasks/{taskId} {
-        allow read: if isSelf(userId);
-        allow create, update: if isSelf(userId) && validUserTask(userId);
-        allow delete: if isSelf(userId);
+        allow read, write: if isSelf(userId);
       }
 
       match /quickTasks/{taskId} {
+        allow read, write: if isSelf(userId);
+      }
+
+      match /dailyMoods/{dateKey} {
         allow read, write: if isSelf(userId);
       }
 

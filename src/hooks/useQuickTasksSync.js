@@ -14,6 +14,8 @@ import {
   pruneDuplicate1HrFlows,
   removeFollowFlowDoc,
 } from "../lib/flowService";
+import { listenUserTasks, migrateLocalUserTasks } from "../lib/taskService";
+import { listenDailyMoods, migrateLocalDailyMoods } from "../lib/moodService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
 
@@ -45,6 +47,8 @@ export function useQuickTasksSync() {
   const setQuickWorkspaces = useTaskStore((s) => s.setQuickWorkspaces);
   const setQuickLabels = useTaskStore((s) => s.setQuickLabels);
   const setFollowFlows = useTaskStore((s) => s.setFollowFlows);
+  const setTasks = useTaskStore((s) => s.setTasks);
+  const setDailyMoods = useTaskStore((s) => s.setDailyMoods);
 
   useEffect(() => {
     // Wait until Firebase Auth resolves so we don't clear the store prematurely
@@ -60,10 +64,12 @@ export function useQuickTasksSync() {
 
     let active = true;
     const uid = user.uid;
-    let unsubTasks = null;
+    let unsubQuickTasks = null;
     let unsubSpaces = null;
     let unsubLabels = null;
     let unsubFlows = null;
+    let unsubBoardTasks = null;
+    let unsubMoods = null;
     let clearedAt = useTaskStore.getState().dataClearedAt || 0;
 
     (async () => {
@@ -88,6 +94,21 @@ export function useQuickTasksSync() {
           await migrateLocalQuickTasks(uid, legacy, clearedAt);
         }
         markLegacyMigrated();
+
+        // Migrate local board tasks and daily moods to Firestore (one-time on first sync)
+        const localState = useTaskStore.getState();
+        const localTasks = Array.isArray(localState.tasks) ? localState.tasks : [];
+        if (localTasks.length) {
+          await migrateLocalUserTasks(uid, localTasks, clearedAt).catch((err) =>
+            console.warn("Board tasks migration failed:", err)
+          );
+        }
+        const localMoods = localState.dailyMoods || {};
+        if (Object.keys(localMoods).length) {
+          await migrateLocalDailyMoods(uid, localMoods, clearedAt).catch((err) =>
+            console.warn("Daily moods migration failed:", err)
+          );
+        }
       } catch (err) {
         console.warn("Quick tasks bootstrap failed:", err);
       }
@@ -137,7 +158,7 @@ export function useQuickTasksSync() {
         (error) => console.warn("Flows listener error:", error)
       );
 
-      unsubTasks = listenQuickTasks(
+      unsubQuickTasks = listenQuickTasks(
         uid,
         (items) => {
           if (!active) return;
@@ -154,14 +175,41 @@ export function useQuickTasksSync() {
         },
         (error) => console.warn("Quick tasks listener error:", error)
       );
+
+      // Listen to board tasks (Today page tasks) in real time
+      unsubBoardTasks = listenUserTasks(
+        uid,
+        (items) => {
+          if (!active) return;
+          const cut = Math.max(useTaskStore.getState().dataClearedAt || 0, clearedAt || 0);
+          // Filter out tasks that predate a data clear
+          const cloud = cut
+            ? items.filter((t) => isCreatedAfterClear(t, cut))
+            : items;
+          setTasks(cloud);
+        },
+        (error) => console.warn("Board tasks listener error:", error)
+      );
+
+      // Listen to daily moods in real time
+      unsubMoods = listenDailyMoods(
+        uid,
+        (moodsMap) => {
+          if (!active) return;
+          setDailyMoods(moodsMap);
+        },
+        (error) => console.warn("Daily moods listener error:", error)
+      );
     })();
 
     return () => {
       active = false;
-      unsubTasks?.();
+      unsubQuickTasks?.();
       unsubSpaces?.();
       unsubLabels?.();
       unsubFlows?.();
+      unsubBoardTasks?.();
+      unsubMoods?.();
     };
-  }, [user?.uid, loading, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows]);
+  }, [user?.uid, loading, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows, setTasks, setDailyMoods]);
 }

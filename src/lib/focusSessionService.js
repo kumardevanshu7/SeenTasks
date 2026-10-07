@@ -5,6 +5,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { todayKey } from "./date";
@@ -50,4 +51,23 @@ export async function fetchFocusSessions(uid) {
 export async function removeFocusSessionDoc(uid, sessionId) {
   if (!uid || !sessionId) return;
   await deleteDoc(sessionDoc(uid, sessionId));
+}
+
+/** Delete every focus session document for this user (app reset). */
+export async function clearAllFocusSessionDocs(uid) {
+  if (!uid) return 0;
+  let total = 0;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const snap = await getDocs(sessionsCol(uid));
+    if (snap.empty) return total;
+    const docs = snap.docs;
+    const CHUNK = 400;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      total += Math.min(CHUNK, docs.length - i);
+    }
+  }
+  return total;
 }

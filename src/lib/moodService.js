@@ -1,3 +1,13 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+} from "firebase/firestore";
+import { db } from "./firebase";
 import { todayKey } from "./date";
 
 /**
@@ -340,4 +350,124 @@ export function getMoodWindowCountdown(date = new Date()) {
     hoursLeft: hrs,
     minutesLeft: mins,
   };
+}
+
+export function dailyMoodsRef(uid) {
+  return collection(db, "users", uid, "dailyMoods");
+}
+
+export function dailyMoodDocRef(uid, dateKey) {
+  return doc(db, "users", uid, "dailyMoods", dateKey);
+}
+
+export async function upsertDailyMood(uid, dateKey, moodData) {
+  if (!uid || !dateKey || !moodData?.moodId) return;
+  const ref = dailyMoodDocRef(uid, dateKey);
+  await setDoc(
+    ref,
+    {
+      moodId: moodData.moodId,
+      note: (moodData.note || "").trim().slice(0, 140),
+      recordedAt: moodData.recordedAt || new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+export function listenDailyMoods(uid, onData, onError) {
+  if (!uid) return () => {};
+  return onSnapshot(
+    dailyMoodsRef(uid),
+    (snapshot) => {
+      const moods = {};
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        moods[d.id] = {
+          moodId: data.moodId || "",
+          note: data.note || "",
+          recordedAt: data.recordedAt || null,
+        };
+      });
+      onData(moods);
+    },
+    (err) => {
+      console.warn("Daily moods listener error:", err);
+      onError?.(err);
+    }
+  );
+}
+
+export async function fetchDailyMoods(uid) {
+  if (!uid) return {};
+  const snap = await getDocs(dailyMoodsRef(uid));
+  const moods = {};
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    moods[d.id] = {
+      moodId: data.moodId || "",
+      note: data.note || "",
+      recordedAt: data.recordedAt || null,
+    };
+  });
+  return moods;
+}
+
+export async function clearAllDailyMoodDocs(uid) {
+  if (!uid) return 0;
+  const colRef = dailyMoodsRef(uid);
+  let total = 0;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const snap = await getDocs(colRef);
+    if (snap.empty) return total;
+    const docs = snap.docs;
+    const CHUNK = 400;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + CHUNK).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      total += Math.min(CHUNK, docs.length - i);
+    }
+  }
+  const left = await getDocs(colRef);
+  if (!left.empty) {
+    throw new Error("Some daily mood docs could not be deleted from Firestore.");
+  }
+  return total;
+}
+
+export async function migrateLocalDailyMoods(uid, localMoods = {}, clearedAt = 0) {
+  if (!uid || !localMoods || typeof localMoods !== "object") return 0;
+  const cut = Number(clearedAt) || 0;
+  const entries = Object.entries(localMoods).filter(([dateKey, val]) => {
+    if (!dateKey || !val?.moodId) return false;
+    if (!cut) return true;
+    const recorded = new Date(val.recordedAt || 0).getTime();
+    return !Number.isNaN(recorded) && recorded > cut;
+  });
+  if (!entries.length) return 0;
+
+  const cloud = await fetchDailyMoods(uid);
+  const missing = entries.filter(([dateKey]) => !cloud[dateKey]);
+  if (!missing.length) return 0;
+
+  const CHUNK = 400;
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    missing.slice(i, i + CHUNK).forEach(([dateKey, val]) => {
+      const ref = dailyMoodDocRef(uid, dateKey);
+      batch.set(
+        ref,
+        {
+          moodId: val.moodId,
+          note: (val.note || "").trim().slice(0, 140),
+          recordedAt: val.recordedAt || new Date().toISOString(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+    await batch.commit();
+  }
+  return missing.length;
 }
