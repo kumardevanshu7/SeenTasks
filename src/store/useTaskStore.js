@@ -520,6 +520,10 @@ export const useTaskStore = create(
       setDailyMoods: (dailyMoods) =>
         set({ dailyMoods: dailyMoods && typeof dailyMoods === "object" ? dailyMoods : {} }),
 
+      /** Called by Firestore listener to replace focusHistory from cloud. */
+      setFocusHistory: (focusHistory) =>
+        set({ focusHistory: Array.isArray(focusHistory) ? focusHistory : [] }),
+
       applyRemoteDataClear: (clearedAt) => {
         const at = Number(clearedAt) || 0;
         set({
@@ -1816,40 +1820,55 @@ export const useTaskStore = create(
     }),
     {
       name: "seentasks-store",
-      version: 3,
+      version: 4,
       partialize: (state) => ({
-        tasks: state.tasks,
-        quickTasks: state.quickTasks || [],
-        quickWorkspaces: state.quickWorkspaces || [makeDefaultWorkspace()],
-        quickLabels: state.quickLabels || [],
-        followFlows: state.followFlows || [],
-        members: state.members,
-        persona: state.persona,
-        dataClearedAt: state.dataClearedAt || 0,
-        activeWorkspaceId: state.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
+        // ── UI preferences (no Firestore collection yet) ──────────────────────
         soundEnabled: state.soundEnabled ?? true,
+        activeWorkspaceId: state.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
+        persona: state.persona,
         streakShields: state.streakShields || { month: "", remaining: 2, usedDates: [] },
         customRewards: state.customRewards || {},
-        dailyMoods: state.dailyMoods || {},
+
+        // ── Sync metadata ─────────────────────────────────────────────────────
+        // dataClearedAt is needed immediately on boot before Firestore responds
+        dataClearedAt: state.dataClearedAt || 0,
+
+        // ── Google Tasks auth tokens (not stored in Firestore) ────────────────
         googleTasksConnected: Boolean(state.googleTasksConnected),
         googleTasksToken: state.googleTasksToken || null,
         googleTasksTokenExpiresAt: state.googleTasksTokenExpiresAt || null,
         lastGoogleSyncAt: state.lastGoogleSyncAt || null,
         googleTasksAutoSync: state.googleTasksAutoSync ?? true,
         deletedGoogleTaskIds: state.deletedGoogleTaskIds || [],
+
+        // ── Focus timer running state (transient, not in Firestore) ───────────
+        // Only keep it if it was actively running so user doesn't lose a timer on refresh
         focusTimer: state.focusTimer,
-        focusHistory: state.focusHistory || [],
+
+        // NOTE: tasks, quickTasks, quickWorkspaces, quickLabels, followFlows,
+        //       dailyMoods, focusHistory — all come from Firestore listeners.
+        //       They are intentionally NOT persisted to localStorage.
       }),
-      // Strip secrets / obsolete keys from older localStorage snapshots.
+      // Strip any stale keys and all Firestore-backed arrays from old snapshots
       merge: (persisted, current) => {
         const incoming = persisted && typeof persisted === "object" ? persisted : {};
         const {
+          // Strip secrets / collaboration data
           onePassword: _op,
           quickDeletePassword: _qp,
           connections: _c,
           incomingRequests: _ir,
           assignedByMe: _ab,
           assignedToMe: _at,
+          // Strip all Firestore-backed data arrays (should never be in localStorage now)
+          tasks: _tasks,
+          quickTasks: _qt,
+          quickWorkspaces: _qw,
+          quickLabels: _ql,
+          followFlows: _ff,
+          dailyMoods: _dm,
+          focusHistory: _fh,
+          members: _members,
           ...safe
         } = incoming;
 
@@ -1875,15 +1894,15 @@ export const useTaskStore = create(
           ...current,
           ...safe,
           focusTimer: restoredFocusTimer,
-          focusHistory: Array.isArray(safe.focusHistory) ? safe.focusHistory : (current.focusHistory || []),
-          quickTasks: Array.isArray(safe.quickTasks) ? safe.quickTasks : (current.quickTasks || []),
-          quickWorkspaces: Array.isArray(safe.quickWorkspaces) && safe.quickWorkspaces.length
-            ? safe.quickWorkspaces
-            : (current.quickWorkspaces?.length ? current.quickWorkspaces : [makeDefaultWorkspace()]),
-          quickLabels: Array.isArray(safe.quickLabels) ? safe.quickLabels : (current.quickLabels || []),
-          followFlows: pruneDuplicate1HrFlows(
-            Array.isArray(safe.followFlows) ? safe.followFlows : (current.followFlows || [])
-          ),
+          // Always start with empty arrays — Firestore listeners will populate them
+          tasks: [],
+          quickTasks: [],
+          quickWorkspaces: [makeDefaultWorkspace()],
+          quickLabels: [],
+          followFlows: [],
+          dailyMoods: {},
+          focusHistory: [],
+          members: [],
           onePassword: null,
           activeWorkspaceId: safe.activeWorkspaceId || DEFAULT_WORKSPACE_ID,
         };
@@ -1891,14 +1910,21 @@ export const useTaskStore = create(
       migrate: (persisted, version) => {
         if (!persisted || typeof persisted !== "object") return persisted;
         const next = { ...persisted };
+        // Always delete secrets
         delete next.onePassword;
         delete next.quickDeletePassword;
-        if (version < 3) {
-          delete next.quickTasks;
-        }
+        // v4: remove all Firestore-backed arrays from localStorage
+        delete next.tasks;
+        delete next.quickTasks;
         delete next.quickWorkspaces;
+        delete next.quickLabels;
+        delete next.followFlows;
+        delete next.dailyMoods;
+        delete next.focusHistory;
+        delete next.members;
         return next;
       },
+
     }
   )
 );

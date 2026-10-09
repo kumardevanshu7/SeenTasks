@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -70,4 +71,29 @@ export async function clearAllFocusSessionDocs(uid) {
     }
   }
   return total;
+}
+
+/**
+ * Listen to focusSessions in real time — Firestore is source of truth.
+ * Replaces store focusHistory on every snapshot.
+ */
+export function listenFocusSessions(uid, onData, onError) {
+  if (!uid) return () => {};
+  return onSnapshot(
+    sessionsCol(uid),
+    (snapshot) => {
+      const list = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        if (data?.id) list.push(data);
+      });
+      // Sort descending by completedAt
+      list.sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || ""));
+      onData(list);
+    },
+    (err) => {
+      console.warn("Focus sessions listener error:", err);
+      onError?.(err);
+    }
+  );
 }

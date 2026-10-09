@@ -16,6 +16,7 @@ import {
 } from "../lib/flowService";
 import { listenUserTasks, migrateLocalUserTasks } from "../lib/taskService";
 import { listenDailyMoods, migrateLocalDailyMoods } from "../lib/moodService";
+import { listenFocusSessions } from "../lib/focusSessionService";
 
 const LEGACY_MIGRATE_FLAG = "seentasks-qt-legacy-migrated";
 
@@ -49,6 +50,7 @@ export function useQuickTasksSync() {
   const setFollowFlows = useTaskStore((s) => s.setFollowFlows);
   const setTasks = useTaskStore((s) => s.setTasks);
   const setDailyMoods = useTaskStore((s) => s.setDailyMoods);
+  const setFocusHistory = useTaskStore((s) => s.setFocusHistory);
 
   useEffect(() => {
     // Wait until Firebase Auth resolves so we don't clear the store prematurely
@@ -70,6 +72,7 @@ export function useQuickTasksSync() {
     let unsubFlows = null;
     let unsubBoardTasks = null;
     let unsubMoods = null;
+    let unsubFocusSessions = null;
     let clearedAt = useTaskStore.getState().dataClearedAt || 0;
 
     (async () => {
@@ -200,6 +203,21 @@ export function useQuickTasksSync() {
         },
         (error) => console.warn("Daily moods listener error:", error)
       );
+
+      // Listen to focus sessions in real time — Firestore is source of truth
+      // This prevents stale localStorage data from surviving a reset
+      unsubFocusSessions = listenFocusSessions(
+        uid,
+        (items) => {
+          if (!active) return;
+          const cut = Math.max(useTaskStore.getState().dataClearedAt || 0, clearedAt || 0);
+          const cloud = cut
+            ? items.filter((s) => isCreatedAfterClear({ createdAt: s.completedAt }, cut))
+            : items;
+          setFocusHistory(cloud);
+        },
+        (error) => console.warn("Focus sessions listener error:", error)
+      );
     })();
 
     return () => {
@@ -210,6 +228,7 @@ export function useQuickTasksSync() {
       unsubFlows?.();
       unsubBoardTasks?.();
       unsubMoods?.();
+      unsubFocusSessions?.();
     };
-  }, [user?.uid, loading, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows, setTasks, setDailyMoods]);
+  }, [user?.uid, loading, setQuickTasks, setQuickWorkspaces, setQuickLabels, setFollowFlows, setTasks, setDailyMoods, setFocusHistory]);
 }
