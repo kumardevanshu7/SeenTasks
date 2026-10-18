@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CalendarRange, CalendarSearch, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CalendarRange, CalendarSearch, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, History, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
@@ -725,6 +725,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const [dropTargetId, setDropTargetId] = useState(null);
   const [dayNow, setDayNow] = useState(todayKey);
   const [deleteRequest, setDeleteRequest] = useState(null);
+  const [lastUsedMeta, setLastUsedMeta] = useState(null);
   const inputRef = useRef(null);
   const lastTapRef = useRef({ time: 0, id: null });
   const lastDoubleActionRef = useRef(0);
@@ -1047,17 +1048,79 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     handleLabelClick(labelId);
   }
 
+  const prevMeta = useMemo(() => {
+    if (lastUsedMeta && (lastUsedMeta.dueDate || lastUsedMeta.labelId)) {
+      return lastUsedMeta;
+    }
+    const list = (quickTasks || []).filter((t) => !t.flowRef);
+    const inWs = list.filter(
+      (t) => !workspaceId || workspaceId === DEFAULT_WORKSPACE_ID || t.workspaceId === workspaceId
+    );
+    const pool = inWs.length > 0 ? inWs : list;
+    const sorted = [...pool].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    const found = sorted.find(
+      (t) =>
+        (t.dueDate && String(t.dueDate).trim()) ||
+        t.labelId ||
+        (Array.isArray(t.labelIds) && t.labelIds.length > 0)
+    );
+    if (!found) return null;
+    return {
+      dueDate: found.dueDate && String(found.dueDate).trim() ? String(found.dueDate).trim() : "",
+      labelId: (Array.isArray(found.labelIds) && found.labelIds[0]) || found.labelId || "",
+    };
+  }, [lastUsedMeta, quickTasks, workspaceId]);
+
+  const prevLabel = useMemo(() => {
+    if (!prevMeta?.labelId) return null;
+    return labelsById[prevMeta.labelId] || null;
+  }, [prevMeta, labelsById]);
+
+  const prevTooltip = useMemo(() => {
+    if (!prevMeta) return "";
+    const parts = [];
+    if (prevMeta.dueDate) parts.push(`Date: ${prevMeta.dueDate}`);
+    if (prevLabel?.name) parts.push(`Label: ${prevLabel.name}`);
+    return parts.join(" · ");
+  }, [prevMeta, prevLabel]);
+
+  const isPrevApplied = Boolean(
+    prevMeta &&
+      (prevMeta.dueDate ? dueDraft === prevMeta.dueDate : !dueDraft) &&
+      (prevMeta.labelId ? (labelDraft === prevMeta.labelId || filterLabelId === prevMeta.labelId) : !labelDraft) &&
+      (dueDraft || labelDraft || (prevMeta.labelId && filterLabelId === prevMeta.labelId))
+  );
+
+  function handleUsePrevious() {
+    if (!prevMeta) return;
+    if (isPrevApplied) {
+      setDueDraft("");
+      setLabelDraft("");
+    } else {
+      if (prevMeta.dueDate) setDueDraft(prevMeta.dueDate);
+      if (prevMeta.labelId) setLabelDraft(prevMeta.labelId);
+    }
+    inputRef.current?.focus();
+  }
+
   function submit() {
     if (!canAdd) return;
     const target = viewingToday || !dayHasEnded ? activeDate : dayNow;
+    const chosenLabel = labelDraft || (filterLabelId && filterLabelId !== "__none__" ? filterLabelId : null);
     const added = addQuickTask({
       title: draft,
       dateKey: target,
       workspaceId: spaceId,
       dueDate: dueDraft ? dueDraft : null,
-      labelId: labelDraft || (filterLabelId && filterLabelId !== "__none__" ? filterLabelId : null),
+      labelId: chosenLabel,
     });
     if (added) {
+      if (dueDraft || chosenLabel) {
+        setLastUsedMeta({
+          dueDate: dueDraft || "",
+          labelId: chosenLabel || "",
+        });
+      }
       setDraft("");
       setDueDraft("");
       setLabelDraft("");
@@ -1065,6 +1128,11 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   }
 
   function onKeyDown(e) {
+    if ((e.altKey || e.metaKey) && (e.key === "p" || e.key === "P")) {
+      e.preventDefault();
+      handleUsePrevious();
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       submit();
@@ -1277,6 +1345,29 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     </button>
                   )}
                 </label>
+                {draft.trim() && prevMeta && (
+                  <button
+                    type="button"
+                    className={`quick-tasks-use-prev${isPrevApplied ? " is-applied" : ""}`}
+                    onClick={handleUsePrevious}
+                    title={prevTooltip ? `Use previous (${prevTooltip}) · Alt+P` : "Use previous date & label · Alt+P"}
+                    aria-label="Use previous date and label"
+                  >
+                    {isPrevApplied ? (
+                      <Check size={12} aria-hidden="true" />
+                    ) : (
+                      <History size={12} aria-hidden="true" />
+                    )}
+                    {prevLabel?.color && (
+                      <span
+                        className="quick-tasks-prev-dot"
+                        style={{ backgroundColor: prevLabel.color }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span>{isPrevApplied ? "Previous used" : "Use previous"}</span>
+                  </button>
+                )}
                 {draft.trim() && (
                   <button type="button" className="quick-tasks-add" onClick={submit}>
                     Add
