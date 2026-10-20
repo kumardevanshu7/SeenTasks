@@ -7,11 +7,10 @@ import {
   Filter,
   History,
   Layers,
-  RotateCcw,
   Search,
   Sparkles,
   Tag,
-  Trash2,
+  Timer,
   TrendingUp,
   X,
   Zap,
@@ -26,7 +25,114 @@ import {
   todayKey,
   toKey,
 } from "../lib/date";
-import { playTickSound } from "../lib/audioConfetti";
+
+/**
+ * Computes creative log insights for a completed task:
+ * - When it was completed ("kabh kiya tha")
+ * - Turnaround duration ("kitna time laga")
+ * - Timing performance vs due date or planned day ("jaldi kiya ya time se pehle")
+ */
+function getTaskLogInsights(task) {
+  const completedDateKey = task.completedAt ? toKey(task.completedAt) : (task.dateKey || todayKey());
+  const completedTime = task.completedAt ? formatClock(task.completedAt) : null;
+
+  // 1. Duration / turnaround ("kitna time laga")
+  let durationLabel = null;
+  let durationMinutes = null;
+  if (task.createdAt && task.completedAt) {
+    const startMs = new Date(task.createdAt).getTime();
+    const endMs = new Date(task.completedAt).getTime();
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs >= startMs) {
+      durationMinutes = Math.round((endMs - startMs) / 60000);
+      if (durationMinutes < 1) {
+        durationLabel = "< 1m";
+      } else if (durationMinutes < 60) {
+        durationLabel = `${durationMinutes}m`;
+      } else if (durationMinutes < 1440) {
+        const h = Math.floor(durationMinutes / 60);
+        const m = durationMinutes % 60;
+        durationLabel = m > 0 ? `${h}h ${m}m` : `${h}h`;
+      } else {
+        const d = Math.floor(durationMinutes / 1440);
+        const h = Math.floor((durationMinutes % 1440) / 60);
+        durationLabel = h > 0 ? `${d}d ${h}h` : `${d}d`;
+      }
+    }
+  } else if (task.dateKey && completedDateKey) {
+    if (task.dateKey === completedDateKey) {
+      durationLabel = "Same day";
+    } else if (task.dateKey < completedDateKey) {
+      const d = daysBetween(task.dateKey, completedDateKey);
+      durationLabel = `${d}d`;
+    }
+  }
+
+  // 2. Timing verdict ("jaldi kiya ya time se pehle toh kitna pehle")
+  let badgeVariant = "neutral"; // "early" | "ontime" | "late" | "neutral"
+  let badgeLabel = "Completed";
+  let badgeTooltip = "Completed task";
+
+  if (task.dueDate) {
+    const dueKey = task.dueDate;
+    if (completedDateKey < dueKey) {
+      const diff = daysBetween(completedDateKey, dueKey);
+      badgeVariant = "early";
+      badgeLabel = diff === 1 ? "1 day early ⚡" : `${diff} days early ⚡`;
+      badgeTooltip = `Completed ${diff} day${diff > 1 ? "s" : ""} before due date (${formatFriendly(dueKey)})`;
+    } else if (completedDateKey === dueKey) {
+      badgeVariant = "ontime";
+      badgeLabel = "On time 🎯";
+      badgeTooltip = `Completed right on due date (${formatFriendly(dueKey)})`;
+    } else {
+      const diff = daysBetween(dueKey, completedDateKey);
+      badgeVariant = "late";
+      badgeLabel = diff === 1 ? "1 day late" : `${diff} days late`;
+      badgeTooltip = `Completed ${diff} day${diff > 1 ? "s" : ""} after deadline (${formatFriendly(dueKey)})`;
+    }
+  } else if (task.dateKey) {
+    const planKey = task.dateKey;
+    if (completedDateKey < planKey) {
+      const diff = daysBetween(completedDateKey, planKey);
+      badgeVariant = "early";
+      badgeLabel = diff === 1 ? "1 day ahead ⚡" : `${diff}d ahead ⚡`;
+      badgeTooltip = `Completed ${diff} day${diff > 1 ? "s" : ""} ahead of schedule (${formatFriendly(planKey)})`;
+    } else if (completedDateKey === planKey) {
+      if (durationMinutes !== null && durationMinutes <= 45) {
+        badgeVariant = "early";
+        badgeLabel = "Fast finish ⚡";
+        badgeTooltip = `Finished quickly in ${durationLabel}`;
+      } else {
+        badgeVariant = "ontime";
+        badgeLabel = "On schedule ✨";
+        badgeTooltip = `Completed on scheduled day (${formatFriendly(planKey)})`;
+      }
+    } else {
+      const diff = daysBetween(planKey, completedDateKey);
+      badgeVariant = "late";
+      badgeLabel = diff === 1 ? "+1d delayed" : `+${diff}d delayed`;
+      badgeTooltip = `Completed ${diff} day${diff > 1 ? "s" : ""} after planned day`;
+    }
+  }
+
+  // Started date (if created on a prior day)
+  let startedDateLabel = null;
+  if (task.createdAt) {
+    const createdKey = toKey(task.createdAt);
+    if (createdKey && createdKey !== completedDateKey) {
+      startedDateLabel = formatFriendly(createdKey);
+    }
+  }
+
+  return {
+    completedTime,
+    completedDateKey,
+    durationLabel,
+    badgeVariant,
+    badgeLabel,
+    badgeTooltip,
+    startedDateLabel,
+  };
+}
 
 export default function WorkspaceLogs({
   workspaceId = DEFAULT_WORKSPACE_ID,
@@ -37,15 +143,11 @@ export default function WorkspaceLogs({
 }) {
   const quickTasks = useTaskStore((s) => s.quickTasks) || [];
   const quickLabels = useTaskStore((s) => s.quickLabels) || [];
-  const toggleQuickTask = useTaskStore((s) => s.toggleQuickTask);
-  const deleteQuickTask = useTaskStore((s) => s.deleteQuickTask);
-  const soundEnabled = useTaskStore((s) => s.soundEnabled);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLabelId, setSelectedLabelId] = useState(() => initialLabelId || "__all__");
   const [timeRange, setTimeRange] = useState("all"); // "all" | "today" | "7d" | "30d"
   const [sortBy, setSortBy] = useState("newest"); // "newest" | "oldest"
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   // Map of quick labels by ID
   const labelsById = useMemo(() => {
@@ -206,16 +308,6 @@ export default function WorkspaceLogs({
 
     return groups;
   }, [filteredTasks]);
-
-  function handleReopenTask(taskId) {
-    toggleQuickTask(taskId);
-    if (soundEnabled) playTickSound();
-  }
-
-  function handleDeleteTask(taskId) {
-    deleteQuickTask(taskId);
-    setDeleteConfirmId(null);
-  }
 
   const activeLabelObj = selectedLabelId && selectedLabelId !== "__all__" && selectedLabelId !== "__none__"
     ? labelsById[selectedLabelId] || { id: selectedLabelId, name: selectedLabelId, color: null }
@@ -518,21 +610,19 @@ export default function WorkspaceLogs({
                           : [];
                       const labels = labelIds.map((id) => labelsById[id]).filter(Boolean);
                       const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
-                      const isConfirmingDelete = deleteConfirmId === task.id;
+                      const insight = getTaskLogInsights(task);
 
                       return (
                         <li key={task.id} className="workspace-log-row">
-                          {/* Checked toggle button (click to reopen) */}
+                          {/* Static Completed Indicator (read-only archive, cannot uncheck) */}
                           <div className="workspace-log-rail">
-                            <button
-                              type="button"
-                              className="quick-task-check is-done workspace-log-check"
-                              onClick={() => handleReopenTask(task.id)}
-                              aria-label="Reopen task (mark uncompleted)"
-                              title="Click to reopen task"
+                            <span
+                              className="workspace-log-check-static"
+                              aria-label="Completed"
+                              title="Completed"
                             >
-                              <Check size={12} strokeWidth={2.4} aria-hidden="true" />
-                            </button>
+                              <Check size={12} strokeWidth={2.6} aria-hidden="true" />
+                            </span>
                           </div>
 
                           {/* Task Content */}
@@ -560,15 +650,10 @@ export default function WorkspaceLogs({
 
                             {/* Metadata row */}
                             <div className="workspace-log-meta">
-                              {task.completedAt ? (
-                                <span className="workspace-log-meta-item">
-                                  <Clock size={11} aria-hidden="true" />
-                                  <span>Finished {formatClock(task.completedAt)}</span>
-                                </span>
-                              ) : (
-                                <span className="workspace-log-meta-item">
-                                  <CheckCircle2 size={11} aria-hidden="true" />
-                                  <span>Finished on {formatFriendly(task.dateKey)}</span>
+                              {insight.startedDateLabel && (
+                                <span className="workspace-log-meta-item" title="Task creation date">
+                                  <History size={11} aria-hidden="true" />
+                                  <span>Started {insight.startedDateLabel}</span>
                                 </span>
                               )}
 
@@ -588,47 +673,49 @@ export default function WorkspaceLogs({
                             </div>
                           </div>
 
-                          {/* Actions: Reopen & Delete */}
-                          <div className="workspace-log-actions">
-                            <button
-                              type="button"
-                              className="workspace-log-action-btn"
-                              onClick={() => handleReopenTask(task.id)}
-                              title="Reopen task (move back to active checklist)"
-                              aria-label="Reopen task"
-                            >
-                              <RotateCcw size={13} />
-                              <span className="workspace-log-action-text">Reopen</span>
-                            </button>
+                          {/* Creative Log Telemetry & Insights (Replaces Delete/Reopen buttons) */}
+                          <div className="workspace-log-insight" title={insight.badgeTooltip}>
+                            <div className={`workspace-log-badge is-${insight.badgeVariant}`}>
+                              {insight.badgeVariant === "early" && (
+                                <Zap size={11} strokeWidth={2.4} aria-hidden="true" />
+                              )}
+                              {insight.badgeVariant === "ontime" && (
+                                <CheckCircle2 size={11} strokeWidth={2.4} aria-hidden="true" />
+                              )}
+                              {insight.badgeVariant === "late" && (
+                                <Clock size={11} strokeWidth={2.4} aria-hidden="true" />
+                              )}
+                              {insight.badgeVariant === "neutral" && (
+                                <Check size={11} strokeWidth={2.4} aria-hidden="true" />
+                              )}
+                              <span>{insight.badgeLabel}</span>
+                            </div>
 
-                            {isConfirmingDelete ? (
-                              <div className="workspace-log-delete-confirm">
-                                <button
-                                  type="button"
-                                  className="workspace-log-confirm-btn is-yes"
-                                  onClick={() => handleDeleteTask(task.id)}
-                                >
-                                  Delete
-                                </button>
-                                <button
-                                  type="button"
-                                  className="workspace-log-confirm-btn is-cancel"
-                                  onClick={() => setDeleteConfirmId(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="workspace-log-action-btn is-delete"
-                                onClick={() => setDeleteConfirmId(task.id)}
-                                title="Delete task permanently"
-                                aria-label="Delete task permanently"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            )}
+                            <div className="workspace-log-timing-details">
+                              {insight.completedTime ? (
+                                <span className="workspace-log-timing-sub" title="Finished time">
+                                  <Clock size={10} aria-hidden="true" />
+                                  <span>{insight.completedTime}</span>
+                                </span>
+                              ) : (
+                                <span className="workspace-log-timing-sub" title="Finished on">
+                                  <CheckCircle2 size={10} aria-hidden="true" />
+                                  <span>{formatFriendly(insight.completedDateKey)}</span>
+                                </span>
+                              )}
+
+                              {insight.durationLabel && (
+                                <>
+                                  <span className="workspace-log-timing-sep" aria-hidden="true">•</span>
+                                  <span className="workspace-log-timing-sub is-duration" title="Turnaround time">
+                                    <Timer size={10} aria-hidden="true" />
+                                    <span>
+                                      {insight.durationLabel === "Same day" ? "Same day" : `Took ${insight.durationLabel}`}
+                                    </span>
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </li>
                       );

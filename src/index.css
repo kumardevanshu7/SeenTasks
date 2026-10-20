@@ -7538,21 +7538,19 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   padding-top: 1px;
   flex: 0 0 auto;
 }
-.workspace-log-check {
+.workspace-log-check-static {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  background: #10b981 !important;
-  border-color: #10b981 !important;
-  color: #ffffff !important;
-  cursor: pointer;
-  transition: transform 0.12s ease;
-}
-.workspace-log-check:hover {
-  transform: scale(1.08);
+  background: #10b981;
+  border: 1px solid #10b981;
+  color: #ffffff;
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
 }
 .workspace-log-content {
   flex: 1;
@@ -7587,61 +7585,77 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   align-items: center;
   gap: 4px;
 }
-.workspace-log-actions {
+/* Creative Log Telemetry & Timing Insights */
+.workspace-log-insight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  text-align: right;
+  user-select: none;
+}
+
+.workspace-log-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  line-height: 1.2;
+  transition: transform 0.12s ease;
+}
+.workspace-log-badge svg {
+  flex-shrink: 0;
+}
+.workspace-log-badge.is-early {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.workspace-log-badge.is-ontime {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.workspace-log-badge.is-late {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.workspace-log-badge.is-neutral {
+  background: var(--surface-soft);
+  color: var(--muted);
+  border: 1px solid var(--hairline);
+}
+
+.workspace-log-timing-details {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  opacity: 0.65;
-  transition: opacity 0.15s ease;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted-soft);
+  white-space: nowrap;
+  line-height: 1.3;
 }
-.workspace-log-row:hover .workspace-log-actions {
-  opacity: 1;
-}
-.workspace-log-action-btn {
+.workspace-log-timing-sub {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
+  gap: 3.5px;
+}
+.workspace-log-timing-sub.is-duration {
   color: var(--muted);
-  background: var(--surface-soft);
-  border: 1px solid var(--hairline);
-  border-radius: 6px;
-  font-size: 11px;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.12s ease;
 }
-.workspace-log-action-btn:hover {
-  color: var(--ink);
-  background: var(--surface-card);
-}
-.workspace-log-action-btn.is-delete:hover {
-  color: var(--error);
-  background: #fee2e2;
-  border-color: #fca5a5;
-}
-.workspace-log-delete-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.workspace-log-confirm-btn {
-  padding: 3px 8px;
-  font-size: 11px;
-  border-radius: 5px;
-  cursor: pointer;
-  border: 0;
-}
-.workspace-log-confirm-btn.is-yes {
-  background: var(--error);
-  color: white;
-  font-weight: 600;
-}
-.workspace-log-confirm-btn.is-cancel {
-  background: var(--surface-card);
-  color: var(--ink);
+.workspace-log-timing-sep {
+  opacity: 0.45;
+  font-size: 10px;
 }
 
 /* Quick Filter Banner Actions & Empty State Logs Link */
@@ -7700,6 +7714,26 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   }
 }
 
+@media (max-width: 580px) {
+  .workspace-log-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .workspace-log-content {
+    flex: 1 1 calc(100% - 32px);
+  }
+  .workspace-log-insight {
+    align-items: flex-start;
+    text-align: left;
+    width: 100%;
+    padding-left: 30px;
+    margin-top: 2px;
+  }
+  .workspace-log-timing-details {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 480px) {
   .workspace-logs-stats-grid {
     grid-template-columns: 1fr;
@@ -7713,9 +7747,6 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   }
   .workspace-logs-time-chips {
     justify-content: space-between;
-  }
-  .workspace-log-action-text {
-    display: none;
   }
 }
 
