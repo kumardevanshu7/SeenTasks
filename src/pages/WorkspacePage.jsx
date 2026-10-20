@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, BadgeCheck, Check, ChevronDown } from "lucide-react";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, BadgeCheck, Check, CheckSquare, ChevronDown, History } from "lucide-react";
 import QuickTasks from "../components/QuickTasks";
+import WorkspaceLogs from "../components/WorkspaceLogs";
 import DateStrip from "../components/DateStrip";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { todayKey, toKey } from "../lib/date";
@@ -11,6 +12,10 @@ import { DEFAULT_WORKSPACE_ID, workspaceColorInk } from "../lib/quickTaskService
 export default function WorkspacePage() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "logs" ? "logs" : "tasks";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [logFilterLabelId, setLogFilterLabelId] = useState(() => searchParams.get("label") || null);
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -18,6 +23,13 @@ export default function WorkspacePage() {
   const workspaces = useTaskStore((s) => s.quickWorkspaces);
   const quickTasks = useTaskStore((s) => s.quickTasks);
   const deleteQuickWorkspace = useTaskStore((s) => s.deleteQuickWorkspace);
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab") === "logs" ? "logs" : "tasks";
+    setActiveTab(tabFromUrl);
+    const labelFromUrl = searchParams.get("label");
+    if (labelFromUrl) setLogFilterLabelId(labelFromUrl);
+  }, [searchParams]);
 
   const workspace = useMemo(
     () => (workspaces || []).find((w) => w.id === workspaceId),
@@ -41,6 +53,30 @@ export default function WorkspacePage() {
     () => (quickTasks || []).filter((t) => (t.workspaceId || DEFAULT_WORKSPACE_ID) === workspaceId),
     [quickTasks, workspaceId]
   );
+
+  const openCount = useMemo(
+    () => scopedTasks.filter((t) => !t.done).length,
+    [scopedTasks]
+  );
+
+  const completedCount = useMemo(
+    () => scopedTasks.filter((t) => t.done).length,
+    [scopedTasks]
+  );
+
+  function handleTabChange(nextTab) {
+    setActiveTab(nextTab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextTab === "logs") {
+        next.set("tab", "logs");
+      } else {
+        next.delete("tab");
+        next.delete("label");
+      }
+      return next;
+    });
+  }
 
   const counts = useMemo(() => {
     const map = {};
@@ -151,14 +187,68 @@ export default function WorkspacePage() {
         )}
       </header>
 
-      <DateStrip
-        selected={selectedDate}
-        onSelect={setSelectedDate}
-        counts={counts}
-        range={14}
-        instantScroll
-      />
-      <QuickTasks dateKey={selectedDate} workspaceId={workspaceId} />
+      {/* Workspace View Tabs: Checklist & Logs */}
+      <div className="workspace-tabs-bar" role="tablist" aria-label="Workspace view">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "tasks"}
+          className={`workspace-tab-btn${activeTab === "tasks" ? " is-active" : ""}`}
+          onClick={() => handleTabChange("tasks")}
+        >
+          <CheckSquare size={14} aria-hidden="true" />
+          <span>Checklist</span>
+          {openCount > 0 && <span className="workspace-tab-badge">{openCount}</span>}
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "logs"}
+          className={`workspace-tab-btn${activeTab === "logs" ? " is-active" : ""}`}
+          onClick={() => handleTabChange("logs")}
+        >
+          <History size={14} aria-hidden="true" />
+          <span>Logs</span>
+          {completedCount > 0 && (
+            <span className="workspace-tab-badge is-done">{completedCount}</span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "logs" ? (
+        <WorkspaceLogs
+          workspaceId={workspaceId}
+          workspaceName={workspace?.name || "Workspace"}
+          workspaceColor={theme}
+          initialLabelId={logFilterLabelId}
+          onSwitchToTasks={() => handleTabChange("tasks")}
+        />
+      ) : (
+        <>
+          <DateStrip
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            counts={counts}
+            range={14}
+            instantScroll
+          />
+          <QuickTasks
+            dateKey={selectedDate}
+            workspaceId={workspaceId}
+            onOpenLogs={(labelId) => {
+              setLogFilterLabelId(labelId);
+              setActiveTab("logs");
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set("tab", "logs");
+                if (labelId) next.set("label", labelId);
+                return next;
+              });
+            }}
+          />
+        </>
+      )}
 
       <OnePasswordGate
         open={deleteOpen}

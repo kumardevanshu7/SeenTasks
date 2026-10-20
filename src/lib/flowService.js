@@ -292,6 +292,10 @@ export function normalizeFollowFlow(id, data = {}) {
     : data.labelId
       ? [String(data.labelId).trim()].filter(Boolean)
       : [];
+  const startDate =
+    typeof data.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.startDate)
+      ? data.startDate
+      : null;
   const endDate =
     repeat === "daily" && typeof data.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.endDate)
       ? data.endDate
@@ -324,6 +328,7 @@ export function normalizeFollowFlow(id, data = {}) {
     is1HrWork,
     taskBank,
     dayKey: data.dayKey || null,
+    startDate,
     endDate,
     labelIds,
     reports,

@@ -715,7 +715,7 @@ function QuickTaskRow({
 }
 
 /** Checklist for one workspace (Personal on home, or a dedicated workspace page). */
-export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID }) {
+export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID, onOpenLogs = null }) {
   const [draft, setDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
   const [labelDraft, setLabelDraft] = useState("");
@@ -789,6 +789,21 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     if (filterLabelId === "__none__") return { id: "__none__", name: "None (Unlabeled)", color: null };
     return labelsById[filterLabelId] || (quickLabels || []).find((l) => l.id === filterLabelId || l.name === filterLabelId) || { id: filterLabelId, name: "Label", color: null };
   }, [filterLabelId, labelsById, quickLabels]);
+
+  const completedWithThisLabel = useMemo(() => {
+    if (!filterLabelId || filterLabelId === "__none__") return 0;
+    return (quickTasks || []).filter((t) => {
+      if (!t.done || t.flowRef) return false;
+      const ws = t.workspaceId || DEFAULT_WORKSPACE_ID;
+      if (ws !== spaceId) return false;
+      const ids = Array.isArray(t.labelIds) && t.labelIds.length > 0
+        ? t.labelIds.filter(Boolean).map(String)
+        : t.labelId
+          ? [String(t.labelId)]
+          : [];
+      return ids.includes(String(filterLabelId));
+    }).length;
+  }, [quickTasks, filterLabelId, spaceId]);
 
   useEffect(() => {
     function onFocusInput() {
@@ -1482,14 +1497,27 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   ({displayList.length} {displayList.length === 1 ? "task" : "tasks"})
                 </span>
               </div>
-              <button
-                type="button"
-                className="quick-filter-banner-clear"
-                onClick={() => setFilterLabelId(null)}
-                title="Clear filter and show all tasks"
-              >
-                Show all <X size={12} aria-hidden="true" />
-              </button>
+              <div className="quick-filter-banner-actions">
+                {completedWithThisLabel > 0 && onOpenLogs && (
+                  <button
+                    type="button"
+                    className="quick-filter-banner-logs"
+                    onClick={() => onOpenLogs(filterLabelId)}
+                    title="View completed tasks with this label in Logs"
+                  >
+                    <History size={12} aria-hidden="true" />
+                    <span>Logs ({completedWithThisLabel})</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="quick-filter-banner-clear"
+                  onClick={() => setFilterLabelId(null)}
+                  title="Clear filter and show all tasks"
+                >
+                  Show all <X size={12} aria-hidden="true" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -1499,13 +1527,25 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                 <p className="quick-tasks-empty">
                   No tasks found with label “{activeFilterObj?.name || "selected"}”.
                 </p>
-                <button
-                  type="button"
-                  className="quick-filter-empty-reset"
-                  onClick={() => setFilterLabelId(null)}
-                >
-                  Show all tasks
-                </button>
+                <div className="quick-filter-empty-actions">
+                  <button
+                    type="button"
+                    className="quick-filter-empty-reset"
+                    onClick={() => setFilterLabelId(null)}
+                  >
+                    Show all tasks
+                  </button>
+                  {completedWithThisLabel > 0 && onOpenLogs && (
+                    <button
+                      type="button"
+                      className="quick-filter-empty-logs-btn"
+                      onClick={() => onOpenLogs(filterLabelId)}
+                    >
+                      <History size={13} aria-hidden="true" />
+                      <span>View {completedWithThisLabel} completed {activeFilterObj?.name} {completedWithThisLabel === 1 ? "task" : "tasks"} in Logs →</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="quick-tasks-empty">Nothing here yet—type above and press Enter.</p>
@@ -1516,13 +1556,25 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                 <p className="quick-tasks-empty">
                   No tasks found with label “{activeFilterObj?.name || "selected"}”.
                 </p>
-                <button
-                  type="button"
-                  className="quick-filter-empty-reset"
-                  onClick={() => setFilterLabelId(null)}
-                >
-                  Show all tasks
-                </button>
+                <div className="quick-filter-empty-actions">
+                  <button
+                    type="button"
+                    className="quick-filter-empty-reset"
+                    onClick={() => setFilterLabelId(null)}
+                  >
+                    Show all tasks
+                  </button>
+                  {completedWithThisLabel > 0 && onOpenLogs && (
+                    <button
+                      type="button"
+                      className="quick-filter-empty-logs-btn"
+                      onClick={() => onOpenLogs(filterLabelId)}
+                    >
+                      <History size={13} aria-hidden="true" />
+                      <span>View {completedWithThisLabel} completed {activeFilterObj?.name} {completedWithThisLabel === 1 ? "task" : "tasks"} in Logs →</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="quick-tasks-empty">

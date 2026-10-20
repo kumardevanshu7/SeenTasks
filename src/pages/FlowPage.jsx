@@ -989,7 +989,20 @@ export default function FlowPage() {
                         className="text-input"
                         type="date"
                         value={startFlowDraft}
-                        onChange={(e) => setStartFlowDraft(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setStartFlowDraft(val);
+                          if (!val) {
+                            updateFollowFlow(flow.id, { startDate: null });
+                          } else if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                            if (endDraft && val > endDraft) {
+                              setEndDraft(val);
+                              updateFollowFlow(flow.id, { startDate: val, endDate: val });
+                            } else {
+                              updateFollowFlow(flow.id, { startDate: val });
+                            }
+                          }
+                        }}
                         onBlur={saveFlowStartDate}
                         aria-label="Everyday start date"
                       />
@@ -1015,9 +1028,15 @@ export default function FlowPage() {
                         onChange={(e) => {
                           const newEnd = e.target.value;
                           setEndDraft(newEnd);
-                          if (newEnd && startFlowDraft && newEnd < startFlowDraft) {
-                            setStartFlowDraft(newEnd);
-                            updateFollowFlow(flow.id, { startDate: newEnd });
+                          if (!newEnd) {
+                            updateFollowFlow(flow.id, { endDate: null });
+                          } else if (/^\d{4}-\d{2}-\d{2}$/.test(newEnd)) {
+                            if (startFlowDraft && newEnd < startFlowDraft) {
+                              setStartFlowDraft(newEnd);
+                              updateFollowFlow(flow.id, { startDate: newEnd, endDate: newEnd });
+                            } else {
+                              updateFollowFlow(flow.id, { endDate: newEnd });
+                            }
                           }
                         }}
                         onBlur={saveEndDate}
