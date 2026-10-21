@@ -488,14 +488,14 @@ export default function AnalyticsPage() {
           <div className="analytics-card-header">
             <div>
               <h2>Nightly Mood Spectrum</h2>
-              <p>11:00 PM mood logs and mindsets recorded across this timeframe</p>
+              <p>10:00 PM mood logs and mindsets recorded across this timeframe</p>
             </div>
           </div>
 
           {moodEntries.length === 0 ? (
             <div className="analytics-empty-mood">
               <p>No nightly reflections logged yet in this timeframe.</p>
-              <small>Log your mood daily between 11:00 PM and 11:59 PM to unlock mindset correlation analytics.</small>
+              <small>Log your mood daily between 10:00 PM and 11:59 PM to unlock mindset correlation analytics.</small>
             </div>
           ) : (
             <div className="analytics-mood-grid">

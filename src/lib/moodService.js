@@ -12,7 +12,7 @@ import { todayKey } from "./date";
 
 /**
  * 16 Curated Mood Expressions with deep meanings.
- * Users reflect and mark their daily mood strictly between 11:00 PM and 11:59 PM.
+ * Users reflect and mark their daily mood strictly between 10:00 PM and 11:59 PM.
  */
 export const MOOD_EXPRESSIONS = [
   {
@@ -305,17 +305,17 @@ export const MOOD_EXPRESSIONS = [
 
 export const EXPRESSIONS_MAP = Object.fromEntries(MOOD_EXPRESSIONS.map((m) => [m.id, m]));
 
-/** Check if the strict 11:00 PM - 11:59 PM (23:00-23:59) reflection window is currently open */
+/** Check if the strict 10:00 PM - 11:59 PM (22:00-23:59) reflection window is currently open */
 export function isMoodWindowOpen(date = new Date()) {
   const hours = date.getHours();
-  return hours === 23;
+  return hours >= 22;
 }
 
 /** Get structured countdown info for the mood window */
 export function getMoodWindowCountdown(date = new Date()) {
   const now = date.getTime();
   const hours = date.getHours();
-  const isOpen = hours === 23;
+  const isOpen = hours >= 22;
 
   if (isOpen) {
     // Window ends at 23:59:59 (midnight)
@@ -331,14 +331,14 @@ export function getMoodWindowCountdown(date = new Date()) {
     };
   }
 
-  // Calculate time until next 23:00
+  // Calculate time until next 22:00
   const target = new Date(date);
-  if (hours < 23) {
-    target.setHours(23, 0, 0, 0);
+  if (hours < 22) {
+    target.setHours(22, 0, 0, 0);
   } else {
-    // Past midnight, target is tonight at 23:00
+    // Past midnight, target is tonight at 22:00
     target.setDate(target.getDate() + 1);
-    target.setHours(23, 0, 0, 0);
+    target.setHours(22, 0, 0, 0);
   }
 
   const msLeft = Math.max(0, target.getTime() - now);
@@ -346,7 +346,7 @@ export function getMoodWindowCountdown(date = new Date()) {
   const mins = Math.floor((msLeft % 3600000) / 60000);
   return {
     isOpen: false,
-    label: `Opens at 11:00 PM · In ${hrs}h ${mins}m`,
+    label: `Opens at 10:00 PM · In ${hrs}h ${mins}m`,
     hoursLeft: hrs,
     minutesLeft: mins,
   };

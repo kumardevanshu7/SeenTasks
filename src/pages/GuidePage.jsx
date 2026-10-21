@@ -126,7 +126,7 @@ export default function GuidePage({ inApp = false }) {
               <ul>
                 <li><strong>1. Intentional Speed:</strong> Pick 3-5 things that truly matter today instead of writing 40 tasks you will never do.</li>
                 <li><strong>2. Guilt-Free Rest:</strong> Streak Shields protect your momentum when you take deliberate rest days.</li>
-                <li><strong>3. Evening Reflection:</strong> Close your workday with gratitude and reflection at 11:00 PM rather than endless late-night scrolling.</li>
+                <li><strong>3. Evening Reflection:</strong> Close your workday with gratitude and reflection at 10:00 PM rather than endless late-night scrolling.</li>
               </ul>
             </div>
           </section>
@@ -211,9 +211,9 @@ export default function GuidePage({ inApp = false }) {
             <div className="guide-section-badge">
               <Moon size={14} /> Emotional Wellbeing
             </div>
-            <h2>5. The 11:00 PM Reflection Window</h2>
+            <h2>5. The 10:00 PM Reflection Window</h2>
             <p>
-              At 11:00 PM each night, the <strong>Nightly Mood tracker</strong> goes live. Take 60 seconds to pick your mood expression (e.g. ⚡ <em>Energized</em>, 🌿 <em>Calm & Content</em>, 🌊 <em>Flow State</em>, 🛋️ <em>Restful</em>) and write a one-line highlight of the day.
+              At 10:00 PM each night, the <strong>Nightly Mood tracker</strong> goes live. Take 60 seconds to pick your mood expression (e.g. ⚡ <em>Energized</em>, 🌿 <em>Calm & Content</em>, 🌊 <em>Flow State</em>, 🛋️ <em>Restful</em>) and write a one-line highlight of the day.
             </p>
             <p>
               Over months, the Analytics page correlates your moods with your most productive hours so you learn when you perform at your best.

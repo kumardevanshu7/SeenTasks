@@ -178,7 +178,7 @@ export default function Navbar() {
           >
             <Moon size={17} />
             <span>Nightly mood</span>
-            {showMoodLive && <em className="em-live" title="11:00 PM reflection window is open!">Live</em>}
+            {showMoodLive && <em className="em-live" title="10:00 PM reflection window is open!">Live</em>}
           </button>
 
           <NavLink to="/app/bin" className={linkClass} onClick={() => setOpen(false)} {...warmProps("/app/bin")}><Trash2 size={17} /><span>Abort bin</span>{binCount > 0 && <em>{binCount}</em>}</NavLink>

@@ -120,65 +120,35 @@ function getStepDurationInfo(step, day) {
     const totalDays = calculateDayCount(step.startDate, step.endDate);
     if (!totalDays) return null;
 
-    if (totalDays === 1) {
-      const isToday = step.startDate === day;
-      return {
-        label: "1 day",
-        tooltip: isToday
-          ? "Scheduled for today (1 day)"
-          : `Scheduled for ${formatFriendly(step.startDate)} (1 day)`,
-      };
+    const label = totalDays === 1 ? "1 day total" : `${totalDays} days total`;
+    let sub = null;
+    if (day >= step.startDate && day <= step.endDate) {
+      const elapsed = daysBetween(step.startDate, day) + 1;
+      sub = `Day ${elapsed}`;
     }
 
-    if (day < step.startDate) {
-      const daysUntil = daysBetween(day, step.startDate);
-      return {
-        label: `${totalDays} days total`,
-        tooltip: `Starts in ${daysUntil} day${daysUntil > 1 ? "s" : ""} (${formatFriendly(step.startDate)}) · ${totalDays} days total`,
-      };
-    }
+    return {
+      label,
+      sub,
+      tooltip: `${formatFriendly(step.startDate)} – ${formatFriendly(step.endDate)} (${label})`,
+    };
+  }
 
-    if (day > step.endDate) {
-      return {
-        label: `${totalDays} days (Ended)`,
-        tooltip: `Ended ${formatFriendly(step.endDate)} · ${totalDays} days total`,
-      };
-    }
-
-    // Active interval today
+  if (step.startDate && step.startDate <= day) {
     const elapsed = daysBetween(step.startDate, day) + 1;
     return {
-      label: `Day ${elapsed} of ${totalDays} days`,
-      tooltip: `Active: Day ${elapsed} of ${totalDays} total days (${formatFriendly(step.startDate)} – ${formatFriendly(step.endDate)})`,
+      label: `${elapsed} days active`,
+      sub: null,
+      tooltip: `Started ${formatFriendly(step.startDate)}`,
     };
   }
 
-  if (step.startDate) {
-    if (step.startDate <= day) {
-      const elapsed = daysBetween(step.startDate, day) + 1;
-      return {
-        label: `${elapsed} days active`,
-        tooltip: `Started ${formatFriendly(step.startDate)} · ${elapsed} days active`,
-      };
-    }
-    const daysUntil = daysBetween(day, step.startDate);
+  if (step.endDate && step.endDate >= day) {
+    const daysLeft = daysBetween(day, step.endDate);
     return {
-      label: `Starts in ${daysUntil}d`,
-      tooltip: `Starts ${formatFriendly(step.startDate)}`,
-    };
-  }
-
-  if (step.endDate) {
-    if (step.endDate >= day) {
-      const daysLeft = daysBetween(day, step.endDate);
-      return {
-        label: `${daysLeft}d left`,
-        tooltip: `Until ${formatFriendly(step.endDate)}`,
-      };
-    }
-    return {
-      label: "Ended",
-      tooltip: `Ended ${formatFriendly(step.endDate)}`,
+      label: `${daysLeft} days left`,
+      sub: null,
+      tooltip: `Until ${formatFriendly(step.endDate)}`,
     };
   }
 
@@ -468,11 +438,8 @@ export default function FlowPage() {
     const bits = [];
     if (step.startDate && step.endDate) {
       const totalDays = calculateDayCount(step.startDate, step.endDate);
-      if (totalDays > 1 && step.startDate <= day && step.endDate >= day) {
-        const elapsed = daysBetween(step.startDate, day) + 1;
-        bits.push(`Day ${elapsed} of ${totalDays}`);
-      } else if (step.startDate === day) {
-        bits.push("Starts today");
+      if (totalDays) {
+        bits.push(`${totalDays} days total`);
       }
       bits.push(`Until ${formatFriendly(step.endDate)}`);
     } else {
@@ -915,6 +882,9 @@ export default function FlowPage() {
                       >
                         <Calendar size={13} aria-hidden="true" />
                         <span>{durationInfo.label}</span>
+                        {durationInfo.sub && (
+                          <span className="flow-step-dates-duration-sub">({durationInfo.sub})</span>
+                        )}
                       </div>
                     );
                   })()}

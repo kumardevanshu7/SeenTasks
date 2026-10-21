@@ -101,7 +101,7 @@ export default function MoodTrackerModal({ open, onClose }) {
               <div>
                 <h2>Nightly Expression & Mood</h2>
                 <p className="mood-modal-sub">
-                  Daily reflection window · 11:00 PM – 11:59 PM
+                  Daily reflection window · 10:00 PM – 11:59 PM
                 </p>
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function MoodTrackerModal({ open, onClose }) {
                 <CheckCircle2 size={18} className="mood-complete-check" />
                 <div>
                   <strong>Today’s Reflection Completed</strong>
-                  <p>Session closed for today · Next window opens tomorrow at 11:00 PM</p>
+                  <p>Session closed for today · Next window opens tomorrow at 10:00 PM</p>
                 </div>
               </div>
               <span className="mood-done-badge">
@@ -134,7 +134,7 @@ export default function MoodTrackerModal({ open, onClose }) {
               <div className="mood-window-info">
                 {isWindowOpen ? <Sparkles size={16} /> : <Lock size={16} />}
                 <div>
-                  <strong>{isWindowOpen ? "Nightly Reflection is LIVE" : "Window opens tonight at 11:00 PM"}</strong>
+                  <strong>{isWindowOpen ? "Nightly Reflection is LIVE" : "Window opens tonight at 10:00 PM"}</strong>
                   <p>{countdown.label}</p>
                 </div>
               </div>
@@ -276,7 +276,7 @@ export default function MoodTrackerModal({ open, onClose }) {
                     className="button button-primary mood-lock-btn"
                     disabled={!selectedMoodId || !isWindowOpen}
                     onClick={handleSave}
-                    title={!isWindowOpen ? "Window opens strictly at 11:00 PM" : undefined}
+                    title={!isWindowOpen ? "Window opens strictly at 10:00 PM" : undefined}
                   >
                     {savedSuccess ? (
                       <>
@@ -284,7 +284,7 @@ export default function MoodTrackerModal({ open, onClose }) {
                       </>
                     ) : !isWindowOpen ? (
                       <>
-                        <Lock size={14} /> Opens at 11:00 PM
+                        <Lock size={14} /> Opens at 10:00 PM
                       </>
                     ) : isLoggedToday ? (
                       "Update Today's Mood"
