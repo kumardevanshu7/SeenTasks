@@ -5,7 +5,7 @@ import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
 import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, isStepMandatory, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
-import { calculateDayCount, formatFriendly, todayKey, toKey } from "../lib/date";
+import { calculateDayCount, daysBetween, formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 
 function CategoryColorRow({ value, onChange, label }) {
@@ -111,6 +111,78 @@ function EverydayMiniCalendar({ flow }) {
       </div>
     </section>
   );
+}
+
+function getStepDurationInfo(step, day) {
+  if (!step?.startDate && !step?.endDate) return null;
+
+  if (step.startDate && step.endDate) {
+    const totalDays = calculateDayCount(step.startDate, step.endDate);
+    if (!totalDays) return null;
+
+    if (totalDays === 1) {
+      const isToday = step.startDate === day;
+      return {
+        label: "1 day",
+        tooltip: isToday
+          ? "Scheduled for today (1 day)"
+          : `Scheduled for ${formatFriendly(step.startDate)} (1 day)`,
+      };
+    }
+
+    if (day < step.startDate) {
+      const daysUntil = daysBetween(day, step.startDate);
+      return {
+        label: `${totalDays} days total`,
+        tooltip: `Starts in ${daysUntil} day${daysUntil > 1 ? "s" : ""} (${formatFriendly(step.startDate)}) · ${totalDays} days total`,
+      };
+    }
+
+    if (day > step.endDate) {
+      return {
+        label: `${totalDays} days (Ended)`,
+        tooltip: `Ended ${formatFriendly(step.endDate)} · ${totalDays} days total`,
+      };
+    }
+
+    // Active interval today
+    const elapsed = daysBetween(step.startDate, day) + 1;
+    return {
+      label: `Day ${elapsed} of ${totalDays} days`,
+      tooltip: `Active: Day ${elapsed} of ${totalDays} total days (${formatFriendly(step.startDate)} – ${formatFriendly(step.endDate)})`,
+    };
+  }
+
+  if (step.startDate) {
+    if (step.startDate <= day) {
+      const elapsed = daysBetween(step.startDate, day) + 1;
+      return {
+        label: `${elapsed} days active`,
+        tooltip: `Started ${formatFriendly(step.startDate)} · ${elapsed} days active`,
+      };
+    }
+    const daysUntil = daysBetween(day, step.startDate);
+    return {
+      label: `Starts in ${daysUntil}d`,
+      tooltip: `Starts ${formatFriendly(step.startDate)}`,
+    };
+  }
+
+  if (step.endDate) {
+    if (step.endDate >= day) {
+      const daysLeft = daysBetween(day, step.endDate);
+      return {
+        label: `${daysLeft}d left`,
+        tooltip: `Until ${formatFriendly(step.endDate)}`,
+      };
+    }
+    return {
+      label: "Ended",
+      tooltip: `Ended ${formatFriendly(step.endDate)}`,
+    };
+  }
+
+  return null;
 }
 
 export default function FlowPage() {
@@ -387,14 +459,26 @@ export default function FlowPage() {
   function stepWindowLabel(step) {
     if (!isEveryday) return null;
     if (step.startDate && step.startDate > day) {
-      return `Starts ${formatFriendly(step.startDate)}`;
+      const totalDays = calculateDayCount(step.startDate, step.endDate);
+      return `Starts ${formatFriendly(step.startDate)}${totalDays ? ` · ${totalDays} days total` : ""}`;
     }
     if (step.endDate && step.endDate < day) {
       return `Ended ${formatFriendly(step.endDate)}`;
     }
     const bits = [];
-    if (step.startDate && step.startDate === day) bits.push("Starts today");
-    if (step.endDate) bits.push(`Until ${formatFriendly(step.endDate)}`);
+    if (step.startDate && step.endDate) {
+      const totalDays = calculateDayCount(step.startDate, step.endDate);
+      if (totalDays > 1 && step.startDate <= day && step.endDate >= day) {
+        const elapsed = daysBetween(step.startDate, day) + 1;
+        bits.push(`Day ${elapsed} of ${totalDays}`);
+      } else if (step.startDate === day) {
+        bits.push("Starts today");
+      }
+      bits.push(`Until ${formatFriendly(step.endDate)}`);
+    } else {
+      if (step.startDate && step.startDate === day) bits.push("Starts today");
+      if (step.endDate) bits.push(`Until ${formatFriendly(step.endDate)}`);
+    }
     return bits.length ? bits.join(" · ") : null;
   }
 
@@ -821,6 +905,19 @@ export default function FlowPage() {
                       aria-label={`End date for ${step.title}`}
                     />
                   </label>
+                  {(() => {
+                    const durationInfo = getStepDurationInfo(step, day);
+                    if (!durationInfo) return null;
+                    return (
+                      <div
+                        className="flow-step-dates-duration-badge"
+                        title={durationInfo.tooltip}
+                      >
+                        <Calendar size={13} aria-hidden="true" />
+                        <span>{durationInfo.label}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {!isArchived && (

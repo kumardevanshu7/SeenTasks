@@ -1279,6 +1279,7 @@ p, h1, h2, h3, h4 { margin: 0; }
 .flow-step-dates {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 8px;
   width: 100%;
 }
@@ -1295,6 +1296,26 @@ p, h1, h2, h3, h4 { margin: 0; }
   min-width: 132px;
   padding: 6px 8px;
   font-size: 12px;
+}
+.flow-step-dates-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 31px;
+  padding: 0 10px;
+  background: var(--accent-subtle, rgba(234, 88, 12, 0.08));
+  border: 1px solid color-mix(in srgb, var(--accent, #ea580c) 25%, transparent);
+  border-radius: 8px;
+  color: var(--accent, #ea580c);
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  user-select: none;
+  margin-bottom: 1px;
+  transition: all 0.15s ease;
+}
+.flow-step-dates-duration-badge:hover {
+  background: var(--accent-subtle, rgba(234, 88, 12, 0.14));
 }
 .flow-winner-banner {
   display: flex;
