@@ -259,6 +259,44 @@ export default function FlowPage() {
     }
   }, [flow, rollEverydayFlows]);
 
+  const isEveryday = flow?.repeat === "daily";
+  const categories = isEveryday ? flowCategories(flow) : [];
+  const activeCat = categories.some((c) => c.id === activeCategoryId)
+    ? activeCategoryId
+    : categories[0]?.id || null;
+
+  const previousStepDates = useMemo(() => {
+    if (lastAddedDates && (lastAddedDates.startDate || lastAddedDates.endDate)) {
+      return lastAddedDates;
+    }
+    const flowSteps = flow?.steps || [];
+    const catSteps = flowSteps.filter((s) => stepCategoryId(s, flow) === activeCat);
+    const withDatesInCat = [...catSteps].reverse().find((s) => s.startDate || s.endDate);
+    if (withDatesInCat) {
+      return { startDate: withDatesInCat.startDate || "", endDate: withDatesInCat.endDate || "" };
+    }
+    const anyWithDates = [...flowSteps].reverse().find((s) => s.startDate || s.endDate);
+    if (anyWithDates) {
+      return { startDate: anyWithDates.startDate || "", endDate: anyWithDates.endDate || "" };
+    }
+    if (flow?.startDate || flow?.endDate) {
+      return { startDate: flow.startDate || "", endDate: flow.endDate || "" };
+    }
+    return null;
+  }, [lastAddedDates, flow, activeCat]);
+
+  useEffect(() => {
+    if (!editing) {
+      setSelectedStepIds(new Set());
+      setBatchFeedback("");
+    }
+  }, [editing]);
+
+  useEffect(() => {
+    setSelectedStepIds(new Set());
+    setBatchFeedback("");
+  }, [activeCat]);
+
   if (followFlows?.length && !flow) {
     const oneHr = followFlows.find((f) => is1HrWorkFlow(f));
     if (oneHr && flowId && (flowId.toLowerCase().includes("1hr") || flowId.toLowerCase().includes("1-hr"))) {
@@ -278,13 +316,8 @@ export default function FlowPage() {
   const day = todayKey();
   const prog = flowProgress(flow, day);
   const steps = flow.steps || [];
-  const isEveryday = flow.repeat === "daily";
   const everydayActive = isEveryday && isEverydayActive(flow, day);
   const anyOrder = isEveryday && Boolean(flow.anyOrder);
-  const categories = isEveryday ? flowCategories(flow) : [];
-  const activeCat = categories.some((c) => c.id === activeCategoryId)
-    ? activeCategoryId
-    : categories[0]?.id || null;
   const activeCatMeta = categories.find((c) => c.id === activeCat) || null;
   const is1HrFlow = is1HrWorkFlow(flow);
   const themeBg = isEveryday && activeCatMeta
@@ -320,37 +353,6 @@ export default function FlowPage() {
     .map((id) => quickLabels.find((l) => l.id === id))
     .filter(Boolean);
   const suggestions = is1HrFlow ? get1HrTaskSuggestions(flow) : [];
-
-  const previousStepDates = useMemo(() => {
-    if (lastAddedDates && (lastAddedDates.startDate || lastAddedDates.endDate)) {
-      return lastAddedDates;
-    }
-    const catSteps = steps.filter((s) => stepCategoryId(s, flow) === activeCat);
-    const withDatesInCat = [...catSteps].reverse().find((s) => s.startDate || s.endDate);
-    if (withDatesInCat) {
-      return { startDate: withDatesInCat.startDate || "", endDate: withDatesInCat.endDate || "" };
-    }
-    const anyWithDates = [...steps].reverse().find((s) => s.startDate || s.endDate);
-    if (anyWithDates) {
-      return { startDate: anyWithDates.startDate || "", endDate: anyWithDates.endDate || "" };
-    }
-    if (flow?.startDate || flow?.endDate) {
-      return { startDate: flow.startDate || "", endDate: flow.endDate || "" };
-    }
-    return null;
-  }, [lastAddedDates, steps, flow, activeCat]);
-
-  useEffect(() => {
-    if (!editing) {
-      setSelectedStepIds(new Set());
-      setBatchFeedback("");
-    }
-  }, [editing]);
-
-  useEffect(() => {
-    setSelectedStepIds(new Set());
-    setBatchFeedback("");
-  }, [activeCat]);
 
   function toggleSelectAll() {
     if (selectedStepIds.size === visibleSteps.length && visibleSteps.length > 0) {
