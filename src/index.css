@@ -4383,6 +4383,105 @@ button:disabled { cursor: not-allowed; opacity: .62; }
   line-height: 1.3;
 }
 
+.mood-step1-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--primary, #d97706) 6%, #fff);
+  border: 1.5px dashed color-mix(in srgb, var(--primary, #d97706) 30%, var(--hairline));
+  border-radius: 12px;
+  font-size: 12.5px;
+  transition: all .2s ease;
+}
+.mood-step1-prompt strong {
+  display: block;
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.mood-step1-prompt p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.mood-step1-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary, #d97706) 15%, transparent);
+  color: var(--primary, #d97706);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mood-step1-prompt.is-error {
+  background: #fef2f2;
+  border-color: #ef4444;
+  animation: moodShake 0.4s ease;
+}
+.mood-step1-prompt.is-error .mood-step1-icon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+@keyframes moodShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.mood-selection-alert {
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mood-btn-prompt {
+  background: #292524 !important;
+  color: #ffffff !important;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease;
+}
+.mood-btn-prompt:hover {
+  background: #1c1917 !important;
+  transform: translateY(-1px);
+}
+
+.mood-card-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  background: #111827;
+  color: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.mood-showcase-picked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: #166534;
+  color: #ffffff;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
 .mood-entry-form {
   display: flex;
   flex-direction: column;

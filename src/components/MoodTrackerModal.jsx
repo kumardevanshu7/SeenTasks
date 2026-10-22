@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -32,6 +32,8 @@ export default function MoodTrackerModal({ open, onClose }) {
   const [note, setNote] = useState(todayEntry?.note || "");
   const [isEditing, setIsEditing] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [selectionError, setSelectionError] = useState(false);
+  const libraryRef = useRef(null);
 
   const [countdown, setCountdown] = useState(() => getMoodWindowCountdown());
 
@@ -55,7 +57,13 @@ export default function MoodTrackerModal({ open, onClose }) {
   const todaySavedMood = MOOD_EXPRESSIONS.find((m) => m.id === todayEntry?.moodId);
 
   function handleSave() {
-    if (!selectedMoodId) return;
+    if (!isWindowOpen) return;
+    if (!selectedMoodId) {
+      setSelectionError(true);
+      libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    setSelectionError(false);
     const saveDate = todayKey();
     recordDailyMood(saveDate, selectedMoodId, note);
     setSavedSuccess(true);
@@ -213,7 +221,7 @@ export default function MoodTrackerModal({ open, onClose }) {
           {(!isLoggedToday || isEditing) && (
             <>
               {/* Selected mood preview with Kab choose karein & Real Scene */}
-              {activeMood && (
+              {activeMood ? (
                 <div
                   className="mood-active-showcase"
                   style={{
@@ -226,6 +234,9 @@ export default function MoodTrackerModal({ open, onClose }) {
                       <div className="mood-showcase-head">
                         <h3>{activeMood.label}</h3>
                         <span className="mood-showcase-tag">{activeMood.vibeTag}</span>
+                        <span className="mood-showcase-picked-badge">
+                          <Check size={11} strokeWidth={3} /> Selected
+                        </span>
                       </div>
                       <p className="mood-showcase-meaning">{activeMood.meaning}</p>
                     </div>
@@ -248,19 +259,48 @@ export default function MoodTrackerModal({ open, onClose }) {
                     </div>
                   )}
                 </div>
+              ) : (
+                <div className={`mood-step1-prompt${selectionError ? " is-error" : ""}`}>
+                  <div className="mood-step1-icon">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <strong>Step 1: Choose Today's Expression</strong>
+                    <p>Tap any mood card from the library below that matches how today went for you.</p>
+                  </div>
+                </div>
               )}
 
               {/* Note input & Save Button */}
               <div className="mood-entry-form">
-                <label htmlFor="mood-thought">One-line thought / highlight (optional):</label>
+                <label htmlFor="mood-thought">
+                  {selectedMoodId ? "Step 2: " : ""}One-line thought / highlight (optional):
+                </label>
                 <input
                   id="mood-thought"
                   className="text-input mood-note-input"
                   placeholder="e.g. Cleared 4 flows, felt invincible today!"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSave();
+                    }
+                  }}
                   maxLength={140}
                 />
+
+                {selectionError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mood-selection-alert"
+                  >
+                    <span>⚠️ Pehle neeche Expression Library mein se koi mood card select karein!</span>
+                  </motion.div>
+                )}
+
                 <div className="mood-form-actions">
                   {isEditing && (
                     <button
@@ -273,8 +313,8 @@ export default function MoodTrackerModal({ open, onClose }) {
                   )}
                   <button
                     type="button"
-                    className="button button-primary mood-lock-btn"
-                    disabled={!selectedMoodId || !isWindowOpen}
+                    className={`button button-primary mood-lock-btn${!selectedMoodId && isWindowOpen ? " mood-btn-prompt" : ""}`}
+                    disabled={!isWindowOpen}
                     onClick={handleSave}
                     title={!isWindowOpen ? "Window opens strictly at 10:00 PM" : undefined}
                   >
@@ -286,20 +326,24 @@ export default function MoodTrackerModal({ open, onClose }) {
                       <>
                         <Lock size={14} /> Opens at 10:00 PM
                       </>
+                    ) : !selectedMoodId ? (
+                      <>
+                        <Sparkles size={15} /> Select an Expression Below to Confirm
+                      </>
                     ) : isLoggedToday ? (
-                      "Update Today's Mood"
+                      `Update Today's Mood (${activeMood?.label})`
                     ) : (
-                      "Confirm Today's Mood"
+                      `Confirm Today's Mood (${activeMood?.label})`
                     )}
                   </button>
                 </div>
               </div>
 
               {/* Expression Library Grid */}
-              <div className="mood-lib-section">
+              <div className="mood-lib-section" ref={libraryRef}>
                 <div className="mood-lib-head">
                   <h3>Expression Library ({MOOD_EXPRESSIONS.length})</h3>
-                  <span>Tap any mood to preview its scene and select</span>
+                  <span>{selectedMoodId ? "Tap another card to switch" : "Tap any mood to preview its scene and select"}</span>
                 </div>
 
                 <div className="mood-grid">
@@ -309,14 +353,23 @@ export default function MoodTrackerModal({ open, onClose }) {
                       <article
                         key={expr.id}
                         className={`mood-card${selected ? " is-selected" : ""}`}
-                        onClick={() => setSelectedMoodId(expr.id)}
+                        onClick={() => {
+                          setSelectedMoodId(expr.id);
+                          setSelectionError(false);
+                        }}
                         style={{
                           "--expr-bg": expr.color,
                         }}
                       >
                         <div className="mood-card-top">
                           <MoodIcon moodId={expr.id} size={20} interactive={true} />
-                          <span className="mood-tag">{expr.vibeTag}</span>
+                          {selected ? (
+                            <span className="mood-card-selected-badge">
+                              <Check size={11} strokeWidth={3} /> Selected
+                            </span>
+                          ) : (
+                            <span className="mood-tag">{expr.vibeTag}</span>
+                          )}
                         </div>
                         <strong className="mood-title">{expr.label}</strong>
                         <p className="mood-meaning">{expr.meaning}</p>
