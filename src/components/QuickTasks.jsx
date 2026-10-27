@@ -1302,7 +1302,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                 type="button"
                 className="quick-head-tool-btn"
                 onClick={() => setMoodModalOpen(true)}
-                title="Daily Mood & Expression Reflection (Open 10:00 PM – 11:59 PM)"
+                title="Daily Mood & Expression Reflection (Open 7:00 PM – 11:59 PM)"
               >
                 <Moon size={14} />
                 <span>Nightly mood</span>
