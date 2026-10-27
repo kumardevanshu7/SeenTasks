@@ -1135,16 +1135,27 @@ p, h1, h2, h3, h4 { margin: 0; }
   background: var(--canvas);
   border: 1px solid var(--hairline);
   border-radius: 6px;
-  padding: 4px 8px;
-  margin: -4px -8px;
+  padding: 6px 10px;
+  margin: 2px 0 4px;
   outline: none;
   width: 100%;
-  max-width: 460px;
+  max-width: 100%;
+  box-sizing: border-box;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .flow-step-title-input:focus {
   border-color: var(--primary);
+  background: #ffffff;
   box-shadow: 0 0 0 2px rgba(204, 120, 92, 0.15);
+}
+.flow-step.is-editing .flow-step-body {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.flow-step.is-editing .flow-step-main {
+  width: 100%;
+  min-width: 100%;
 }
 .flow-step.is-done .flow-step-title { color: var(--muted-soft); text-decoration: line-through; font-weight: 500; }
 .flow-step.is-locked .flow-step-title { color: var(--muted-soft); }
@@ -1271,17 +1282,26 @@ p, h1, h2, h3, h4 { margin: 0; }
 }
 
 .flow-step-edit {
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
+  justify-content: space-between;
   gap: 8px;
+  width: 100%;
+  padding-top: 2px;
 }
 .flow-step-dates {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
-  width: 100%;
+  flex: 1;
+}
+.flow-step-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
 }
 .flow-step-dates label {
   display: flex;

@@ -671,7 +671,7 @@ export default function FlowPage() {
     return (
       <li
         key={step.id}
-        className={`flow-step${step.done && onToday ? " is-done" : ""}${isActive ? " is-active" : ""}${locked ? " is-locked" : ""}${scheduled ? " is-scheduled" : ""}${isArchived ? " is-archived" : ""}${isSelected ? " is-selected" : ""}`}
+        className={`flow-step${step.done && onToday ? " is-done" : ""}${isActive ? " is-active" : ""}${locked ? " is-locked" : ""}${scheduled ? " is-scheduled" : ""}${isArchived ? " is-archived" : ""}${isSelected ? " is-selected" : ""}${editing ? " is-editing" : ""}`}
         style={{
           "--step-bg": stepBg,
           "--step-ink": stepInk,
@@ -974,42 +974,44 @@ export default function FlowPage() {
                   })()}
                 </div>
               )}
-              {!isArchived && (
-                <>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    disabled={visIndex === 0}
-                    onClick={() =>
-                      reorderFlowSteps(flow.id, visIndex, visIndex - 1, isEveryday ? activeCat : null)
-                    }
-                    aria-label="Move up"
-                  >
-                    <ArrowUp size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    disabled={visIndex === activeVisibleSteps.length - 1}
-                    onClick={() =>
-                      reorderFlowSteps(flow.id, visIndex, visIndex + 1, isEveryday ? activeCat : null)
-                    }
-                    aria-label="Move down"
-                  >
-                    <ArrowDown size={14} />
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                className="icon-button icon-button-danger"
-                onClick={() =>
-                  setGate({ type: "delete-step", stepId: step.id, title: step.title })
-                }
-                aria-label="Delete step"
-              >
-                <Trash2 size={14} />
-              </button>
+              <div className="flow-step-edit-actions">
+                {!isArchived && (
+                  <>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      disabled={visIndex === 0}
+                      onClick={() =>
+                        reorderFlowSteps(flow.id, visIndex, visIndex - 1, isEveryday ? activeCat : null)
+                      }
+                      aria-label="Move up"
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      disabled={visIndex === activeVisibleSteps.length - 1}
+                      onClick={() =>
+                        reorderFlowSteps(flow.id, visIndex, visIndex + 1, isEveryday ? activeCat : null)
+                      }
+                      aria-label="Move down"
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="icon-button icon-button-danger"
+                  onClick={() =>
+                    setGate({ type: "delete-step", stepId: step.id, title: step.title })
+                  }
+                  aria-label="Delete step"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           )}
         </div>
