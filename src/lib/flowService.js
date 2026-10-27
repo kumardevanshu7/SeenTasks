@@ -9,7 +9,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { addDaysToKey, todayKey } from "./date";
+import { addDaysToKey, daysBetween, todayKey } from "./date";
 import {
   calculateStepGrading,
   gradeFromScore,
@@ -245,6 +245,7 @@ export function stepCategoryId(step, flow) {
 }
 
 export function normalizeFlowStep(data = {}, index = 0) {
+  const gap = Number(data.gapDays);
   return {
     id: data.id || `step-${index}`,
     title: (data.title || "").trim() || `Step ${index + 1}`,
@@ -252,6 +253,7 @@ export function normalizeFlowStep(data = {}, index = 0) {
     completedAt: data.completedAt || null,
     startDate: isValidDateKey(data.startDate) ? data.startDate : null,
     endDate: isValidDateKey(data.endDate) ? data.endDate : null,
+    gapDays: Number.isFinite(gap) && gap > 0 ? Math.min(30, Math.max(0, Math.round(gap))) : null,
     categoryId: data.categoryId || DEFAULT_FLOW_CATEGORY_ID,
     dateKey: isValidDateKey(data.dateKey) ? data.dateKey : null,
     isMandatory: Boolean(data.isMandatory || data.mandatory || data.starred),
@@ -351,11 +353,65 @@ export function isEverydayActive(flow, day = null) {
   return true;
 }
 
-/** Step counts for this day: optional startDate ≤ day ≤ optional endDate. */
+/** Returns friendly label for repeat interval / gap. */
+export function getStepCadenceLabel(gapDays) {
+  const g = Number(gapDays) || 0;
+  if (g <= 0) return "Daily";
+  if (g === 1) return "Alternate (1d gap)";
+  if (g === 2) return "Every 3 days (2d gap)";
+  if (g === 3) return "Every 4 days (3d gap)";
+  if (g === 4) return "Every 5 days (4d gap)";
+  if (g === 6) return "Weekly (6d gap)";
+  return `Every ${g + 1} days (${g}d gap)`;
+}
+
+/** Returns the next dateKey when this step will be active. */
+export function getStepNextActiveDay(step, day = null) {
+  const d = day || todayKey();
+  const gap = Number(step?.gapDays) || 0;
+  const start = step?.startDate && isValidDateKey(step.startDate) ? step.startDate : null;
+  const end = step?.endDate && isValidDateKey(step.endDate) ? step.endDate : null;
+
+  if (gap <= 0) {
+    if (start && start > d) return start;
+    if (end && end < d) return null;
+    return d;
+  }
+
+  const anchor = start || (step?.dateKey && isValidDateKey(step.dateKey) ? step.dateKey : d);
+  if (d < anchor) return anchor;
+
+  const interval = gap + 1;
+  const diff = daysBetween(anchor, d);
+  const remainder = diff % interval;
+  const nextKey = remainder === 0 ? d : addDaysToKey(d, interval - remainder);
+  if (end && nextKey > end) return null;
+  return nextKey;
+}
+
+/** Step counts for this day: optional startDate ≤ day ≤ optional endDate and satisfies optional gapDays. */
 export function isFlowStepActiveOnDay(step, day = null) {
   const d = day || todayKey();
   if (step?.startDate && isValidDateKey(step.startDate) && step.startDate > d) return false;
   if (step?.endDate && isValidDateKey(step.endDate) && step.endDate < d) return false;
+
+  const gap = Number(step?.gapDays) || 0;
+  if (gap > 0) {
+    const anchor = step?.startDate && isValidDateKey(step.startDate)
+      ? step.startDate
+      : step?.dateKey && isValidDateKey(step.dateKey)
+        ? step.dateKey
+        : null;
+    if (anchor) {
+      if (d < anchor) return false;
+      const interval = gap + 1;
+      const diff = daysBetween(anchor, d);
+      if (diff % interval !== 0) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -798,17 +854,21 @@ export async function upsertFollowFlow(uid, flow) {
     {
       name: flow.name || "Flow",
       color: flowColorValue(flow.color),
-      steps: (flow.steps || []).map((s, i) => ({
-        id: s.id || `step-${i}`,
-        title: s.title || `Step ${i + 1}`,
-        done: Boolean(s.done),
-        completedAt: s.completedAt || null,
-        startDate: isValidDateKey(s.startDate) ? s.startDate : null,
-        endDate: isValidDateKey(s.endDate) ? s.endDate : null,
-        categoryId: s.categoryId || DEFAULT_FLOW_CATEGORY_ID,
-        dateKey: isValidDateKey(s.dateKey) ? s.dateKey : (is1HrWorkFlow(flow) ? todayKey() : null),
-        isMandatory: Boolean(s.isMandatory || s.mandatory || s.starred),
-      })),
+      steps: (flow.steps || []).map((s, i) => {
+        const gap = Number(s.gapDays);
+        return {
+          id: s.id || `step-${i}`,
+          title: s.title || `Step ${i + 1}`,
+          done: Boolean(s.done),
+          completedAt: s.completedAt || null,
+          startDate: isValidDateKey(s.startDate) ? s.startDate : null,
+          endDate: isValidDateKey(s.endDate) ? s.endDate : null,
+          gapDays: Number.isFinite(gap) && gap > 0 ? Math.min(30, Math.max(0, Math.round(gap))) : null,
+          categoryId: s.categoryId || DEFAULT_FLOW_CATEGORY_ID,
+          dateKey: isValidDateKey(s.dateKey) ? s.dateKey : (is1HrWorkFlow(flow) ? todayKey() : null),
+          isMandatory: Boolean(s.isMandatory || s.mandatory || s.starred),
+        };
+      }),
       categories: flowCategories(flow).map((c, i) => ({
         id: c.id || `cat-${i}`,
         name: c.name || `Category ${i + 1}`,

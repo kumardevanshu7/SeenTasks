@@ -1051,6 +1051,8 @@ export const useTaskStore = create(
           typeof opts.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.endDate)
             ? opts.endDate
             : null;
+        const gap = Number(opts.gapDays);
+        const gapDays = Number.isFinite(gap) && gap > 0 ? Math.min(30, Math.max(0, Math.round(gap))) : null;
         const day = todayKey();
         const step = {
           id: uuid(),
@@ -1059,6 +1061,7 @@ export const useTaskStore = create(
           completedAt: null,
           startDate,
           endDate,
+          gapDays,
           categoryId: null,
           dateKey: day,
           isMandatory: Boolean(opts.isMandatory || opts.mandatory || opts.starred),
@@ -1140,6 +1143,10 @@ export const useTaskStore = create(
                 updates.endDate =
                   typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
               }
+              if (Object.prototype.hasOwnProperty.call(patch, "gapDays")) {
+                const g = Number(patch.gapDays);
+                updates.gapDays = Number.isFinite(g) && g > 0 ? Math.min(30, Math.max(0, Math.round(g))) : null;
+              }
               if (Object.prototype.hasOwnProperty.call(patch, "isMandatory")) {
                 updates.isMandatory = Boolean(patch.isMandatory);
               }
@@ -1201,7 +1208,7 @@ export const useTaskStore = create(
         return next;
       },
 
-      batchUpdateFlowStepsDates: (flowId, stepIds = [], { startDate, endDate }) => {
+      batchUpdateFlowStepsDates: (flowId, stepIds = [], { startDate, endDate, gapDays }) => {
         if (!flowId || !Array.isArray(stepIds) || stepIds.length === 0) return null;
         const idSet = new Set(stepIds);
         let next = null;
@@ -1218,6 +1225,10 @@ export const useTaskStore = create(
               if (endDate !== undefined) {
                 updates.endDate =
                   typeof endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : null;
+              }
+              if (gapDays !== undefined) {
+                const g = Number(gapDays);
+                updates.gapDays = Number.isFinite(g) && g > 0 ? Math.min(30, Math.max(0, Math.round(g))) : null;
               }
               return { ...st, ...updates };
             });

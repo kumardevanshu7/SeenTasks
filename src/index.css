@@ -1322,6 +1322,47 @@ p, h1, h2, h3, h4 { margin: 0; }
   font-weight: 500;
   opacity: 0.85;
 }
+.flow-step-gap-select,
+.flow-add-gap-select {
+  min-width: 145px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--hairline, #e2e8f0);
+  border-radius: 6px;
+  color: var(--ink, #0f172a);
+  cursor: pointer;
+}
+.flow-bulk-gap-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid var(--hairline, #e2e8f0);
+  cursor: pointer;
+}
+.flow-step-gap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  line-height: 1.2;
+}
+.flow-step-gap-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-style: italic;
+}
 .flow-winner-banner {
   display: flex;
   align-items: center;

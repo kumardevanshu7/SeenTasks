@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, Archive, Calendar, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, RotateCcw, Sparkles, Star, Timer, Trash2, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Archive, Calendar, Check, CheckCircle2, ChevronDown, Lock, Pause, Pencil, Play, Plus, Repeat, RotateCcw, Sparkles, Star, Timer, Trash2, Trophy, X } from "lucide-react";
 import OnePasswordGate from "../components/OnePasswordGate";
 import { useTaskStore } from "../store/useTaskStore";
-import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, isStepMandatory, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
+import { FLOW_COLORS, flowCategories, flowColorInk, flowColorValue, flowProgress, flowProgressInCategory, get1HrTaskSuggestions, getStepCadenceLabel, getStepNextActiveDay, is1HrWorkCategory, is1HrWorkFlow, isEverydayActive, isFlowStepActiveOnDay, isFlowStepUnlocked, isStepMandatory, nextFlowCategoryColor, pruneDuplicate1HrFlows, stepCategoryId } from "../lib/flowService";
 import { labelColorInk } from "../lib/quickTaskService";
 import { calculateDayCount, daysBetween, formatFriendly, todayKey, toKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
@@ -114,13 +114,15 @@ function EverydayMiniCalendar({ flow }) {
 }
 
 function getStepDurationInfo(step, day) {
-  if (!step?.startDate && !step?.endDate) return null;
+  if (!step?.startDate && !step?.endDate && !step?.gapDays) return null;
+  const cadence = step?.gapDays > 0 ? getStepCadenceLabel(step.gapDays) : null;
 
   if (step.startDate && step.endDate) {
     const totalDays = calculateDayCount(step.startDate, step.endDate);
     if (!totalDays) return null;
 
-    const label = totalDays === 1 ? "1 day total" : `${totalDays} days total`;
+    const baseLabel = totalDays === 1 ? "1 day total" : `${totalDays} days total`;
+    const label = cadence ? `${baseLabel} · ${cadence}` : baseLabel;
     let sub = null;
     if (day >= step.startDate && day <= step.endDate) {
       const elapsed = daysBetween(step.startDate, day) + 1;
@@ -130,25 +132,37 @@ function getStepDurationInfo(step, day) {
     return {
       label,
       sub,
-      tooltip: `${formatFriendly(step.startDate)} – ${formatFriendly(step.endDate)} (${label})`,
+      tooltip: `${formatFriendly(step.startDate)} – ${formatFriendly(step.endDate)} (${baseLabel})${cadence ? ` · ${cadence}` : ""}`,
     };
   }
 
   if (step.startDate && step.startDate <= day) {
     const elapsed = daysBetween(step.startDate, day) + 1;
+    const baseLabel = `${elapsed} days active`;
+    const label = cadence ? `${baseLabel} · ${cadence}` : baseLabel;
     return {
-      label: `${elapsed} days active`,
+      label,
       sub: null,
-      tooltip: `Started ${formatFriendly(step.startDate)}`,
+      tooltip: `Started ${formatFriendly(step.startDate)}${cadence ? ` · ${cadence}` : ""}`,
     };
   }
 
   if (step.endDate && step.endDate >= day) {
     const daysLeft = daysBetween(day, step.endDate);
+    const baseLabel = `${daysLeft} days left`;
+    const label = cadence ? `${baseLabel} · ${cadence}` : baseLabel;
     return {
-      label: `${daysLeft} days left`,
+      label,
       sub: null,
-      tooltip: `Until ${formatFriendly(step.endDate)}`,
+      tooltip: `Until ${formatFriendly(step.endDate)}${cadence ? ` · ${cadence}` : ""}`,
+    };
+  }
+
+  if (cadence) {
+    return {
+      label: cadence,
+      sub: null,
+      tooltip: `Repeats: ${cadence}`,
     };
   }
 
@@ -186,6 +200,7 @@ export default function FlowPage() {
   const [draft, setDraft] = useState("");
   const [startDraft, setStartDraft] = useState("");
   const [endStepDraft, setEndStepDraft] = useState("");
+  const [gapDraft, setGapDraft] = useState(0);
   const [mandatoryDraft, setMandatoryDraft] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [startFlowDraft, setStartFlowDraft] = useState("");
@@ -199,6 +214,7 @@ export default function FlowPage() {
   const [selectedStepIds, setSelectedStepIds] = useState(() => new Set());
   const [batchStartDate, setBatchStartDate] = useState("");
   const [batchEndDate, setBatchEndDate] = useState("");
+  const [batchGapDays, setBatchGapDays] = useState("");
   const [batchFeedback, setBatchFeedback] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [lastAddedDates, setLastAddedDates] = useState(null);
@@ -266,21 +282,29 @@ export default function FlowPage() {
     : categories[0]?.id || null;
 
   const previousStepDates = useMemo(() => {
-    if (lastAddedDates && (lastAddedDates.startDate || lastAddedDates.endDate)) {
+    if (lastAddedDates && (lastAddedDates.startDate || lastAddedDates.endDate || lastAddedDates.gapDays)) {
       return lastAddedDates;
     }
     const flowSteps = flow?.steps || [];
     const catSteps = flowSteps.filter((s) => stepCategoryId(s, flow) === activeCat);
-    const withDatesInCat = [...catSteps].reverse().find((s) => s.startDate || s.endDate);
+    const withDatesInCat = [...catSteps].reverse().find((s) => s.startDate || s.endDate || s.gapDays);
     if (withDatesInCat) {
-      return { startDate: withDatesInCat.startDate || "", endDate: withDatesInCat.endDate || "" };
+      return {
+        startDate: withDatesInCat.startDate || "",
+        endDate: withDatesInCat.endDate || "",
+        gapDays: withDatesInCat.gapDays || 0,
+      };
     }
-    const anyWithDates = [...flowSteps].reverse().find((s) => s.startDate || s.endDate);
+    const anyWithDates = [...flowSteps].reverse().find((s) => s.startDate || s.endDate || s.gapDays);
     if (anyWithDates) {
-      return { startDate: anyWithDates.startDate || "", endDate: anyWithDates.endDate || "" };
+      return {
+        startDate: anyWithDates.startDate || "",
+        endDate: anyWithDates.endDate || "",
+        gapDays: anyWithDates.gapDays || 0,
+      };
     }
     if (flow?.startDate || flow?.endDate) {
-      return { startDate: flow.startDate || "", endDate: flow.endDate || "" };
+      return { startDate: flow.startDate || "", endDate: flow.endDate || "", gapDays: 0 };
     }
     return null;
   }, [lastAddedDates, flow, activeCat]);
@@ -373,11 +397,18 @@ export default function FlowPage() {
 
   function handleApplyBatchDates() {
     if (selectedStepIds.size === 0) return;
-    if (!batchStartDate && !batchEndDate) return;
-    batchUpdateFlowStepsDates(flow.id, Array.from(selectedStepIds), {
-      startDate: batchStartDate || undefined,
-      endDate: batchEndDate || undefined,
-    });
+    if (!batchStartDate && !batchEndDate && batchGapDays === "") return;
+    const updates = {};
+    if (batchStartDate) updates.startDate = batchStartDate;
+    if (batchEndDate) updates.endDate = batchEndDate;
+    if (batchGapDays !== "") {
+      const g = Number(batchGapDays);
+      updates.gapDays = g > 0 ? g : null;
+      if (g > 0 && !batchStartDate) {
+        updates.startDate = todayKey();
+      }
+    }
+    batchUpdateFlowStepsDates(flow.id, Array.from(selectedStepIds), updates);
     if (soundEnabled) playTickSound();
     setBatchFeedback(`Updated ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}!`);
     setTimeout(() => setBatchFeedback(""), 3500);
@@ -388,9 +419,10 @@ export default function FlowPage() {
     batchUpdateFlowStepsDates(flow.id, Array.from(selectedStepIds), {
       startDate: null,
       endDate: null,
+      gapDays: null,
     });
     if (soundEnabled) playTickSound();
-    setBatchFeedback(`Cleared dates for ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}`);
+    setBatchFeedback(`Cleared dates & cadence for ${selectedStepIds.size} ${selectedStepIds.size === 1 ? "step" : "steps"}`);
     setTimeout(() => setBatchFeedback(""), 3500);
   }
 
@@ -411,19 +443,22 @@ export default function FlowPage() {
     if (isArchivedTab) return;
     const sDate = isEveryday && startDraft ? startDraft : null;
     const eDate = isEveryday && endStepDraft ? endStepDraft : null;
+    const gap = isEveryday && gapDraft > 0 ? gapDraft : null;
     const added = addFlowStep(flow.id, draft, {
-      startDate: sDate,
+      startDate: sDate || (gap ? todayKey() : null),
       endDate: eDate,
+      gapDays: gap,
       categoryId: isEveryday ? activeCat : null,
       isMandatory: isEveryday ? mandatoryDraft : false,
     });
     if (added) {
-      if (sDate || eDate) {
-        setLastAddedDates({ startDate: sDate, endDate: eDate });
+      if (sDate || eDate || gap) {
+        setLastAddedDates({ startDate: sDate || (gap ? todayKey() : null), endDate: eDate, gapDays: gap });
       }
       setDraft("");
       setStartDraft("");
       setEndStepDraft("");
+      setGapDraft(0);
       setMandatoryDraft(false);
     }
   }
@@ -438,6 +473,15 @@ export default function FlowPage() {
       return `Ended ${formatFriendly(step.endDate)}`;
     }
     const bits = [];
+    if (step.gapDays && Number(step.gapDays) > 0) {
+      const isActiveToday = isFlowStepActiveOnDay(step, day);
+      const nextActive = getStepNextActiveDay(step, day);
+      if (!isActiveToday && nextActive) {
+        bits.push(`Gap day · Next: ${formatFriendly(nextActive)}`);
+      } else {
+        bits.push(getStepCadenceLabel(step.gapDays));
+      }
+    }
     if (step.startDate && step.endDate) {
       const totalDays = calculateDayCount(step.startDate, step.endDate);
       if (totalDays) {
@@ -737,6 +781,15 @@ export default function FlowPage() {
                   {isStepMandatory(step) && <span>Mandatory</span>}
                 </button>
               )}
+              {isEveryday && !isArchived && step.gapDays > 0 && (
+                <span
+                  className="flow-step-gap-badge"
+                  title={`Repeats ${getStepCadenceLabel(step.gapDays)}`}
+                >
+                  <Repeat size={10} />
+                  <span>{step.gapDays === 1 ? "Alternate" : `${step.gapDays}d gap`}</span>
+                </span>
+              )}
             </div>
             {editing ? (
               <input
@@ -775,7 +828,13 @@ export default function FlowPage() {
                   )}
                 </>
               ) : scheduled ? (
-                windowLabel || "Not today"
+                step.gapDays > 0 ? (
+                  <span className="flow-step-gap-hint">
+                    Gap day (Next: {formatFriendly(getStepNextActiveDay(step, day))})
+                  </span>
+                ) : (
+                  windowLabel || "Not today"
+                )
               ) : step.done ? (
                 "Done"
               ) : locked ? (
@@ -873,6 +932,29 @@ export default function FlowPage() {
                       }}
                       aria-label={`End date for ${step.title}`}
                     />
+                  </label>
+                  <label className="flow-step-gap-label">
+                    Repeat
+                    <select
+                      className="text-input flow-step-gap-select"
+                      value={step.gapDays ?? 0}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const patch = { gapDays: val > 0 ? val : null };
+                        if (val > 0 && !step.startDate) {
+                          patch.startDate = todayKey();
+                        }
+                        updateFlowStep(flow.id, step.id, patch);
+                      }}
+                      aria-label={`Repeat cadence for ${step.title}`}
+                    >
+                      <option value={0}>Daily (Every day)</option>
+                      <option value={1}>Alternate (1 day gap)</option>
+                      <option value={2}>Every 3 days (2 days gap)</option>
+                      <option value={3}>Every 4 days (3 days gap)</option>
+                      <option value={4}>Every 5 days (4 days gap)</option>
+                      <option value={6}>Weekly (6 days gap)</option>
+                    </select>
                   </label>
                   {(() => {
                     const durationInfo = getStepDurationInfo(step, day);
@@ -1493,10 +1575,27 @@ export default function FlowPage() {
                 aria-label="Batch end date"
               />
             </label>
+            <label className="flow-bulk-input-group">
+              <span>Repeat</span>
+              <select
+                className="text-input text-input-sm flow-bulk-gap-select"
+                value={batchGapDays}
+                onChange={(e) => setBatchGapDays(e.target.value)}
+                aria-label="Batch repeat cadence"
+              >
+                <option value="">Keep current</option>
+                <option value="0">Daily (Every day)</option>
+                <option value="1">Alternate (1 day gap)</option>
+                <option value="2">Every 3 days (2 days gap)</option>
+                <option value="3">Every 4 days (3 days gap)</option>
+                <option value="4">Every 5 days (4 days gap)</option>
+                <option value="6">Weekly (6 days gap)</option>
+              </select>
+            </label>
             <button
               type="button"
               className="button button-sm button-primary"
-              disabled={selectedStepIds.size === 0 || (!batchStartDate && !batchEndDate)}
+              disabled={selectedStepIds.size === 0 || (!batchStartDate && !batchEndDate && batchGapDays === "")}
               onClick={handleApplyBatchDates}
             >
               Apply to {selectedStepIds.size ? `${selectedStepIds.size} selected` : "selected"}
@@ -1506,7 +1605,7 @@ export default function FlowPage() {
               className="button button-sm button-secondary"
               disabled={selectedStepIds.size === 0}
               onClick={handleClearBatchDates}
-              title="Remove dates from selected steps"
+              title="Remove dates & cadence from selected steps"
             >
               Clear dates
             </button>
@@ -1681,6 +1780,29 @@ export default function FlowPage() {
                 />
               </label>
 
+              <label className="flow-add-gap-label">
+                Repeat
+                <select
+                  className="text-input flow-add-gap-select"
+                  value={gapDraft}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setGapDraft(val);
+                    if (val > 0 && !startDraft) {
+                      setStartDraft(todayKey());
+                    }
+                  }}
+                  aria-label="Step repeat cadence"
+                >
+                  <option value={0}>Daily (Every day)</option>
+                  <option value={1}>Alternate (1 day gap)</option>
+                  <option value={2}>Every 3 days (2 days gap)</option>
+                  <option value={3}>Every 4 days (3 days gap)</option>
+                  <option value={4}>Every 5 days (4 days gap)</option>
+                  <option value={6}>Weekly (6 days gap)</option>
+                </select>
+              </label>
+
               <button
                 type="button"
                 className={`flow-mandatory-toggle-btn${mandatoryDraft ? " is-active" : ""}`}
@@ -1709,12 +1831,15 @@ export default function FlowPage() {
                   onClick={() => {
                     setStartDraft(previousStepDates.startDate || "");
                     setEndStepDraft(previousStepDates.endDate || "");
+                    setGapDraft(previousStepDates.gapDays || 0);
                     if (soundEnabled) playTickSound();
                   }}
                   title={
                     previousStepDates.startDate && previousStepDates.endDate
-                      ? `Apply: ${formatFriendly(previousStepDates.startDate)} – ${formatFriendly(previousStepDates.endDate)}`
-                      : "Apply previous task dates"
+                      ? `Apply: ${formatFriendly(previousStepDates.startDate)} – ${formatFriendly(previousStepDates.endDate)}${previousStepDates.gapDays > 0 ? ` (${getStepCadenceLabel(previousStepDates.gapDays)})` : ""}`
+                      : previousStepDates.gapDays > 0
+                        ? `Apply: ${getStepCadenceLabel(previousStepDates.gapDays)}`
+                        : "Apply previous task dates"
                   }
                 >
                   <RotateCcw size={12} />
@@ -1722,15 +1847,16 @@ export default function FlowPage() {
                 </button>
               )}
 
-              {(startDraft || endStepDraft) && (
+              {(startDraft || endStepDraft || gapDraft > 0) && (
                 <button
                   type="button"
                   className="flow-clear-dates-btn"
                   onClick={() => {
                     setStartDraft("");
                     setEndStepDraft("");
+                    setGapDraft(0);
                   }}
-                  title="Clear dates"
+                  title="Clear dates & cadence"
                 >
                   Clear
                 </button>
