@@ -1202,6 +1202,64 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
     }
   }
 
+  function handleComposerDescKeyDown(e) {
+    if (e.key === " ") {
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      if (start === end) {
+        const val = textarea.value;
+        const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+        const lineBeforeCursor = val.substring(lineStart, start);
+        if (/^(\s*)([-*])$/.test(lineBeforeCursor)) {
+          e.preventDefault();
+          const match = lineBeforeCursor.match(/^(\s*)([-*])$/);
+          const indent = match[1];
+          const nextVal = val.substring(0, lineStart) + `${indent}• ` + val.substring(start);
+          setDescDraft(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = lineStart + indent.length + 2;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+        }
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      if (start === end) {
+        const val = textarea.value;
+        const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+        let lineEnd = val.indexOf("\n", start);
+        if (lineEnd === -1) lineEnd = val.length;
+        const lineBeforeCursor = val.substring(lineStart, start);
+        const bulletMatch = lineBeforeCursor.match(/^(\s*)(•|[-*])\s+(.*)$/);
+        if (bulletMatch) {
+          e.preventDefault();
+          const indent = bulletMatch[1];
+          const content = bulletMatch[3];
+          if (!content.trim()) {
+            const nextVal = val.substring(0, lineStart) + "\n" + val.substring(lineEnd);
+            setDescDraft(nextVal);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 10);
+          } else {
+            const nextVal = val.substring(0, start) + `\n${indent}• ` + val.substring(start);
+            setDescDraft(nextVal);
+            setTimeout(() => {
+              textarea.focus();
+              const newPos = start + indent.length + 3;
+              textarea.setSelectionRange(newPos, newPos);
+            }, 10);
+          }
+        }
+      }
+    }
+  }
+
   function runDelete(request) {
     if (!request) return;
     if (request.type === "clear") {
@@ -1451,6 +1509,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     placeholder="Add task description or details (optional — what is this, how to do it...)"
                     value={descDraft}
                     onChange={(e) => setDescDraft(e.target.value)}
+                    onKeyDown={handleComposerDescKeyDown}
                     rows={2}
                     aria-label="Task description"
                   />

@@ -39,6 +39,12 @@ import { DEFAULT_WORKSPACE_ID, labelColorInk, workspaceColorInk } from "../lib/q
 import { formatDateTime, formatFriendly, todayKey, toKey, addDaysToKey } from "../lib/date";
 import { playTickSound, triggerConfetti } from "../lib/audioConfetti";
 
+// Transform '• ' bullets to '- ' so CommonMark/GFM markdown renderer produces real <ul><li> in preview
+function prepareMarkdownForRender(raw) {
+  if (!raw) return "";
+  return raw.replace(/^(\s*)•\s+/gm, "$1- ");
+}
+
 export default function TaskDetailPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
@@ -152,15 +158,16 @@ export default function TaskDetailPage() {
       let newLines = [];
 
       if (type === "bullet") {
-        // Check if all non-empty lines already have a bullet
-        const allBulleted = lines.every((l) => !l.trim() || /^\s*[-*+]\s+/.test(l));
+        // Check if all non-empty lines already have the real bullet '• '
+        const allBulletedWithDot = lines.every((l) => !l.trim() || /^\s*•\s+/.test(l));
         newLines = lines.map((line) => {
           if (!line.trim()) return line;
-          if (allBulleted) {
-            return line.replace(/^(\s*)[-*+]\s+/, "$1");
+          if (allBulletedWithDot) {
+            // Toggle off bullet
+            return line.replace(/^(\s*)•\s+/, "$1");
           }
-          // Remove other list markers (numbers, tasks) and prepend bullet
-          return line.replace(/^(\s*)([-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1- ");
+          // Remove dashes (-), asterisks (*), numbers (1.), or checklists (- [ ]) and replace with real bullet •
+          return line.replace(/^(\s*)(•\s+|[-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1• ");
         });
       } else if (type === "number") {
         const allNumbered = lines.every((l) => !l.trim() || /^\s*\d+\.\s+/.test(l));
@@ -170,7 +177,7 @@ export default function TaskDetailPage() {
           if (allNumbered) {
             return line.replace(/^(\s*)\d+\.\s+/, "$1");
           }
-          const clean = line.replace(/^(\s*)([-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, `$1${counter}. `);
+          const clean = line.replace(/^(\s*)(•\s+|[-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, `$1${counter}. `);
           counter += 1;
           return clean;
         });
@@ -181,7 +188,7 @@ export default function TaskDetailPage() {
           if (allTasks) {
             return line.replace(/^(\s*)-\s*\[[ xX]\]\s+/, "$1");
           }
-          return line.replace(/^(\s*)([-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1- [ ] ");
+          return line.replace(/^(\s*)(•\s+|[-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1- [ ] ");
         });
       } else if (type === "quote") {
         const allQuotes = lines.every((l) => !l.trim() || /^\s*>\s*/.test(l));
@@ -190,7 +197,7 @@ export default function TaskDetailPage() {
           if (allQuotes) {
             return line.replace(/^(\s*)>\s*/, "$1");
           }
-          return line.replace(/^(\s*)/, "$1> ");
+          return line.replace(/^(\s*)(•\s+|[-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1> ");
         });
       } else if (type === "h1" || type === "h2" || type === "h3") {
         const hPrefix = type === "h1" ? "# " : type === "h2" ? "## " : "### ";
@@ -318,18 +325,26 @@ export default function TaskDetailPage() {
     }
   }
 
-  // Handle Tab and shortcut keys in description textarea
+  // Smart Notion-style typing (Auto-bullet, auto-continuation on Enter, Tab, Backspace)
   function handleTextareaKeyDown(e) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Shortcuts: Ctrl+B (Bold), Ctrl+I (Italic)
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
       e.preventDefault();
       applyFormatting("bold");
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
       e.preventDefault();
       applyFormatting("italic");
-    } else if (e.key === "Tab") {
+      return;
+    }
+
+    // Tab key: Insert 2 spaces
+    if (e.key === "Tab") {
       e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const val = textarea.value;
@@ -339,6 +354,179 @@ export default function TaskDetailPage() {
         textarea.focus();
         textarea.setSelectionRange(start + 2, start + 2);
       }, 10);
+      return;
+    }
+
+    // Auto-convert typed "- " or "* " to "• " when Space is pressed
+    if (e.key === " ") {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      if (start === end) {
+        const val = textarea.value;
+        const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+        const lineBeforeCursor = val.substring(lineStart, start);
+        // If line is just "-" or "*" (with optional leading whitespace)
+        const match = lineBeforeCursor.match(/^(\s*)([-*])$/);
+        if (match) {
+          e.preventDefault();
+          const indent = match[1];
+          const replacement = `${indent}• `;
+          const nextVal = val.substring(0, lineStart) + replacement + val.substring(start);
+          handleDescChange(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = lineStart + replacement.length;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+          return;
+        }
+      }
+    }
+
+    // Smart Enter key (Auto-continue bullets, numbered lists, checklists, quotes)
+    if (e.key === "Enter" && !e.shiftKey) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      if (start === end) {
+        const val = textarea.value;
+        const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+        let lineEnd = val.indexOf("\n", start);
+        if (lineEnd === -1) lineEnd = val.length;
+        const lineBeforeCursor = val.substring(lineStart, start);
+        const lineAfterCursor = val.substring(start, lineEnd);
+
+        // 1. Bullet list item: • or - or *
+        const bulletMatch = lineBeforeCursor.match(/^(\s*)(•|[-*])\s+(.*)$/);
+        if (bulletMatch) {
+          e.preventDefault();
+          const indent = bulletMatch[1];
+          const content = bulletMatch[3];
+          // If bullet line is empty (user pressed enter on an empty bullet to exit list)
+          if (!content.trim() && !lineAfterCursor.trim()) {
+            const nextVal = val.substring(0, lineStart) + "\n" + val.substring(lineEnd);
+            handleDescChange(nextVal);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 10);
+            return;
+          }
+          // Continue bullet on next line
+          const nextVal = val.substring(0, start) + `\n${indent}• ` + val.substring(start);
+          handleDescChange(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = start + indent.length + 3; // \n + indent + '• '
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+          return;
+        }
+
+        // 2. Numbered list item: 1. 2.
+        const numMatch = lineBeforeCursor.match(/^(\s*)(\d+)\.\s+(.*)$/);
+        if (numMatch) {
+          e.preventDefault();
+          const indent = numMatch[1];
+          const curNum = parseInt(numMatch[2], 10);
+          const content = numMatch[3];
+          if (!content.trim() && !lineAfterCursor.trim()) {
+            // Empty number -> exit list
+            const nextVal = val.substring(0, lineStart) + "\n" + val.substring(lineEnd);
+            handleDescChange(nextVal);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 10);
+            return;
+          }
+          const nextNum = curNum + 1;
+          const nextVal = val.substring(0, start) + `\n${indent}${nextNum}. ` + val.substring(start);
+          handleDescChange(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = start + indent.length + String(nextNum).length + 3;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+          return;
+        }
+
+        // 3. Checklist item: - [ ]
+        const taskMatch = lineBeforeCursor.match(/^(\s*)-\s*\[([ xX]?)\]\s+(.*)$/);
+        if (taskMatch) {
+          e.preventDefault();
+          const indent = taskMatch[1];
+          const content = taskMatch[3];
+          if (!content.trim() && !lineAfterCursor.trim()) {
+            // Empty checklist -> exit
+            const nextVal = val.substring(0, lineStart) + "\n" + val.substring(lineEnd);
+            handleDescChange(nextVal);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 10);
+            return;
+          }
+          const nextVal = val.substring(0, start) + `\n${indent}- [ ] ` + val.substring(start);
+          handleDescChange(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = start + indent.length + 7;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+          return;
+        }
+
+        // 4. Quote item: >
+        const quoteMatch = lineBeforeCursor.match(/^(\s*)>\s*(.*)$/);
+        if (quoteMatch) {
+          e.preventDefault();
+          const indent = quoteMatch[1];
+          const content = quoteMatch[2];
+          if (!content.trim() && !lineAfterCursor.trim()) {
+            // Empty quote -> exit
+            const nextVal = val.substring(0, lineStart) + "\n" + val.substring(lineEnd);
+            handleDescChange(nextVal);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 10);
+            return;
+          }
+          const nextVal = val.substring(0, start) + `\n${indent}> ` + val.substring(start);
+          handleDescChange(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = start + indent.length + 3;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+          return;
+        }
+      }
+    }
+
+    // Smart Backspace: When cursor is directly after '• ' or '- ' on an empty bullet, remove the bullet
+    if (e.key === "Backspace") {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      if (start === end) {
+        const val = textarea.value;
+        const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+        const lineBeforeCursor = val.substring(lineStart, start);
+        // If line is just "• " or "- " (with optional whitespace)
+        const match = lineBeforeCursor.match(/^(\s*)(•|[-*])\s+$/);
+        if (match) {
+          e.preventDefault();
+          const indent = match[1];
+          const nextVal = val.substring(0, lineStart) + indent + val.substring(start);
+          handleDescChange(nextVal);
+          setTimeout(() => {
+            textarea.focus();
+            const newPos = lineStart + indent.length;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 10);
+          return;
+        }
+      }
     }
   }
 
@@ -987,7 +1175,7 @@ export default function TaskDetailPage() {
             <div className="task-desc-preview">
               {descDraft.trim() ? (
                 <div className="task-markdown-content">
-                  <ReactMarkdown>{descDraft}</ReactMarkdown>
+                  <ReactMarkdown>{prepareMarkdownForRender(descDraft)}</ReactMarkdown>
                 </div>
               ) : (
                 <div className="task-desc-empty">
