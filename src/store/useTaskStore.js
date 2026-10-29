@@ -556,7 +556,7 @@ export const useTaskStore = create(
         });
       },
 
-      addQuickTask: ({ title, dateKey, workspaceId, dueDate, labelId, labelIds }) => {
+      addQuickTask: ({ title, dateKey, workspaceId, dueDate, labelId, labelIds, description }) => {
         const clean = title?.trim();
         if (!clean) return null;
         const ws = workspaceId || get().activeWorkspaceId || DEFAULT_WORKSPACE_ID;
@@ -570,6 +570,7 @@ export const useTaskStore = create(
         const item = {
           id: uuid(),
           title: clean,
+          description: description ? String(description).trim() : "",
           done: false,
           dateKey: dateKey || todayKey(),
           workspaceId: ws,

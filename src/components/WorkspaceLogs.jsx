@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
+  ArrowUpRight,
   CalendarDays,
   Check,
   CheckCircle2,
   Clock,
+  FileText,
   Filter,
   History,
   Layers,
@@ -646,6 +649,12 @@ export default function WorkspaceLogs({
                               <span className="workspace-log-title">
                                 {task.title}
                               </span>
+                              {task.description && (
+                                <span className="quick-task-desc-pill is-static" title="Has page notes & description">
+                                  <FileText size={10} aria-hidden="true" />
+                                  <span>Notes</span>
+                                </span>
+                              )}
                             </div>
 
                             {/* Metadata row */}
@@ -717,6 +726,15 @@ export default function WorkspaceLogs({
                               )}
                             </div>
                           </div>
+
+                          <Link
+                            to={`/app/task/${task.id}`}
+                            className="quick-task-goto quick-task-goto-page"
+                            title="Go to task page & description"
+                          >
+                            <span>Go to page</span>
+                            <ArrowUpRight size={12} aria-hidden="true" />
+                          </Link>
                         </li>
                       );
                     })}

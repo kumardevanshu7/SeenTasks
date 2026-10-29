@@ -126,6 +126,7 @@ export function normalizeQuickTask(id, data = {}) {
   return {
     id,
     title: data.title || "",
+    description: data.description || "",
     done: Boolean(data.done),
     dateKey: data.dateKey || "",
     workspaceId: data.workspaceId || DEFAULT_WORKSPACE_ID,
@@ -251,6 +252,7 @@ export async function upsertQuickTask(uid, task) {
     doc(db, "users", uid, "quickTasks", task.id),
     {
       title: task.title || "",
+      description: task.description || "",
       done: Boolean(task.done),
       dateKey: task.dateKey || "",
       workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,
@@ -339,6 +341,7 @@ export async function migrateLocalQuickTasks(uid, localItems, clearedAt = 0) {
     missing.slice(i, i + CHUNK).forEach((task) => {
       batch.set(doc(db, "users", uid, "quickTasks", task.id), {
         title: task.title || "",
+        description: task.description || "",
         done: Boolean(task.done),
         dateKey: task.dateKey || "",
         workspaceId: task.workspaceId || DEFAULT_WORKSPACE_ID,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CalendarDays, CalendarRange, CalendarSearch, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, Filter, GitBranch, History, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CalendarRange, CalendarSearch, Check, CheckSquare, ChevronDown, ChevronRight, CircleAlert, Clock, Cloud, FileText, Filter, GitBranch, History, ListTree, Moon, Plus, Sunrise, Tag, Trash2, X } from "lucide-react";
 import { useTaskStore } from "../store/useTaskStore";
 import OnePasswordGate from "./OnePasswordGate";
 import CreateLabelModal from "./CreateLabelModal";
@@ -519,6 +519,17 @@ function QuickTaskRow({
             </>
           )}
           <span className="quick-task-title">{item.title}</span>
+          {item.description && (
+            <Link
+              to={`/app/task/${item.id}`}
+              className="quick-task-desc-pill"
+              title="Has page notes & description. Click to open page."
+              onClick={(e) => e.stopPropagation()}
+            >
+              <FileText size={10} aria-hidden="true" />
+              <span>Notes</span>
+            </Link>
+          )}
           {delayLabel && (missed || recovered) && (
             <span className="quick-task-delay-badge" title={delayNote || undefined}>
               Delayed · {delayLabel}
@@ -566,6 +577,11 @@ function QuickTaskRow({
             </span>
           )}
         </div>
+        {item.description && (
+          <p className="quick-task-desc-snippet" title={item.description}>
+            {item.description}
+          </p>
+        )}
         <div className="quick-task-times">
           {started && <span>Started {started}</span>}
           {ended ? (
@@ -648,24 +664,45 @@ function QuickTaskRow({
 
       {isMirror ? (
         !hideMirrorChip ? (
-          <Link
-            to={mirrorHref}
-            className="quick-task-goto"
-            style={
-              mirrorRef
-                ? {
-                    "--ws-color": mirrorRef.color,
-                    "--ws-ink": mirrorInk,
-                  }
-                : undefined
-            }
-          >
-            {gotoLabel}
-            <ArrowUpRight size={13} aria-hidden="true" />
-          </Link>
+          flowRef ? (
+            <Link
+              to={mirrorHref}
+              className="quick-task-goto"
+              style={
+                mirrorRef
+                  ? {
+                      "--ws-color": mirrorRef.color,
+                      "--ws-ink": mirrorInk,
+                    }
+                  : undefined
+              }
+            >
+              {gotoLabel}
+              <ArrowUpRight size={13} aria-hidden="true" />
+            </Link>
+          ) : (
+            <div className="quick-task-row-actions">
+              <Link
+                to={`/app/task/${item.id}`}
+                className="quick-task-goto quick-task-goto-page"
+                title="Go to task page & description"
+              >
+                <span>Go to page</span>
+                <ArrowUpRight size={13} aria-hidden="true" />
+              </Link>
+            </div>
+          )
         ) : null
       ) : (
         <div className="quick-task-row-actions">
+          <Link
+            to={`/app/task/${item.id}`}
+            className="quick-task-goto quick-task-goto-page"
+            title="Go to task page & description"
+          >
+            <span>Go to page</span>
+            <ArrowUpRight size={13} aria-hidden="true" />
+          </Link>
           {!item.done && (
             <>
               <button
@@ -719,6 +756,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
   const [draft, setDraft] = useState("");
   const [dueDraft, setDueDraft] = useState("");
   const [labelDraft, setLabelDraft] = useState("");
+  const [descDraft, setDescDraft] = useState("");
+  const [showDesc, setShowDesc] = useState(false);
   const [filterLabelId, setFilterLabelId] = useState(null);
   const [labelModalOpen, setLabelModalOpen] = useState(false);
   const [draggingLabel, setDraggingLabel] = useState(false);
@@ -1128,6 +1167,7 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       workspaceId: spaceId,
       dueDate: dueDraft ? dueDraft : null,
       labelId: chosenLabel,
+      description: descDraft.trim(),
     });
     if (added) {
       if (dueDraft || chosenLabel) {
@@ -1139,6 +1179,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       setDraft("");
       setDueDraft("");
       setLabelDraft("");
+      setDescDraft("");
+      setShowDesc(false);
     }
   }
 
@@ -1155,6 +1197,8 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
       setDraft("");
       setDueDraft("");
       setLabelDraft("");
+      setDescDraft("");
+      setShowDesc(false);
     }
   }
 
@@ -1360,6 +1404,16 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                     </button>
                   )}
                 </label>
+                <button
+                  type="button"
+                  className={`quick-tasks-desc-toggle${descDraft ? " has-desc" : ""}${showDesc ? " is-active" : ""}`}
+                  onClick={() => setShowDesc((v) => !v)}
+                  title={showDesc ? "Hide description field" : "Add description / notes (optional)"}
+                  aria-label="Toggle description field"
+                >
+                  <FileText size={14} aria-hidden="true" />
+                  {descDraft && <span className="quick-tasks-desc-dot" />}
+                </button>
                 {draft.trim() && prevMeta && (
                   <button
                     type="button"
@@ -1389,6 +1443,19 @@ export default function QuickTasks({ dateKey, workspaceId = DEFAULT_WORKSPACE_ID
                   </button>
                 )}
               </div>
+
+              {showDesc && (
+                <div className="quick-tasks-desc-row">
+                  <textarea
+                    className="quick-tasks-desc-input"
+                    placeholder="Add task description or details (optional — what is this, how to do it...)"
+                    value={descDraft}
+                    onChange={(e) => setDescDraft(e.target.value)}
+                    rows={2}
+                    aria-label="Task description"
+                  />
+                </div>
+              )}
             </div>
           )}
 
