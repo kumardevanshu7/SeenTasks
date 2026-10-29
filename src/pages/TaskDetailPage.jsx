@@ -125,30 +125,221 @@ export default function TaskDetailPage() {
     updateQuickTask(task.id, { title: clean });
   }
 
-  // Markdown toolbar insertion helper
-  function insertMarkdown(prefix, suffix = "", defaultText = "") {
+  // Rich Notion-style formatting for selections & lines
+  function applyFormatting(type) {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentVal = textarea.value;
-    const selectedText = currentVal.substring(start, end) || defaultText;
+    const val = textarea.value;
+    let start = textarea.selectionStart;
+    let end = textarea.selectionEnd;
 
-    const nextVal =
-      currentVal.substring(0, start) +
-      prefix +
-      selectedText +
-      suffix +
-      currentVal.substring(end);
+    // Line-based block formats (bullet, number, task, quote, headings)
+    const isLineFormat = ["bullet", "number", "task", "quote", "h1", "h2", "h3"].includes(type);
 
-    handleDescChange(nextVal);
+    if (isLineFormat) {
+      // Find start of line (search backwards for newline)
+      let lineStart = val.lastIndexOf("\n", start - 1);
+      lineStart = lineStart === -1 ? 0 : lineStart + 1;
 
-    setTimeout(() => {
-      textarea.focus();
-      const newCursor = start + prefix.length + selectedText.length;
-      textarea.setSelectionRange(newCursor, newCursor);
-    }, 10);
+      // Find end of line (search forwards for newline)
+      let lineEnd = val.indexOf("\n", end);
+      if (lineEnd === -1) lineEnd = val.length;
+
+      const selectedBlock = val.substring(lineStart, lineEnd);
+      const lines = selectedBlock.split("\n");
+
+      let newLines = [];
+
+      if (type === "bullet") {
+        // Check if all non-empty lines already have a bullet
+        const allBulleted = lines.every((l) => !l.trim() || /^\s*[-*+]\s+/.test(l));
+        newLines = lines.map((line) => {
+          if (!line.trim()) return line;
+          if (allBulleted) {
+            return line.replace(/^(\s*)[-*+]\s+/, "$1");
+          }
+          // Remove other list markers (numbers, tasks) and prepend bullet
+          return line.replace(/^(\s*)([-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1- ");
+        });
+      } else if (type === "number") {
+        const allNumbered = lines.every((l) => !l.trim() || /^\s*\d+\.\s+/.test(l));
+        let counter = 1;
+        newLines = lines.map((line) => {
+          if (!line.trim()) return line;
+          if (allNumbered) {
+            return line.replace(/^(\s*)\d+\.\s+/, "$1");
+          }
+          const clean = line.replace(/^(\s*)([-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, `$1${counter}. `);
+          counter += 1;
+          return clean;
+        });
+      } else if (type === "task") {
+        const allTasks = lines.every((l) => !l.trim() || /^\s*-\s*\[[ xX]\]\s+/.test(l));
+        newLines = lines.map((line) => {
+          if (!line.trim()) return line;
+          if (allTasks) {
+            return line.replace(/^(\s*)-\s*\[[ xX]\]\s+/, "$1");
+          }
+          return line.replace(/^(\s*)([-*+]\s+|-\s*\[[ xX]\]\s+|\d+\.\s+)?/, "$1- [ ] ");
+        });
+      } else if (type === "quote") {
+        const allQuotes = lines.every((l) => !l.trim() || /^\s*>\s*/.test(l));
+        newLines = lines.map((line) => {
+          if (!line.trim()) return line;
+          if (allQuotes) {
+            return line.replace(/^(\s*)>\s*/, "$1");
+          }
+          return line.replace(/^(\s*)/, "$1> ");
+        });
+      } else if (type === "h1" || type === "h2" || type === "h3") {
+        const hPrefix = type === "h1" ? "# " : type === "h2" ? "## " : "### ";
+        const allSameHeading = lines.every((l) => !l.trim() || l.startsWith(hPrefix));
+        newLines = lines.map((line) => {
+          if (!line.trim()) return line;
+          const stripped = line.replace(/^(\s*)#{1,6}\s*/, "$1");
+          if (allSameHeading) {
+            return stripped;
+          }
+          return `${hPrefix}${stripped.trimStart()}`;
+        });
+      }
+
+      const replacement = newLines.join("\n");
+      const nextVal = val.substring(0, lineStart) + replacement + val.substring(lineEnd);
+      handleDescChange(nextVal);
+
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(lineStart, lineStart + replacement.length);
+      }, 10);
+      return;
+    }
+
+    // Inline formats
+    const selectedText = val.substring(start, end);
+
+    if (type === "bold") {
+      const wrap = "**";
+      if (selectedText.startsWith(wrap) && selectedText.endsWith(wrap) && selectedText.length >= 4) {
+        const unwrapped = selectedText.slice(2, -2);
+        const nextVal = val.substring(0, start) + unwrapped + val.substring(end);
+        handleDescChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start, start + unwrapped.length);
+        }, 10);
+      } else {
+        const text = selectedText || "bold text";
+        const replacement = `${wrap}${text}${wrap}`;
+        const nextVal = val.substring(0, start) + replacement + val.substring(end);
+        handleDescChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + 2, start + 2 + text.length);
+        }, 10);
+      }
+    } else if (type === "italic") {
+      const wrap = "*";
+      if (selectedText.startsWith(wrap) && selectedText.endsWith(wrap) && selectedText.length >= 2 && !selectedText.startsWith("**")) {
+        const unwrapped = selectedText.slice(1, -1);
+        const nextVal = val.substring(0, start) + unwrapped + val.substring(end);
+        handleDescChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start, start + unwrapped.length);
+        }, 10);
+      } else {
+        const text = selectedText || "italic text";
+        const replacement = `${wrap}${text}${wrap}`;
+        const nextVal = val.substring(0, start) + replacement + val.substring(end);
+        handleDescChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + 1, start + 1 + text.length);
+        }, 10);
+      }
+    } else if (type === "strike") {
+      const wrap = "~~";
+      if (selectedText.startsWith(wrap) && selectedText.endsWith(wrap) && selectedText.length >= 4) {
+        const unwrapped = selectedText.slice(2, -2);
+        const nextVal = val.substring(0, start) + unwrapped + val.substring(end);
+        handleDescChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start, start + unwrapped.length);
+        }, 10);
+      } else {
+        const text = selectedText || "strikethrough";
+        const replacement = `${wrap}${text}${wrap}`;
+        const nextVal = val.substring(0, start) + replacement + val.substring(end);
+        handleDescChange(nextVal);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + 2, start + 2 + text.length);
+        }, 10);
+      }
+    } else if (type === "code") {
+      const wrap = "`";
+      const text = selectedText || "code";
+      const replacement = `${wrap}${text}${wrap}`;
+      const nextVal = val.substring(0, start) + replacement + val.substring(end);
+      handleDescChange(nextVal);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + 1, start + 1 + text.length);
+      }, 10);
+    } else if (type === "codeblock") {
+      const text = selectedText || "code block here";
+      const replacement = `\n\`\`\`\n${text}\n\`\`\`\n`;
+      const nextVal = val.substring(0, start) + replacement + val.substring(end);
+      handleDescChange(nextVal);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + 5, start + 5 + text.length);
+      }, 10);
+    } else if (type === "link") {
+      const text = selectedText || "link title";
+      const replacement = `[${text}](https://example.com)`;
+      const nextVal = val.substring(0, start) + replacement + val.substring(end);
+      handleDescChange(nextVal);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + text.length + 3, start + replacement.length - 1);
+      }, 10);
+    } else if (type === "divider") {
+      const replacement = "\n\n---\n\n";
+      const nextVal = val.substring(0, start) + replacement + val.substring(end);
+      handleDescChange(nextVal);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + replacement.length, start + replacement.length);
+      }, 10);
+    }
+  }
+
+  // Handle Tab and shortcut keys in description textarea
+  function handleTextareaKeyDown(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      applyFormatting("bold");
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+      e.preventDefault();
+      applyFormatting("italic");
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const val = textarea.value;
+      const nextVal = val.substring(0, start) + "  " + val.substring(end);
+      handleDescChange(nextVal);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + 2, start + 2);
+      }, 10);
+    }
   }
 
   // Workspace and labels lookups
@@ -652,7 +843,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("**", "**", "bold text")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("bold")}
                   title="Bold (Ctrl+B)"
                 >
                   <Bold size={13} />
@@ -660,7 +852,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("*", "*", "italic text")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("italic")}
                   title="Italic (Ctrl+I)"
                 >
                   <Italic size={13} />
@@ -668,7 +861,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("~~", "~~", "strikethrough")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("strike")}
                   title="Strikethrough"
                 >
                   <Strikethrough size={13} />
@@ -677,7 +871,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("# ", "", "Heading 1")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("h1")}
                   title="Heading 1"
                 >
                   <Heading1 size={13} />
@@ -685,7 +880,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("## ", "", "Heading 2")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("h2")}
                   title="Heading 2"
                 >
                   <Heading2 size={13} />
@@ -693,7 +889,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("### ", "", "Heading 3")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("h3")}
                   title="Heading 3"
                 >
                   <Heading3 size={13} />
@@ -702,24 +899,27 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("- ", "", "List item")}
-                  title="Bulleted list"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("bullet")}
+                  title="Bulleted list (applies to selected lines)"
                 >
                   <List size={13} />
                 </button>
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("1. ", "", "Ordered item")}
-                  title="Numbered list"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("number")}
+                  title="Numbered list (applies to selected lines)"
                 >
                   <ListOrdered size={13} />
                 </button>
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("- [ ] ", "", "Todo item")}
-                  title="Checklist item"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("task")}
+                  title="Checklist items (applies to selected lines)"
                 >
                   <ListTodo size={13} />
                 </button>
@@ -727,15 +927,17 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("> ", "", "Quote")}
-                  title="Quote"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("quote")}
+                  title="Quote block"
                 >
                   <Quote size={13} />
                 </button>
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("`", "`", "code")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("code")}
                   title="Inline code"
                 >
                   <Code size={13} />
@@ -743,7 +945,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("\n```\n", "\n```\n", "code block")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("codeblock")}
                   title="Code block"
                 >
                   {"{ }"}
@@ -751,7 +954,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("[", "](https://example.com)", "link title")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("link")}
                   title="Hyperlink"
                 >
                   Link
@@ -759,7 +963,8 @@ export default function TaskDetailPage() {
                 <button
                   type="button"
                   className="task-toolbar-btn"
-                  onClick={() => insertMarkdown("\n---\n", "", "")}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyFormatting("divider")}
                   title="Divider"
                 >
                   <Minus size={13} />
@@ -772,6 +977,7 @@ export default function TaskDetailPage() {
                 className="task-desc-textarea"
                 value={descDraft}
                 onChange={(e) => handleDescChange(e.target.value)}
+                onKeyDown={handleTextareaKeyDown}
                 placeholder="Write task details, instructions, references, or notes here... (Notion-style, Markdown supported)&#10;&#10;e.g.&#10;• What needs to be done&#10;• Step-by-step guidance&#10;• Useful URLs or code snippets"
                 rows={12}
                 aria-label="Task description"
